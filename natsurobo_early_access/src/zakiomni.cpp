@@ -2,7 +2,7 @@
 
     Zakicar::Zakicar() : Node("OmniDrive") {
         ////////////おふざけ//////////////
-        const char* msg = " Shivangelion!!! Activatation!!!";
+        const char* msg = " Shivanglion!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
         std::system(fig_msg.c_str());
         /////////////////////////////////
@@ -34,12 +34,29 @@
             return;
         } // 申し訳ないが初期のdt（=0)はNG
         enc_data_ = msg->data[1];
-        uint16_t now_enc = enc_data_;//計算の都合上、型を変える
-        uint16_t u_diff = now_enc - pre_enc;
-        int16_t diff = static_cast<int16_t>(u_diff); //計算が終われば元に戻す
-        current = this->now();
+        int32_t now_enc = static_cast<int16_t>(enc_data_);//計算の都合上、型を変える
+        int32_t pre_enc32 = static_cast<int16_t>(pre_enc);
+        int16_t diff32 = now_enc - pre_enc32; //計算が終われば元に戻す
+        //current = this->now();
+        if(diff32 > 16384) {
+            diff32 -= 32768; // カウンタがオーバーフローしている場合の補正
+        } else if (diff32 < -16384) {
+            diff32 += 32768; // カウンタがアンダーフローしている場合の補正
+        }
+        int16_t diff = static_cast<int16_t>(diff32);
+        if(dt < 0.005) { 
+            // last は更新しない。次回呼ばれたときに合算して計算させる
+            return;
+        } 
+        
         pre_enc = now_enc;
-        zakiomni_v = diff / dt; // 速度を計算
+        double raw_v = diff / dt; 
+        rpm = (raw_v / cpr) * 60.0; // 回転数を計算
+        
+        // ローパスフィルタ (値は0.1〜0.5程度で調整)
+        //double alpha = 0.2; 
+        //zakiomni_v = (1.0 - alpha) * zakiomni_v + alpha * raw_v; 
+        // zakiomni_v = diff / dt; // 速度を計算
         last = current;
     }
     
@@ -87,11 +104,32 @@
             target_v = 0.0; 
             joy_received = false; //ジョイスティックの入力がない状態に戻す
         }
-        rpm = (zakiomni_v / cpr) * 60.0; // 回転数を計算
-        err = target_v - zakiomni_v;
+        //rpm = (zakiomni_v / cpr) * 60.0; // 回転数を計算
+                // 現在の誤差
+        err = target_v - rpm;
+        
+        // 誤差を蓄積 (I制御用)
+        // ※厳密には dt を掛けますが、20ms固定周期で呼ばれるので単純加算でも動きます
+        err_sum += err;
+        
+        // I制御の暴走(ワインドアップ)を防ぐために蓄積量に上限を設ける
+        err_sum = std::clamp(err_sum, -2000.0, 2000.0);
+
+        // PI制御の出力を計算
+        double P = Kp * err;
+        double I = Ki * err_sum;
+        double duty = P + I;
+
+        // 目標速度が0の時はピタッと止めるために蓄積をリセット
+        if (target_v == 0.0) {
+            err_sum = 0.0;
+            duty = 0.0;
+        }
+
+        zakistep = static_cast<int16_t>(std::clamp(duty, -100.0, 100.0));
         auto feedback = std_msgs::msg::Int16MultiArray();
         feedback.data.assign(25, 0);//受信側のサイズが固定されてるので;
-        zakistep = std::clamp(Kp*err, -max_target_cps, max_target_cps);
+        //zakistep = std::clamp(Kp*err, -max_target_cps, max_target_cps);
         feedback.data[1] = zakistep; 
         motor_pub_->publish(feedback);//serial_tx_1(モーター)に値を送る
           RCLCPP_INFO(this->get_logger(), "Enc : %d,LS_Y: %f,Probably, %frpm,PID: %d", enc_data_, LS_Y, rpm, zakistep);

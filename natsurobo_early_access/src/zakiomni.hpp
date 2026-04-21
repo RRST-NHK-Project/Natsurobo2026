@@ -15,8 +15,10 @@
 #define cpr 8000//1回転あたり8000回と仮定
 // スティックのデッドゾーン
 #define DEADZONE_L 0.05
-const double max_target_cps = 100.0; // 1秒あたりの最大回転数。速度管理はここをいじって
-const double Kp  = 0.5; // P制御
+const double max_target_cps = 50.0; // 1秒あたりの最大回転数。速度管理はここをいじって
+const double Kp  = 0.01; // P制御
+const double Ki = 0.2; // I制御（必要に応じて調整）
+double err_sum = 0.0; // 誤差の蓄積用
 
 using namespace std::chrono_literals;
 
