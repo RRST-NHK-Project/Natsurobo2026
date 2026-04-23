@@ -110,9 +110,7 @@
 
         // PI制御の出力を計算
         double P = Kp * err;
-        double I = Ki * err_sum;
-
-        I = std::clamp(I, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
+        double I = std::clamp(Ki * err_sum, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
 
         double motor_power = P + I;
 
