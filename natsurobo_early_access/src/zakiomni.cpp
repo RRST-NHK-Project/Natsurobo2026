@@ -21,7 +21,7 @@
     }
 
     void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
-        rclcpp::Time current = this->now();
+        rclcpp::Time current = this->get_clock()->now();
         dt = (current - last).seconds();
 
         //セーフティチェック(通信)
@@ -91,7 +91,7 @@
 
         target_v = LS_Y * max_target_cps; // スティックの入力に基づいて目標速度を計算
         joy_received = true;//joystick受信フラグ
-        last_joy_time = this->now();
+        last_joy_time = this->get_clock()->now();
         }
     void Zakicar::About_PID(){
 
@@ -100,7 +100,7 @@
             target_v = 0.0; 
             return;
         }
-        double blank_time = (this->now() - last_joy_time).seconds();//joyとの通信間隔
+        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔
         if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
             target_v = 0.0; 
             joy_received = false; //ジョイスティックの入力がない状態に戻す
@@ -108,16 +108,17 @@
 
 
         err = target_v - zakirps;//P制御
-        err_sum += err * dt; //I制御
+        static double err_sum  = 0.0; //I制御
+        err_sum += err * dt; //誤差を時間で積分
 
         // PI制御の出力を計算
         double P = Kp * err;
-        double I = std::clamp(Ki * err_sum, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
+        double I = std::clamp(Ki * err_sum, -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
 
         double motor_power = P + I;
 
         // 目標速度が0の時は停止したいから蓄積をリセット
-        if (target_v == 0.0) {
+        if (target_v <= 0.1 && target_v >= -0.1) {
             err_sum = 0.0;
             motor_power = 0.0;
         }
