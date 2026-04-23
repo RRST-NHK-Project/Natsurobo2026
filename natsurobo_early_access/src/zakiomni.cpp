@@ -2,11 +2,7 @@
 
     Zakicar::Zakicar() : Node("OmniDrive") {
 
-        ////////////おふざけ//////////////
-        const char* msg = " Shivangelion!!! Activatation!!!";
-        std::string fig_msg = "figlet " + std::string(msg);
-        std::system(fig_msg.c_str());
-        /////////////////////////////////
+
 
         //マイコンにトピック（モーター）を送信
         motor_pub_ = this->create_publisher<std_msgs::msg::Int16MultiArray>("serial_tx_1", 10);
@@ -26,6 +22,7 @@
 
     void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
         rclcpp::Time current = this->now();
+        dt = (current - last).seconds();
 
         //セーフティチェック(通信)
         if(!enc_received) {
@@ -41,6 +38,9 @@
         } else if(dt <= 0.005){
             return;
         }// 申し訳ないが初期のdt（=0)はNG
+        if(!shivangelion_activated){
+            shivangelion();
+        }
 
         //エンコーダのオーバーフローを防止と回転数の計算
         enc_data_ = msg->data[1];
@@ -137,6 +137,17 @@
                 dt,enc_data_, LS_Y, zakirps, zakipow, target_v, P, I);
 
     };
+    void Zakicar::shivangelion(){
+
+        /////////////おふざけ//////////////
+        if(!shivangelion_activated){
+            const char* msg = " Shivangelion!!! Activatation!!!";
+            std::string fig_msg = "figlet " + std::string(msg);
+            std::system(fig_msg.c_str());
+            shivangelion_activated = true;
+        }
+        /////////////////////////////////
+    }
 
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);

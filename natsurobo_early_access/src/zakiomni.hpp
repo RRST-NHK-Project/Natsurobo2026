@@ -21,7 +21,7 @@ const double Ki = 0.3; // I制御（必要に応じて調整）
 const double Imax = 20.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
 const int delta_power_limit = 15;// 出力変化の上限
-const double enc_max = 32768.0; // エンコーダーの最大値
+const double enc_max = 32767.0; // エンコーダーの最大値
 
 using namespace std::chrono_literals;
 
@@ -34,6 +34,7 @@ class Zakicar : public rclcpp::Node {
     void encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
     void PS4Callback(const sensor_msgs::msg::Joy::SharedPtr msg);
     void About_PID();
+    void shivangelion();
 
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr motor_pub_;
     rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr enc_sub_;
@@ -54,6 +55,7 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time last_joy_time;
     bool joy_received = false;
     bool enc_received = false;
+    bool shivangelion_activated = false;
     int zakipow = 0;
     int last_zakipow = 0;
     uint16_t pre_enc = 0;
