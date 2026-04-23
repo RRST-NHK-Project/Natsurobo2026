@@ -1,11 +1,13 @@
 #include "zakiomni.hpp"
 
     Zakicar::Zakicar() : Node("OmniDrive") {
+
         ////////////おふざけ//////////////
         const char* msg = " Shivangelion!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
         std::system(fig_msg.c_str());
         /////////////////////////////////
+
         //マイコンにトピック（モーター）を送信
         motor_pub_ = this->create_publisher<std_msgs::msg::Int16MultiArray>("serial_tx_1", 10);
         //マイコンからトピック（エンコーダの値）を受信
@@ -19,8 +21,11 @@
             20ms,
             std::bind(&Zakicar::About_PID,this));//20msごとにPID制御の関数を呼び出す
     }
+    
     void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
         rclcpp::Time current = this->now();
+
+        //セーフティチェック(通信)
         if(!enc_received) {
             pre_enc = static_cast<uint16_t>(msg->data[1]);
             enc_received = true;
@@ -28,25 +33,23 @@
             dt = 0.0;
             return;
         } // last,pre_encの初期化
-       
-        dt = (current - last).seconds();//rosの時間を.seconds()で秒に変換
-        if(dt <= 0.0) {
+        if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
             last = current;
             return;
-        } // 申し訳ないが初期のdt（=0)はNG
+        } else if(dt <= 0.005){
+            return;
+        }// 申し訳ないが初期のdt（=0)はNG
+
+        //エンコーダのオーバーフローを防止と回転数の計算
         enc_data_ = msg->data[1];
-        int32_t now_enc = static_cast<int16_t>(enc_data_),pre_enc32 = static_cast<int16_t>(pre_enc);//計算の都合上、型を変える
-        int32_t diff32 = now_enc - pre_enc32; //計算が終われば元に戻す
-        if(diff32 > 16384) {
-            diff32 -= 32768; // カウンタがオーバーフローしている場合の補正
-        } else if (diff32 < -16384) {
-            diff32 += 32768; // カウンタがアンダーフローしている場合の補正
+        int32_t now_enc = enc_data_,pre_enc32 = static_cast<int16_t>(pre_enc);//計算の都合上、型を変える
+        int32_t diff32 = now_enc - pre_enc32; 
+        if(diff32 > enc_max/2) {
+            diff32 -= enc_max; 
+        } else if (diff32 < -enc_max/2) {
+            diff32 += enc_max; 
         }
         int16_t diff = static_cast<int16_t>(diff32);
-        if(dt < 0.005) { //dtがあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
-            // last は更新しない。次回呼ばれたときに合算して計算させる
-            return;
-        } 
         rps = diff/(dt * cpr); // 回転数を計算
         last = current;
         pre_enc = now_enc;
@@ -78,36 +81,39 @@
 
         //bool L3 = msg->buttons[11];
         //bool R3 = msg->buttons[12];
-        joy_received = true;//joystick受信フラグ
-        last_joy_time = this->now();
         
+        //セーフティチェック(スティック)
         if(fabs(LS_Y) < DEADZONE_L) {
             LS_Y = 0.0f; //十分小さいのでゼロとみなす
         }
+
         target_v = LS_Y * max_target_cps; // スティックの入力に基づいて目標速度を計算
+        joy_received = true;//joystick受信フラグ
+        last_joy_time = this->now();
         }
     void Zakicar::About_PID(){
+
+        // セーフティチェック(joy)
         if(!joy_received){
             target_v = 0.0; 
             return;
         }
-        double blank_time = (this->now() - last_joy_time).seconds();//現在時刻と最後にジョイスティックを受け取った時刻の差
+        double blank_time = (this->now() - last_joy_time).seconds();//joyとの通信間隔
         if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
             target_v = 0.0; 
             joy_received = false; //ジョイスティックの入力がない状態に戻す
         }
-        err = target_v - rps;
-        
-        // 誤差を蓄積 (I制御用)
-        err_sum += err * dt; //誤差を蓄積
-        
-        // I制御に上限を設ける
-        err_sum = std::clamp(err_sum, -Imax, Imax);
+
+
+        err = target_v - rps;//P制御
+        err_sum += err * dt; //I制御
 
         // PI制御の出力を計算
         double P = Kp * err;
         double I = Ki * err_sum;
         double motor_power = P + I;
+
+         I = std::clamp(I, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
 
         // 目標速度が0の時は停止したいから蓄積をリセット
         if (target_v == 0.0) {
@@ -116,20 +122,18 @@
         }
 
         zakistep = static_cast<int16_t>(std::clamp(motor_power,-motor_limit,motor_limit)); // モーターの出力を制限        
-        if(fabs(zakistep - last_zakistep) > delta_power_limit ) {//出力変化を制限
-            if(zakistep > last_zakistep) {
-                zakistep = last_zakistep + delta_power_limit;
-            } else {
-                zakistep = last_zakistep - delta_power_limit;
-            }
-        }
+        zakistep = std::clamp(zakistep, last_zakistep - delta_power_limit, last_zakistep + delta_power_limit); // 出力の変化を制限
             
         auto feedback = std_msgs::msg::Int16MultiArray();
         feedback.data.assign(25, 0);//受信側のサイズが固定されてるので;
         feedback.data[1] = zakistep; 
         motor_pub_->publish(feedback);//serial_tx_1(モーター)に値を送る
         last_zakistep = zakistep;
-        RCLCPP_INFO(this->get_logger(), "Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f", enc_data_, LS_Y, rps, zakistep, target_v, P, I);
+
+        // デバッグ用のログ出力
+        RCLCPP_INFO(this->get_logger(),
+                "dt: %f, Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f",
+                dt,enc_data_, LS_Y, rps, zakistep, target_v, P, I);
 
     };
 
