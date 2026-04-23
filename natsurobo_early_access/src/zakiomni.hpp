@@ -12,13 +12,15 @@
 #include <cmath>
 #include <cstdlib>
 
-#define cpr 8000//1回転あたり8000回と仮定
-// スティックのデッドゾーン
-#define DEADZONE_L 0.03
-const double max_target_cps = 10.0; // 1秒あたりの最大回転数。速度管理はここをいじって
+//　よく調整する定数集
+#define cpr 8000//1回転あたり8000カウントと仮定
+#define DEADZONE_L 0.02// スティックのデッドゾーン
+const double max_target_cps = 10.0; // 1秒あたりの最大回転数
 const double Kp  = 1.0; // P制御(必要に応じて調整)
 const double Ki = 0.3; // I制御（必要に応じて調整）
-double err_sum = 0.0; // 誤差の蓄積用
+const double Imax = 50.0; // I制御の蓄積の上限（必要に応じて調整）
+const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
+const double delta_power_limit = 15.0;// 出力変化の上限
 
 using namespace std::chrono_literals;
 
@@ -37,19 +39,21 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
     
-    double measured_cps = 0.0;
     rclcpp::Time last;
     double zakiomni_v = 0.0;
     double target_v = 0.0;
     double err = 0.0;
+    double err_sum = 0.0;
     double rps = 0.0;
+    double dt = 0.0; 
     rclcpp::Time last_joy_time;
     bool joy_received = false;
     bool enc_received = false;
     int16_t zakistep = 0;
-    //int16_t last_zakistep = 0;
+    int16_t last_zakistep = 0;
     uint16_t pre_enc = 0;
     int16_t enc_data_ = 0;
+
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
     float LS_Y;
     //float LS_X;
@@ -71,7 +75,6 @@ class Zakicar : public rclcpp::Node {
     //bool SHARE;
     //bool OPTION;
     //bool PS;
-
     //bool L3;
     //bool R3;   
 };
