@@ -47,15 +47,15 @@ class Zakicar : public rclcpp::Node {
     double target_v = 0.0;
     double err = 0.0;
     double err_sum = 0.0;
-    double rps = 0.0;
+    double zakirps = 0.0;
     double dt = 0.0; 
 
     //フラグ関連の変数
     rclcpp::Time last_joy_time;
     bool joy_received = false;
     bool enc_received = false;
-    int zakistep = 0;
-    int last_zakistep = 0;
+    int zakipow = 0;
+    int last_zakipow = 0;
     uint16_t pre_enc = 0;
     int16_t enc_data_ = 0;
 

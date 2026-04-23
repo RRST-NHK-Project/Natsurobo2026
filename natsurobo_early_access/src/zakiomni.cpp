@@ -16,7 +16,9 @@
         
         //joyスティックからトピックを受信
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
-        "joy", 10, std::bind(&Zakicar::PS4Callback, this, std::placeholders::_1));
+        "joy",
+         10,
+         std::bind(&Zakicar::PS4Callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             20ms,
             std::bind(&Zakicar::About_PID,this));//20msごとにPID制御の関数を呼び出す
@@ -50,7 +52,7 @@
             diff32 += enc_max; 
         }
         int16_t diff = static_cast<int16_t>(diff32);
-        rps = diff/(dt * cpr); // 回転数を計算
+        zakirps = diff/(dt * cpr); // 回転数を計算
         last = current;
         pre_enc = now_enc;
     }
@@ -105,7 +107,7 @@
         }
 
 
-        err = target_v - rps;//P制御
+        err = target_v - zakirps;//P制御
         err_sum += err * dt; //I制御
 
         // PI制御の出力を計算
@@ -120,19 +122,19 @@
             motor_power = 0.0;
         }
 
-        zakistep = static_cast<int16_t>(std::clamp(motor_power,-motor_limit,motor_limit)); // モーターの出力を制限        
-        zakistep = std::clamp(zakistep, last_zakistep - delta_power_limit, last_zakistep + delta_power_limit); // 出力の変化を制限
+        zakipow = static_cast<int16_t>(std::clamp(motor_power,-motor_limit,motor_limit)); // モーターの出力を制限        
+        zakipow = std::clamp(zakipow, last_zakipow - delta_power_limit, last_zakipow + delta_power_limit); // 出力の変化を制限
             
         auto feedback = std_msgs::msg::Int16MultiArray();
         feedback.data.assign(25, 0);//受信側のサイズが固定されてるので;
-        feedback.data[1] = zakistep; 
+        feedback.data[1] = zakipow; 
         motor_pub_->publish(feedback);//serial_tx_1(モーター)に値を送る
-        last_zakistep = zakistep;
+        last_zakipow = zakipow;
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
                 "dt: %f, Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f",
-                dt,enc_data_, LS_Y, rps, zakistep, target_v, P, I);
+                dt,enc_data_, LS_Y, zakirps, zakipow, target_v, P, I);
 
     };
 
