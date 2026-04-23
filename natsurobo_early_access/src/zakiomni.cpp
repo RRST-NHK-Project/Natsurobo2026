@@ -21,7 +21,7 @@
             20ms,
             std::bind(&Zakicar::About_PID,this));//20msごとにPID制御の関数を呼び出す
     }
-    
+
     void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
         rclcpp::Time current = this->now();
 
@@ -111,9 +111,10 @@
         // PI制御の出力を計算
         double P = Kp * err;
         double I = Ki * err_sum;
-        double motor_power = P + I;
 
-         I = std::clamp(I, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
+        I = std::clamp(I, -Imax, Imax);// -Imax <= err_sum <= Imaxに制限
+
+        double motor_power = P + I;
 
         // 目標速度が0の時は停止したいから蓄積をリセット
         if (target_v == 0.0) {
