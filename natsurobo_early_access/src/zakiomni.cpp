@@ -2,7 +2,7 @@
 
     Zakicar::Zakicar() : Node("OmniDrive") {
 
-
+        std::cout << "Waiting to receive topics." << std::endl;
 
         //マイコンにトピック（モーター）を送信
         motor_pub_ = this->create_publisher<std_msgs::msg::Int16MultiArray>("serial_tx_1", 10);
