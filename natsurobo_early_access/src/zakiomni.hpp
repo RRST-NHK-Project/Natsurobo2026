@@ -18,7 +18,7 @@
 const double max_target_cps = 10.0; // 1秒あたりの最大回転数
 const double Kp  = 1.0; // P制御(必要に応じて調整)
 const double Ki = 0.3; // I制御（必要に応じて調整）
-const double Imax = 50.0; // I制御の蓄積の上限（必要に応じて調整）
+const double Imax = 20.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
 const int delta_power_limit = 15;// 出力変化の上限
 const double enc_max = 32768.0; // エンコーダーの最大値
