@@ -14,10 +14,10 @@
 
 #define cpr 8000//1回転あたり8000回と仮定
 // スティックのデッドゾーン
-#define DEADZONE_L 0.05
-const double max_target_cps = 50.0; // 1秒あたりの最大回転数。速度管理はここをいじって
-const double Kp  = 0.7; // P制御
-const double Ki = 0.6; // I制御（必要に応じて調整）
+#define DEADZONE_L 0.03
+const double max_target_cps = 10.0; // 1秒あたりの最大回転数。速度管理はここをいじって
+const double Kp  = 1.0; // P制御(必要に応じて調整)
+const double Ki = 0.3; // I制御（必要に応じて調整）
 double err_sum = 0.0; // 誤差の蓄積用
 
 using namespace std::chrono_literals;
@@ -42,11 +42,12 @@ class Zakicar : public rclcpp::Node {
     double zakiomni_v = 0.0;
     double target_v = 0.0;
     double err = 0.0;
-    double rpm = 0.0;
+    double rps = 0.0;
     rclcpp::Time last_joy_time;
     bool joy_received = false;
     bool enc_received = false;
     int16_t zakistep = 0;
+    //int16_t last_zakistep = 0;
     uint16_t pre_enc = 0;
     int16_t enc_data_ = 0;
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
@@ -54,22 +55,22 @@ class Zakicar : public rclcpp::Node {
     //float LS_X;
     //float LS_Y;
     //float RS_X;
-    // float RS_Y;
-    // bool CROSS;
-    // bool CIRCLE;
-    // bool TRIANGLE;
-    // bool SQUARE;
+    //float RS_Y;
+    //bool CROSS;
+    //bool CIRCLE;
+    //bool TRIANGLE;
+    //bool SQUARE;
     //bool LEFT;
     //bool RIGHT;
     //bool UP;
     //bool DOWN;
-    // bool L1;
-    // bool R1;
-    // float L2;
+    //bool L1;
+    //bool R1;
+    //float L2;
     //float R2;
     //bool SHARE;
     //bool OPTION;
-    // bool PS;
+    //bool PS;
 
     //bool L3;
     //bool R3;   

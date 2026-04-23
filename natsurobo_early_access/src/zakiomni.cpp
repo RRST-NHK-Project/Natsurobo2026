@@ -2,7 +2,7 @@
 
     Zakicar::Zakicar() : Node("OmniDrive") {
         ////////////おふざけ//////////////
-        const char* msg = " Shivanglion!!! Activatation!!!";
+        const char* msg = " Shivangelion!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
         std::system(fig_msg.c_str());
         /////////////////////////////////
@@ -43,14 +43,14 @@
             diff32 += 32768; // カウンタがアンダーフローしている場合の補正
         }
         int16_t diff = static_cast<int16_t>(diff32);
-        if(dt < 0.005) { 
+        if(dt < 0.005) { //dtがあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
             // last は更新しない。次回呼ばれたときに合算して計算させる
             return;
         } 
         
         pre_enc = now_enc;
         double raw_v = diff / dt; 
-        rpm = (raw_v / cpr) * 60.0; // 回転数を計算
+        rps = raw_v / cpr; // 回転数を計算
         last = current;
     }
     
@@ -60,23 +60,23 @@
     //LS_X = -1*msg->axes[0];
     //LS_Y = msg->axes[1];
     //RS_X = -1 * msg->axes[3];
-    //  RS_Y = msg->axes[4];
-    // CROSS = msg->buttons[0];
-    // CIRCLE = msg->buttons[1];
-    // TRIANGLE = msg->buttons[2];
-    // SQUARE = msg->buttons[3];
-    // LEFT = msg->axes[6] == 1.0;
+    //RS_Y = msg->axes[4];
+    //CROSS = msg->buttons[0];
+    //CIRCLE = msg->buttons[1];
+    //TRIANGLE = msg->buttons[2];
+    //SQUARE = msg->buttons[3];
+    //LEFT = msg->axes[6] == 1.0;
     //RIGHT = msg->axes[6] == -1.0;
     //UP = msg->axes[7] == 1.0;
     //DOWN = msg->axes[7] == -1.0;
-    // L1 = msg->buttons[4];    
-    // R1 = msg->buttons[5];
-    //  L2 = (-1 * msg->axes[2] + 1) / 2;
+    //L1 = msg->buttons[4];    
+    //R1 = msg->buttons[5];
+    //L2 = (-1 * msg->axes[2] + 1) / 2;
     //R2 = (-1 * msg->axes[5] + 1) / 2;
 
     //bool SHARE = msg->buttons[8];
     //bool OPTION = msg->buttons[9];
-    // bool PS = msg->buttons[10];
+    //bool PS = msg->buttons[10];
 
     //bool L3 = msg->buttons[11];
     //bool R3 = msg->buttons[12];
@@ -98,13 +98,13 @@
             target_v = 0.0; 
             joy_received = false; //ジョイスティックの入力がない状態に戻す
         }
-        err = target_v - rpm;
+        err = target_v - rps;
         
         // 誤差を蓄積 (I制御用)
         err_sum += err*0.02; // 20ms周期で呼ばれることを考慮して誤差を蓄積
         
         // I制御の暴走(ワインドアップ)を防ぐために蓄積量に上限を設ける
-        err_sum = std::clamp(err_sum, -500.0, 500.0);
+        err_sum = std::clamp(err_sum, -50.0, 50.0);
 
         // PI制御の出力を計算
         double P = Kp * err;
@@ -117,12 +117,16 @@
             duty = 0.0;
         }
 
-        zakistep = static_cast<int16_t>(std::clamp(duty, -100.0, 100.0));
+        zakistep = static_cast<int16_t>(std::clamp(duty, -80.0, 80.0));
+        //if(f
+        //ab(zakistep - last_zakistep) > 10 ) {
+            
         auto feedback = std_msgs::msg::Int16MultiArray();
         feedback.data.assign(25, 0);//受信側のサイズが固定されてるので;
         feedback.data[1] = zakistep; 
         motor_pub_->publish(feedback);//serial_tx_1(モーター)に値を送る
-          RCLCPP_INFO(this->get_logger(), "Enc : %d,LS_Y: %f,Probably, %frpm,PID: %d", enc_data_, LS_Y, rpm, zakistep);
+        //slast_zakistep = zakistep;
+        RCLCPP_INFO(this->get_logger(), "Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f", enc_data_, LS_Y, rps, zakistep, target_v, P, I);
 
     };
 
