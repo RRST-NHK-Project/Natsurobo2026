@@ -16,11 +16,11 @@
 #define cpr 8000//1回転あたり8000カウントと仮定
 #define DEADZONE_L 0.02// スティックのデッドゾーン
 const double max_target_cps = 10.0; // 1秒あたりの最大回転数
-const double Kp  = 1.0; // P制御(必要に応じて調整)
-const double Ki = 0.3; // I制御（必要に応じて調整）
-const double Imax = 20.0; // I制御の蓄積の上限（必要に応じて調整）
+const double Kp  = 3.5;//P制御(必要に応じて調整)
+const double Ki = 0.4; // I制御（必要に応じて調整）
+const double Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
-const int delta_power_limit = 15;// 出力変化の上限
+const int delta_power_limit = 10;// 出力変化の上限
 const double enc_max = 32767.0; // エンコーダーの最大値
 
 using namespace std::chrono_literals;
@@ -42,7 +42,7 @@ class Zakicar : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr timer_;
     
     rclcpp::Time current;
-    rclcpp::Time last;
+    rclcpp::Time last = this->get_clock()->now();
 
     double zakiomni_v = 0.0;
     double target_v = 0.0;
@@ -52,7 +52,7 @@ class Zakicar : public rclcpp::Node {
     double dt = 0.0; 
 
     //フラグ関連の変数
-    rclcpp::Time last_joy_time;
+    rclcpp::Time last_joy_time = this->get_clock()->now();
     bool joy_received = false;
     bool enc_received = false;
     bool shivangelion_activated = false;
