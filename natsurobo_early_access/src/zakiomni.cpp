@@ -56,7 +56,7 @@
                     diff32[i] += enc_max; 
                 }
                 diff[i] = static_cast<int16_t>(diff32[i]);
-                zakirps[i] = diff[i]/(dt * cpr); // 回転数を計算
+                zakirps[i] = -diff[i]/(dt * cpr); // 回転数を計算(-は回転方向の調整)
                 last = current;
                 pre_enc[i] = now_enc[i];
             }
@@ -117,7 +117,7 @@
 
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
-            err_sum[k]  += err[k] * 0.02; //I制御
+            err_sum[k]  += err[k] * dt; //I制御
         }
 
         // PI制御の出力を計算

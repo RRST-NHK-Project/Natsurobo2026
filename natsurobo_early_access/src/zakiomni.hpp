@@ -13,12 +13,12 @@
 #include <cstdlib>
 
 //　よく調整する定数集(For Mabuchi 775 motor))
-#define cpr 8000//1回転あたり8000カウントと仮定
+#define cpr 8192//1回転あたり8000カウントと仮定
 #define DEADZONE_L 0.02// スティックのデッドゾーン
-const double max_target_cps = 10.0; // 1秒あたりの最大回転数
-const double Kp  = 3.5;//P制御(必要に応じて調整)
-const double Ki = 0.4; // I制御（必要に応じて調整）
-const double Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
+const double max_target_cps = 6.0; // 1秒あたりの最大回転数
+const double Kp  = 10.0;//P制御(必要に応じて調整)
+const double Ki = 0.0; // I制御（必要に応じて調整）
+const double Imax = 50.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
 const int delta_power_limit = 10;// 出力変化の上限
 const double enc_max = 32767.0; // エンコーダーの最大値
