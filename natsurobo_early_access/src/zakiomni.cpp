@@ -12,8 +12,8 @@
         
         //joyスティックからトピックを受信
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
-        "joy",
-         10,
+            "joy",
+             10,
          std::bind(&Zakicar::PS4Callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             20ms,
@@ -25,36 +25,41 @@
         dt = (current - last).seconds();
 
         //セーフティチェック(通信)
-        if(!enc_received) {
-            pre_enc = static_cast<uint16_t>(msg->data[1]);
-            enc_received = true;
-            last = current;
-            dt = 0.0;
-            return;
-        } // last,pre_encの初期化
-        if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
-            last = current;
-            return;
-        } else if(dt <= 0.005){
-            return;
-        }// 申し訳ないが初期のdt（=0)はNG
-        if(!shivangelion_activated){
-            shivangelion();
-        }
+            if(!enc_received) {
+                for(int i = 0; i < 4; i++){
+                    pre_enc[i] = static_cast<uint16_t>(msg->data[i+1]);
+                }
+                enc_received = true;
+                last = current;
+                dt = 0.0;
+                return;
+            } // last,pre_encの初期化
+            if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
+                last = current;
+                return;
+            } else if(dt <= 0.005){
+                return;
+            }// 申し訳ないが初期のdt（=0)はNG
+            if(!shivangelion_activated){
+                shivangelion();
+            }
 
-        //エンコーダのオーバーフローを防止と回転数の計算
-        enc_data_ = msg->data[1];
-        int32_t now_enc = enc_data_,pre_enc32 = static_cast<int16_t>(pre_enc);//計算の都合上、型を変える
-        int32_t diff32 = now_enc - pre_enc32; 
-        if(diff32 > enc_max/2) {
-            diff32 -= enc_max; 
-        } else if (diff32 < -enc_max/2) {
-            diff32 += enc_max; 
-        }
-        int16_t diff = static_cast<int16_t>(diff32);
-        zakirps = diff/(dt * cpr); // 回転数を計算
-        last = current;
-        pre_enc = now_enc;
+            //エンコーダのオーバーフローを防止と回転数の計算
+            for(int i = 0; i < 4; i++){
+                enc_data_[i]= msg->data[i+1];
+                now_enc[i] = enc_data_[i];
+                pre_enc32[i] = static_cast<int16_t>(pre_enc[i]);//計算の都合上、型を変える
+                diff32[i] = now_enc[i] - pre_enc32[i]; 
+                if(diff32[i] > enc_max/2) {
+                    diff32[i] -= enc_max; 
+                } else if (diff32[i] < -enc_max/2) {
+                    diff32[i] += enc_max; 
+                }
+                diff[i] = static_cast<int16_t>(diff32[i]);
+                zakirps[i] = diff[i]/(dt * cpr); // 回転数を計算
+                last = current;
+                pre_enc[i] = now_enc[i];
+            }
     }
     
     void Zakicar::PS4Callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
@@ -89,7 +94,7 @@
             LS_Y = 0.0f; //十分小さいのでゼロとみなす
         }
 
-        target_v = LS_Y * max_target_cps; // スティックの入力に基づいて目標速度を計算
+        target_v[0] = LS_Y * max_target_cps; // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
         joy_received = true;//joystick受信フラグ
         last_joy_time = this->get_clock()->now();
         }
@@ -97,45 +102,56 @@
 
         // セーフティチェック(joy)
         if(!joy_received){
-            target_v = 0.0; 
+            for(int i = 0; i < 4; i++){
+               target_v[i] = 0.0;
+            }
             return;
         }
         double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔
         if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
-            target_v = 0.0; 
-            joy_received = false; //ジョイスティックの入力がない状態に戻す
+            for(int j = 0; j < 4; j++){
+                target_v[j] = 0.0;
+            }
+           joy_received = false; //ジョイスティックの入力がない状態に戻す
+           }
+
+        for(int k = 0; k < 4; k++){
+            err[k] = target_v[k] - zakirps[k];//P制御
+            err_sum[k]  += err[k] * 0.02; //I制御
         }
-
-
-        err = target_v - zakirps;//P制御
-        static double err_sum  = 0.0; //I制御
-        err_sum += err * dt; //誤差を時間で積分
 
         // PI制御の出力を計算
-        double P = Kp * err;
-        double I = std::clamp(Ki * err_sum, -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
-
-        double motor_power = P + I;
-
-        // 目標速度が0の時は停止したいから蓄積をリセット
-        if (target_v <= 0.1 && target_v >= -0.1) {
-            err_sum = 0.0;
-            motor_power = 0.0;
+        for(int l = 0; l < 4; l++){
+            P[l] = Kp * err[l];
+            I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
+            motor_power[l] = P[l] + I[l];
         }
 
-        zakipow = static_cast<int16_t>(std::clamp(motor_power,-motor_limit,motor_limit)); // モーターの出力を制限        
-        zakipow = std::clamp(zakipow, last_zakipow - delta_power_limit, last_zakipow + delta_power_limit); // 出力の変化を制限
-            
+        // 目標速度が0の時は停止したいから蓄積をリセット
+        for(int m = 0; m < 4; m++){
+            if (fabs(target_v[m]) <= 0.1) {
+                err_sum[m] = 0.0;
+                motor_power[m] = 0.0;
+            }
+        }
+
+        for(int n = 0; n < 4; n++){
+            zakipow[n] = static_cast<int16_t>(std::clamp(motor_power[n],-motor_limit,motor_limit)); // モーターの出力を制限        
+            zakipow[n] = std::clamp(zakipow[n], last_zakipow[n] - delta_power_limit, last_zakipow[n] + delta_power_limit); // 出力の変化を制限
+        }
+
         auto feedback = std_msgs::msg::Int16MultiArray();
         feedback.data.assign(25, 0);//受信側のサイズが固定されてるので;
-        feedback.data[1] = zakipow; 
-        motor_pub_->publish(feedback);//serial_tx_1(モーター)に値を送る
-        last_zakipow = zakipow;
+        for(int o = 0; o < 4; o++){
+            feedback.data[o+1] = zakipow[o];
+            last_zakipow[o] = zakipow[o];
+        }
+        motor_pub_->publish(feedback);
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
                 "dt: %f, Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f",
-                dt,enc_data_, LS_Y, zakirps, zakipow, target_v, P, I);
+                dt,enc_data_[0], LS_Y, zakirps[0], zakipow[0], target_v[0], P[0], I[0]);//現状一輪しかないので
 
     };
     void Zakicar::shivangelion(){

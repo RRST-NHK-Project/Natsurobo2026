@@ -44,11 +44,11 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time current;
     rclcpp::Time last = this->get_clock()->now();
 
-    double zakiomni_v = 0.0;
-    double target_v = 0.0;
-    double err = 0.0;
-    double err_sum = 0.0;
-    double zakirps = 0.0;
+    double target_v[4] = {0.0,0.0,0.0,0.0};
+    double err[4] = {0.0,0.0,0.0,0.0};
+    double err_sum[4] = {0.0,0.0,0.0,0.0};
+    double zakirps[4] = {0.0,0.0,0.0,0.0};
+    double P[4] = {0.0,0.0,0.0,0.0}, I[4] = {0.0,0.0,0.0,0.0}, motor_power[4] = {0.0,0.0,0.0,0.0};
     double dt = 0.0; 
 
     //フラグ関連の変数
@@ -56,10 +56,14 @@ class Zakicar : public rclcpp::Node {
     bool joy_received = false;
     bool enc_received = false;
     bool shivangelion_activated = false;
-    int zakipow = 0;
-    int last_zakipow = 0;
-    uint16_t pre_enc = 0;
-    int16_t enc_data_ = 0;
+    int zakipow[4] = {0,0,0,0};
+    int last_zakipow[4] = {0,0,0,0};
+    int32_t diff32[4] = {0,0,0,0};
+    int16_t diff[4] = {0,0,0,0};
+    int32_t now_enc[4] = {0,0,0,0};
+    int32_t pre_enc32[4] = {0,0,0,0};//エンコーダの値の計算用
+    uint16_t pre_enc[4] = {0,0,0,0};
+    int16_t enc_data_[4] = {0,0,0,0};
 
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
     float LS_Y;
