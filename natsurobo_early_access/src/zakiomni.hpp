@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#define opPI 3.1415926
+#define zaki -1
 
 //　よく調整する定数集(For Mabuchi 775 motor))
 #define cpr 8192//1回転あたり8000カウントと仮定
@@ -32,7 +34,7 @@ class Zakicar : public rclcpp::Node {
     
  private:
     void encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
-    void PS4Callback(const sensor_msgs::msg::Joy::SharedPtr msg);
+    void ps4callback(const sensor_msgs::msg::Joy::SharedPtr msg);
     void About_PID();
     void shivangelion();
 
@@ -44,31 +46,31 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time current;
     rclcpp::Time last = this->get_clock()->now();
 
-    double target_v[4] = {0.0,0.0,0.0,0.0};
-    double err[4] = {0.0,0.0,0.0,0.0};
-    double err_sum[4] = {0.0,0.0,0.0,0.0};
-    double zakirps[4] = {0.0,0.0,0.0,0.0};
-    double P[4] = {0.0,0.0,0.0,0.0}, I[4] = {0.0,0.0,0.0,0.0}, motor_power[4] = {0.0,0.0,0.0,0.0};
+    double target_v[4] = {0.0, 0.0, 0.0, 0.0 };
+    double err[4] = {0.0, 0.0, 0.0, 0.0};
+    double err_sum[4] = {0.0, 0.0, 0.0, 0.0};
+    double zakirps[4] = {0.0, 0.0, 0.0, 0.0};
+    double P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, motor_power[4] = {0.0, 0.0, 0.0, 0.0};
     double dt = 0.0; 
+    double radian = 0.0;
 
     //フラグ関連の変数
     rclcpp::Time last_joy_time = this->get_clock()->now();
     bool joy_received = false;
     bool enc_received = false;
     bool shivangelion_activated = false;
-    int zakipow[4] = {0,0,0,0};
-    int last_zakipow[4] = {0,0,0,0};
-    int32_t diff32[4] = {0,0,0,0};
-    int16_t diff[4] = {0,0,0,0};
-    int32_t now_enc[4] = {0,0,0,0};
-    int32_t pre_enc32[4] = {0,0,0,0};//エンコーダの値の計算用
-    uint16_t pre_enc[4] = {0,0,0,0};
-    int16_t enc_data_[4] = {0,0,0,0};
+    int zakipow[4] = {0, 0, 0, 0};
+    int last_zakipow[4] = {0, 0, 0, 0};
+    int32_t diff32[4] = {0, 0, 0, 0};
+    int16_t diff[4] = {0, 0, 0, 0};
+    int32_t now_enc[4] = {0, 0, 0, 0};
+    int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
+    uint16_t pre_enc[4] = {0, 0, 0, 0};
+    int16_t enc_data_[4] = {0, 0, 0, 0};
 
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
+    float LS_X;
     float LS_Y;
-    //float LS_X;
-    //float LS_Y;
     //float RS_X;
     //float RS_Y;
     //bool CROSS;

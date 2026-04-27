@@ -1,6 +1,6 @@
 #include "zakiomni.hpp"
 
-    Zakicar::Zakicar() : Node("OmniDrive") {
+    Zakicar::Zakicar() : Node("omni_drive") {
 
         std::cout << "Waiting to receive topics." << std::endl;
 
@@ -14,14 +14,14 @@
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "joy",
              10,
-         std::bind(&Zakicar::PS4Callback, this, std::placeholders::_1));
+         std::bind(&Zakicar::ps4callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             20ms,
             std::bind(&Zakicar::About_PID,this));//20msごとにPID制御の関数を呼び出す
     }
 
     void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
-        rclcpp::Time current = this->get_clock()->now();
+        rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した
         dt = (current - last).seconds();
 
         //セーフティチェック(通信)
@@ -60,13 +60,14 @@
                 last = current;
                 pre_enc[i] = now_enc[i];
             }
+
+            enc_data_[3] = zaki * enc_data_[3];
     }
     
-    void Zakicar::PS4Callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
+    void Zakicar::ps4callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
         // コントローラーの入力を取得、使わない入力はコメントアウト推奨
         LS_Y = msg->axes[1];
-        //LS_X = -1*msg->axes[0];
-        //LS_Y = msg->axes[1];
+        LS_X = -1*msg->axes[0];
         //RS_X = -1 * msg->axes[3];
         //RS_Y = msg->axes[4];
         //CROSS = msg->buttons[0];
@@ -92,9 +93,17 @@
         //セーフティチェック(スティック)
         if(fabs(LS_Y) < DEADZONE_L) {
             LS_Y = 0.0f; //十分小さいのでゼロとみなす
+        }else if(fabs(LS_X) < DEADZONE_L){
+            LS_X = 0.0f;
         }
 
-        target_v[0] = LS_Y * max_target_cps; // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
+        radian = atan2(LS_Y, LS_X); //スティックの角度を算出
+
+        target_v[0] = max_target_cps * std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
+        target_v[1] = max_target_cps * std::cos(radian - (opPI / 4) );
+        target_v[2] = max_target_cps * -std::cos(radian + (opPI / 4) );
+        target_v[3] = max_target_cps * -std::cos((opPI /4) - radian );
+
         joy_received = true;//joystick受信フラグ
         last_joy_time = this->get_clock()->now();
         }
@@ -150,8 +159,8 @@
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
-                "dt: %f, Enc : %d,LS_Y: %f, %frps,power: %d,T_v: %f,P: %f,I: %f",
-                dt,enc_data_[0], LS_Y, zakirps[0], zakipow[0], target_v[0], P[0], I[0]);//現状一輪しかないので
+                "dt: %f, Enc : %d,LS_Y: %f,θ:%f, %frps,power: %d,T_v: %f,P: %f,I: %f",
+                dt,enc_data_[0], LS_Y, radian, zakirps[0], zakipow[0], target_v[0], P[0], I[0]);//現状一輪しかないので
 
     };
     void Zakicar::shivangelion(){
