@@ -33,10 +33,10 @@ class Zakicar : public rclcpp::Node {
       
     
  private:
-    void encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
-    void ps4callback(const sensor_msgs::msg::Joy::SharedPtr msg);
-    void About_PID();
-    void shivangelion();
+    void encoder_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
+    void ps4_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
+    void about_PID();
+    void Shivangelion();
 
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr motor_pub_;
     rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr enc_sub_;

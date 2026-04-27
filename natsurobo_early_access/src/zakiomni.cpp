@@ -8,19 +8,19 @@
         motor_pub_ = this->create_publisher<std_msgs::msg::Int16MultiArray>("serial_tx_1", 10);
         //マイコンからトピック（エンコーダの値）を受信
         enc_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
-        "serial_rx_1", 10, std::bind(&Zakicar::encoderCallback, this, std::placeholders::_1));
+        "serial_rx_1", 10, std::bind(&Zakicar::encoder_callback, this, std::placeholders::_1));
         
         //joyスティックからトピックを受信
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "joy",
              10,
-         std::bind(&Zakicar::ps4callback, this, std::placeholders::_1));
+         std::bind(&Zakicar::ps4_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(
             20ms,
-            std::bind(&Zakicar::About_PID,this));//20msごとにPID制御の関数を呼び出す
+            std::bind(&Zakicar::about_PID,this));//20msごとにPID制御の関数を呼び出す
     }
 
-    void Zakicar::encoderCallback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
+    void Zakicar::encoder_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
         rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した
         dt = (current - last).seconds();
 
@@ -41,7 +41,7 @@
                 return;
             }// 申し訳ないが初期のdt（=0)はNG
             if(!shivangelion_activated){
-                shivangelion();
+                Shivangelion();
             }
 
             //エンコーダのオーバーフローを防止と回転数の計算
@@ -60,11 +60,13 @@
                 last = current;
                 pre_enc[i] = now_enc[i];
             }
-
+            
+            enc_data_[0] = zaki * enc_data_[0];
+            enc_data_[1] = zaki * enc_data_[1];//実機とのギャップを解消
             enc_data_[3] = zaki * enc_data_[3];
     }
     
-    void Zakicar::ps4callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
+    void Zakicar::ps4_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
         // コントローラーの入力を取得、使わない入力はコメントアウト推奨
         LS_Y = msg->axes[1];
         LS_X = -1*msg->axes[0];
@@ -97,17 +99,18 @@
             LS_X = 0.0f;
         }
 
+        LS_X = -LS_X;//いつもの直交座標系へ
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
 
-        target_v[0] = max_target_cps * std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
+        target_v[0] = max_target_cps * -std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
         target_v[1] = max_target_cps * std::cos(radian - (opPI / 4) );
         target_v[2] = max_target_cps * -std::cos(radian + (opPI / 4) );
-        target_v[3] = max_target_cps * -std::cos((opPI /4) - radian );
+        target_v[3] = max_target_cps * std::cos(radian - (opPI / 4) );
 
         joy_received = true;//joystick受信フラグ
         last_joy_time = this->get_clock()->now();
         }
-    void Zakicar::About_PID(){
+    void Zakicar::about_PID(){
 
         // セーフティチェック(joy)
         if(!joy_received){
@@ -165,16 +168,16 @@
                 zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
 
     };
-    void Zakicar::shivangelion(){
+    void Zakicar::Shivangelion(){
 
-        /////////////おふざけ//////////////
+        //===========おふざけ==========//
         if(!shivangelion_activated){
             const char* msg = " Shivangelion!!! Activatation!!!";
             std::string fig_msg = "figlet " + std::string(msg);
             std::system(fig_msg.c_str());
             shivangelion_activated = true;
         }
-        /////////////////////////////////
+        //=============================//
     }
 
 int main(int argc, char *argv[]) {
