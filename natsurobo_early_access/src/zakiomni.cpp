@@ -159,8 +159,10 @@
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
-                "dt: %f, Enc : %d,LS_Y: %f,θ:%f, %frps,power: %d,T_v: %f,P: %f,I: %f",
-                dt,enc_data_[0], LS_Y, radian, zakirps[0], zakipow[0], target_v[0], P[0], I[0]);//現状一輪しかないので
+                "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
+                "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f",
+                dt,enc_data_[0],enc_data_[1],enc_data_[2],enc_data_[3],LS_X, LS_Y, radian, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
+                zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
 
     };
     void Zakicar::shivangelion(){
