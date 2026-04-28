@@ -4,7 +4,7 @@
   <name>natsurobo_early_access</name>
   <version>0.0.0</version>
   <description>Encoder and Motor test node for omnidirectional robot</description>
-  <maintainer email="ubuntu@todo.todo">ubuntu</maintainer>
+  <maintainer email="vnfaf69349@yahoo.co.jp">Kaho-YAMAMOTO</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

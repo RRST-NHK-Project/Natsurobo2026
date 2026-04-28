@@ -10,21 +10,22 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 # Add executable
-add_executable(OmniDrive 
+add_executable(omni_drive 
   src/zakiomni.cpp
 )
-target_include_directories(OmniDrive PUBLIC
+target_include_directories(omni_drive PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(OmniDrive PUBLIC c_std_99 cxx_std_17)
+target_compile_features(omni_drive PUBLIC c_std_99 cxx_std_17)
 
 # Link dependencies
-ament_target_dependencies(OmniDrive rclcpp std_msgs sensor_msgs geometry_msgs)
+ament_target_dependencies(omni_drive rclcpp std_msgs sensor_msgs geometry_msgs)
 
 # Install
-install(TARGETS OmniDrive
+install(TARGETS omni_drive
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
