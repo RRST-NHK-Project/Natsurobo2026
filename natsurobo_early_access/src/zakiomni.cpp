@@ -95,17 +95,18 @@
         //セーフティチェック(スティック)
         if(fabs(LS_Y) < DEADZONE_L) {
             LS_Y = 0.0f; //十分小さいのでゼロとみなす
-        }else if(fabs(LS_X) < DEADZONE_L){
+        }
+        if(fabs(LS_X) < DEADZONE_L){
             LS_X = 0.0f;
         }
 
         LS_X = -LS_X;//いつもの直交座標系へ
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
 
-        target_v[0] = max_target_cps * -std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
-        target_v[1] = max_target_cps * std::cos(radian - (opPI / 4) );
-        target_v[2] = max_target_cps * -std::cos(radian + (opPI / 4) );
-        target_v[3] = max_target_cps * std::cos(radian - (opPI / 4) );
+        target_v[0] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
+        target_v[1] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos(radian - (opPI / 4) );
+        target_v[2] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos(radian + (opPI / 4) );
+        target_v[3] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos(radian - (opPI / 4) );
 
         joy_received = true;//joystick受信フラグ
         last_joy_time = this->get_clock()->now();
@@ -165,7 +166,7 @@
                 "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
                 "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f",
                 dt,enc_data_[0],enc_data_[1],enc_data_[2],enc_data_[3],LS_X, LS_Y, radian, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
-                zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
+                zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
 
     };
     void Zakicar::Shivangelion(){
