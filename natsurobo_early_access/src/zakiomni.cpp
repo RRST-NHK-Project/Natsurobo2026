@@ -103,10 +103,10 @@
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
         angle = radian * 180 / opPI; //角度を度数法に変換（デバッグ用） 
 
-        target_v[0] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos(radian + (opPI / 4) ); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
-        target_v[1] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos(radian - (opPI / 4) );
+        target_v[0] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos( (3 * opPI / 4) - radian); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
+        target_v[1] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos( radian + (3 * opPI / 4) );
         target_v[2] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos(radian + (opPI / 4) );
-        target_v[3] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos(radian - (opPI / 4) );
+        target_v[3] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos( (opPI / 4) - radian );
 
         joy_received = true;//joystick受信フラグ
         last_joy_time = this->get_clock()->now();
