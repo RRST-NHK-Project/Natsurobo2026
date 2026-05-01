@@ -67,6 +67,7 @@ class Zakicar : public rclcpp::Node {
     int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
     uint16_t pre_enc[4] = {0, 0, 0, 0};
     int16_t enc_data_[4] = {0, 0, 0, 0};
+    double angle = 0.0;
 
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
     float LS_X;
