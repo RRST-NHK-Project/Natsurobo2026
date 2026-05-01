@@ -13,10 +13,22 @@
 #include <cstdlib>
 #define opPI 3.1415926
 #define zaki -1
+// 以下マイコンに合わせて設定
+#define TX_DEVICE_ID 1 // 送信先マイコンのID
+#define RX_DEVICE_ID 1 // 受信先マイコンのID
+
+#define TX16NUM 24 // 送信データ数
+#define RX16NUM 17 // 受信データ数
+
+#define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
+
+// スティックのデッドゾーン
+#define DEADZONE_L 0.3
+#define DEADZONE_R 0.3
+
 
 //　よく調整する定数集(For Mabuchi 775 motor))
 #define cpr 8192//1回転あたり8000カウントと仮定
-#define DEADZONE_L 0.02// スティックのデッドゾーン
 const double max_target_cps = 8.0; // 1秒あたりの最大回転数
 const double Kp  = 10.0;//P制御(必要に応じて調整)
 const double Ki = 0.5; // I制御（必要に応じて調整）
@@ -29,19 +41,26 @@ using namespace std::chrono_literals;
 
 class Zakicar : public rclcpp::Node {
  public:
-    Zakicar();
+    Zakicar(uint8_t tx_device_id, uint8_t rx_device_id);
       
     
  private:
-    void encoder_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
+    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
     void ps4_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
+    void publisher_timer_callback();
     void about_PID();
-    void Shivangelion();
+    void Shivangelion();//ノード名表示兼デバック用関数
+    void safety_check();
 
-    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr motor_pub_;
-    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr enc_sub_;
+    uint8_t tx_device_id_;
+    uint8_t rx_device_id_;
+
+    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr pub_;
+    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sns_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
+
+    std::vector<int16_t> data_;
     
     rclcpp::Time current;
     rclcpp::Time last = this->get_clock()->now();
@@ -58,6 +77,7 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time last_joy_time = this->get_clock()->now();
     bool joy_received = false;
     bool enc_received = false;
+    bool ok = false;
     bool shivangelion_activated = false;
     int zakipow[4] = {0, 0, 0, 0};
     int last_zakipow[4] = {0, 0, 0, 0};
