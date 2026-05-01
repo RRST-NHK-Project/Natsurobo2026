@@ -62,7 +62,7 @@ class Zakicar : public rclcpp::Node {
 
     std::vector<int16_t> data_;
     
-    rclcpp::Time current;
+    rclcpp::Time current = this->get_clock()->now();
     rclcpp::Time last = this->get_clock()->now();
 
     double target_v[4] = {0.0, 0.0, 0.0, 0.0 };
@@ -86,7 +86,6 @@ class Zakicar : public rclcpp::Node {
     int32_t now_enc[4] = {0, 0, 0, 0};
     int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
     uint16_t pre_enc[4] = {0, 0, 0, 0};
-    int16_t enc_data_[4] = {0, 0, 0, 0};
     double angle = 0.0;
 
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
@@ -111,6 +110,24 @@ class Zakicar : public rclcpp::Node {
     //bool PS;
     //bool L3;
     //bool R3;   
+
+   int16_t ENC1 = 0;
+   int16_t ENC2 = 0;
+   int16_t ENC3 = 0;
+   int16_t ENC4 = 0;
+        // int16_t ENC5 = msg->data[5];
+        // int16_t ENC6 = msg->data[6];
+        // int16_t ENC7 = msg->data[7];
+        // int16_t ENC8 = msg->data[8];
+
+        // int16_t SW1 = msg->data[9];
+        // int16_t SW2 = msg->data[10];
+        // int16_t SW3 = msg->data[11];
+        // int16_t SW4 = msg->data[12];
+        // int16_t SW5 = msg->data[13];
+        // int16_t SW6 = msg->data[14];
+        // int16_t SW7 = msg->data[15];
+        // int16_t SW8 = msg->data[16];
 };
 
 #endif 

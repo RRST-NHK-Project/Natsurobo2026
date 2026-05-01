@@ -27,7 +27,7 @@
         | data[15] | Servo7 | 0 ~ 270 |
         | data[16] | Servo8 | 0 ~ 270 |
         | data[17] | TR1 | 0 or 1|
-        | data[18] | TR2 | 0 or 1|
+        | data[18] | TR2 | 0 or 1|        rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した
         | data[19] | TR3 | 0 or 1|
         | data[20] | TR4 | 0 or 1|
         | data[21] | TR5 | 0 or 1|
@@ -68,20 +68,6 @@
     }
 
     void Zakicar::safety_check(){
-         //セーフティチェック(通信)
-            if(!enc_received) {
-                enc_received = true;
-                last = current;
-                dt = 0.0;
-                return;
-            } // last,pre_encの初期化
-            if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
-                last = current;
-                return;
-            } else if(dt <= 0.005){
-                return;
-            }// 申し訳ないが初期のdt（=0)はNG
-
             // セーフティチェック(joy)
         if(!joy_received){
             for(int i = 0; i < 4; i++){
@@ -185,13 +171,13 @@
 
     void Zakicar::sensor_callback(
         const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
-        rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した
+        current = this->get_clock()->now();
         dt = (current - last).seconds();
 
-         int16_t ENC1 = msg->data[1];
-         int16_t ENC2 = msg->data[2];
-         int16_t ENC3 = msg->data[3];
-         int16_t ENC4 = msg->data[4];
+        ENC1 = msg->data[1];
+        ENC2 = msg->data[2];
+        ENC3 = msg->data[3];
+        ENC4 = msg->data[4];
         // int16_t ENC5 = msg->data[5];
         // int16_t ENC6 = msg->data[6];
         // int16_t ENC7 = msg->data[7];
@@ -220,7 +206,13 @@
         } 
 
         //エンコーダのオーバーフローを防止と回転数の計算
-                
+
+        if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
+                last = current;
+                return;
+            } else if(dt <= 0.005){
+                return;
+            }// 申し訳ないが初期のdt（=0)はNG                
             
             diff32[0] =  ENC1- pre_enc32[0]; 
             diff32[1] =  ENC2- pre_enc32[1];
@@ -253,6 +245,7 @@
     
     void Zakicar::about_PID(){
 
+        auto msg = std_msgs::msg::Int16MultiArray();
 
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
@@ -279,18 +272,18 @@
             zakipow[n] = std::clamp(zakipow[n], last_zakipow[n] - delta_power_limit, last_zakipow[n] + delta_power_limit); // 出力の変化を制限
         }
 
-        auto data_ = std_msgs::msg::Int16MultiArray();
         for(int o = 0; o < 4; o++){
-            data_.data[o+1] = zakipow[o];
+            data_[o+1] = zakipow[o];
             last_zakipow[o] = zakipow[o];
         }
-        pub_->publish(data_);//一旦送っちゃおう
+        msg.data = this->data_;
+        pub_->publish(msg);//一旦送っちゃおう
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
                 "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
                 "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f",
-                dt,enc_data_[0],enc_data_[1],enc_data_[2],enc_data_[3],LS_X, LS_Y, angle, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
+                dt,ENC1,ENC2,ENC3,ENC4,LS_X, LS_Y, angle, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
                 zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
 
     };
