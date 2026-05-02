@@ -1,6 +1,8 @@
 #include "zakiomni.hpp"
 
-    Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id) : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id) {
+    Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id) 
+    : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id) {
+ //: Node("hardware_control_" + std::to_string(tx_device_id)),
 
         // 配列を0で初期化
         data_.assign(TX16NUM, 0);
@@ -36,16 +38,16 @@
         | data[24] | TR8 | 0 or 1|
         */
 
-        std::cout << "Waiting to receive topics." << std::endl;
+        std::cout << "Waiting to receive topics." << std::endl;//なにもトピックを受け取ってないときの状態が欲しかった
 
         //joyスティックからトピックを受信
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "joy",
              10,
-         std::bind(&Zakicar::ps4_callback, this, std::placeholders::_1));
+         std::bind(&Zakicar::ps4_listener_callback, this, std::placeholders::_1));
 
         //マイコンにトピック（モーター）を送信
-        pub_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
+        publisher_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
             "serial_tx_" + std::to_string(tx_device_id_), 10);
 
         timer_ = create_wall_timer(
@@ -53,7 +55,7 @@
             std::bind(&Zakicar::publisher_timer_callback, this));
 
         //マイコンからトピック（エンコーダの値）を受信
-        sns_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
+        snsor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
         "serial_rx_" + std::to_string(rx_device_id_), 
         10, 
         std::bind(&Zakicar::sensor_callback, 
@@ -62,30 +64,10 @@
         
         RCLCPP_INFO(get_logger(),
                     "serial_tx_%d started.", tx_device_id_);
-        RCLCPP_INFO(get_logger(),
-                    "serial_rx_%d started.", rx_device_id_);
         
     }
 
-    void Zakicar::safety_check(){
-            // セーフティチェック(joy)
-        if(!joy_received){
-            for(int i = 0; i < 4; i++){
-               target_v[i] = 0.0;
-            }
-            return;
-        }
-        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔
-        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
-            for(int j = 0; j < 4; j++){
-                target_v[j] = 0.0;
-            }
-           joy_received = false; //ジョイスティックの入力がない状態に戻す
-           }
-            
-    }
-
-    void Zakicar::ps4_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
+    void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
         
         
         // コントローラーの入力を取得、使わない入力はコメントアウト推奨
@@ -135,6 +117,21 @@
         //     data_[1], data_[2], data_[3], data_[4],
         //     data_[9], data_[10], data_[11], data_[12]);
 
+        //セーフティチェック（joy）
+        if(!joy_received)
+            for(int i = 0; i < 4; i++){
+               target_v[i] = 0.0;
+            return;
+        }
+
+        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔
+        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
+            for(int j = 0; j < 4; j++){
+                target_v[j] = 0.0;
+            }
+           joy_received = false; //ジョイスティックの入力がない状態に戻す
+           }
+
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
         angle = radian * 180 / opPI; //角度を度数法に変換（デバッグ用） 
 
@@ -151,22 +148,15 @@
 
     void Zakicar::publisher_timer_callback() {
 
-        if(!ok){
-
-            safety_check();
-            ok = true;
-
-        }
-
         about_PID();
 
-        if(!shivangelion_activated){
+        if(!shivangelion_activated && joy_received){
             Shivangelion();
         }
 
         std_msgs::msg::Int16MultiArray msg;
         msg.data = data_; // 送信するデータをセット
-        pub_->publish(msg); // トピックを発行
+        publisher_->publish(msg); // トピックを発行
     }
 
     void Zakicar::sensor_callback(
@@ -246,6 +236,7 @@
     void Zakicar::about_PID(){
 
         auto msg = std_msgs::msg::Int16MultiArray();
+        
 
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
@@ -277,7 +268,7 @@
             last_zakipow[o] = zakipow[o];
         }
         msg.data = this->data_;
-        pub_->publish(msg);//一旦送っちゃおう
+        publisher_->publish(msg);//一旦送っちゃおう
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
@@ -289,7 +280,6 @@
     };
     void Zakicar::Shivangelion(){
 
-        //===========おふざけ==========//
         if(!shivangelion_activated){
             const char* msg = " Shivangelion!!! Activatation!!!";
             std::string fig_msg = "figlet " + std::string(msg);
@@ -307,7 +297,7 @@
 
             shivangelion_activated = true;
         }
-        //=============================//
+
     }
 
 int main(int argc, char *argv[]) {

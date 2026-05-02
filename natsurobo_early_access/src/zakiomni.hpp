@@ -29,10 +29,10 @@
 
 //　よく調整する定数集(For Mabuchi 775 motor))
 #define cpr 8192//1回転あたり8000カウントと仮定
-const double max_target_cps = 8.0; // 1秒あたりの最大回転数
-const double Kp  = 10.0;//P制御(必要に応じて調整)
+const double max_target_cps = 7.0; // 1秒あたりの最大回転数
+const double Kp  = 7.5;//P制御(必要に応じて調整)
 const double Ki = 0.5; // I制御（必要に応じて調整）
-const double Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
+const double Imax = 45.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
 const int delta_power_limit = 6;// 出力変化の上限
 const double enc_max = 32767.0; // エンコーダーの最大値
@@ -46,17 +46,16 @@ class Zakicar : public rclcpp::Node {
     
  private:
     void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);  
-    void ps4_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
+    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
     void publisher_timer_callback();
     void about_PID();
     void Shivangelion();//ノード名表示兼デバック用関数
-    void safety_check();
 
     uint8_t tx_device_id_;
     uint8_t rx_device_id_;
 
-    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr pub_;
-    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sns_sub_;
+    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
+    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr snsor_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
@@ -77,13 +76,11 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time last_joy_time = this->get_clock()->now();
     bool joy_received = false;
     bool enc_received = false;
-    bool ok = false;
     bool shivangelion_activated = false;
     int zakipow[4] = {0, 0, 0, 0};
     int last_zakipow[4] = {0, 0, 0, 0};
     int32_t diff32[4] = {0, 0, 0, 0};
     int16_t diff[4] = {0, 0, 0, 0};
-    int32_t now_enc[4] = {0, 0, 0, 0};
     int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
     uint16_t pre_enc[4] = {0, 0, 0, 0};
     double angle = 0.0;
