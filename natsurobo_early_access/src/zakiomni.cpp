@@ -52,18 +52,20 @@
 
         timer_ = create_wall_timer(
             std::chrono::milliseconds(PUBLISH_RATE_MS),
-            std::bind(&Zakicar::publisher_timer_callback, this));
+            std::bind(&Zakicar::publisher_timer_callback, this));//マイコンと基板の関係でpublisher_とsensor_sub_のトピックは別です(pub:serial_tx_2 , sub:serial_rx_1にする予定)
 
         //マイコンからトピック（エンコーダの値）を受信
-        snsor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
-        "serial_rx_" + std::to_string(rx_device_id_), 
-        10, 
-        std::bind(&Zakicar::sensor_callback, 
+        sensor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
+            "serial_rx_" + std::to_string(rx_device_id_), 
+            10, 
+            std::bind(&Zakicar::sensor_callback, 
                   this, 
                   std::placeholders::_1));
         
         RCLCPP_INFO(get_logger(),
                     "serial_tx_%d started.", tx_device_id_);
+        RCLCPP_INFO(get_logger(),
+                    "serial_rx_%d started.", rx_device_id_);
         
     }
 
@@ -73,8 +75,8 @@
         // コントローラーの入力を取得、使わない入力はコメントアウト推奨
         LS_X = -1 * msg->axes[0];
         LS_Y = msg->axes[1];
-        // float RS_X = -1 * msg->axes[3];
-        // float RS_Y = msg->axes[4];
+        RS_X = -1 * msg->axes[3];
+        // RS_Y = msg->axes[4];
 
         // bool CROSS = msg->buttons[0];
         // bool CIRCLE = msg->buttons[1];
@@ -117,33 +119,38 @@
         //     data_[1], data_[2], data_[3], data_[4],
         //     data_[9], data_[10], data_[11], data_[12]);
 
-        //セーフティチェック（joy）
-        if(!joy_received)
-            for(int i = 0; i < 4; i++){
-               target_v[i] = 0.0;
-            return;
+        if(fabs(LS_X) <= DEADZONE_L)
+            LS_X = 0.0;
+        if(fabs(LS_Y) <= DEADZONE_L)
+            LS_Y = 0.0;
+        if(fabs(RS_X) <= DEADZONE_R)            
+            RS_X = 0.0;
+        radian = atan2(LS_Y, LS_X); //スティックの角度を算出
+        angle = radian * 180.0 / opPI; //角度を度数法に変換（デバッグ用） 
+
+        //移動モード
+        if(LS_X != 0.0 || LS_Y != 0.0){
+
+            target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos( radian +(3.0/4.0 * opPI )  ); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+            target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos( radian + (3.0/4.0 * opPI ) );//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
+            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos( radian + (opPI /4.0) );
+            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos( (opPI /4.0) - radian );
         }
 
-        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔
-        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
-            for(int j = 0; j < 4; j++){
-                target_v[j] = 0.0;
-            }
-           joy_received = false; //ジョイスティックの入力がない状態に戻す
-           }
+        
+        //旋回モード
+        if(RS_X != 0.0){
 
-        radian = atan2(LS_Y, LS_X); //スティックの角度を算出
-        angle = radian * 180 / opPI; //角度を度数法に変換（デバッグ用） 
+            target_v[0] = max_target_yaw_cps * RS_X;//+は反時計回り、-は時計回りのつもり
+            target_v[1] = max_target_yaw_cps * RS_X;//こっちは No problem
+            target_v[2] = max_target_yaw_cps * RS_X;
+            target_v[3] = max_target_yaw_cps * RS_X;
+        }
+            // 配列操作ここまで
 
-        target_v[0] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos( (3 * opPI / 4) - radian); // スティックの入力に基づいて目標速度を計算 <-しかし一輪しかない
-        target_v[1] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos( radian + (3 * opPI / 4) );
-        target_v[2] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * -std::cos(radian + (opPI / 4) );
-        target_v[3] = max_target_cps * sqrt((pow(LS_X ,2) + pow(LS_Y ,2)) / 2) * std::cos( (opPI / 4) - radian );
-
-        // 配列操作ここまで
-
-        joy_received = true;//joystick受信フラグ
-        last_joy_time = this->get_clock()->now();
+            joy_received = true;//joystick受信フラグ
+            last_joy_time = this->get_clock()->now();
+            
         }
 
     void Zakicar::publisher_timer_callback() {
@@ -224,10 +231,6 @@
             pre_enc[1] = ENC2;
             pre_enc[2] = ENC3;
             pre_enc[3] = ENC4;
-            
-            ENC1 = zaki * ENC1;
-            ENC2 = zaki * ENC2;//実機とのギャップを解消
-            ENC4 = zaki * ENC4;
 
         // 受信データ処理ここまで
     }
@@ -235,9 +238,25 @@
     
     void Zakicar::about_PID(){
 
+        
+        //セーフティチェック（joy）
+        if(!joy_received){
+            for(int i = 0; i < 4; i++){
+               target_v[i] = 0.0;
+            }
+            return;
+        }
+
+        //セーフティチェック（joy）その2
+        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
+            for(int j = 0; j < 4; j++){
+                target_v[j] = 0.0;
+            }
+           joy_received = false; //ジョイスティックの入力がない状態に戻す
+        }
+
         auto msg = std_msgs::msg::Int16MultiArray();
         
-
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
             err_sum[k]  += err[k] * dt; //I制御
@@ -259,14 +278,19 @@
         }
 
         for(int n = 0; n < 4; n++){
-            zakipow[n] = static_cast<int16_t>(std::clamp(motor_power[n],-motor_limit,motor_limit)); // モーターの出力を制限        
-            zakipow[n] = std::clamp(zakipow[n], last_zakipow[n] - delta_power_limit, last_zakipow[n] + delta_power_limit); // 出力の変化を制限
+            data_[n+1] = static_cast<int16_t>(std::clamp(motor_power[n],-motor_limit,motor_limit)); // モーターの出力を制限        
+            data_[n+1] = std::clamp<int16_t>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限
+            
+            last_data_[n] = data_[n+1];
         }
 
-        for(int o = 0; o < 4; o++){
-            data_[o+1] = zakipow[o];
-            last_zakipow[o] = zakipow[o];
-        }
+        std::swap(data_[1], data_[3]);//実際の車輪番号に合わせるために入れ替え
+        /*// 動作テスト用：計算結果を無視して1番目のモータだけ回す場合
+        for(int i=0; i<4; i++) {
+            data_[i+1] = 25; //3はdata_[1],4はdata_[2],1はdata_[3],2はdata_[4]に対応, 
+            //data_[1] = 25;
+        }*/
+
         msg.data = this->data_;
         publisher_->publish(msg);//一旦送っちゃおう
 
@@ -275,7 +299,7 @@
                 "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
                 "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f",
                 dt,ENC1,ENC2,ENC3,ENC4,LS_X, LS_Y, angle, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
-                zakipow[0],zakipow[1],zakipow[2],zakipow[3], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
+                data_[1],data_[2],data_[3],data_[4], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
 
     };
     void Zakicar::Shivangelion(){
