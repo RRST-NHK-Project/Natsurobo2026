@@ -249,6 +249,7 @@
 
         //セーフティチェック（joy）その2
         double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
+        if(blank_time > 1.0) {
             for(int j = 0; j < 4; j++){
                 target_v[j] = 0.0;
             }
