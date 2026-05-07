@@ -131,10 +131,10 @@
         //移動モード
         if(LS_X != 0.0 || LS_Y != 0.0){
 
-            target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos( radian +(3.0/4.0 * opPI )  ); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-            target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos( radian + (3.0/4.0 * opPI ) );//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
-            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos( radian + (opPI /4.0) );
-            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos( (opPI /4.0) - radian );
+            target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+            target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
+            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian);
+            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);
         }
 
         
@@ -286,7 +286,7 @@
         }
 
         std::swap(data_[1], data_[3]);//実際の車輪番号に合わせるために入れ替え
-        /*// 動作テスト用：計算結果を無視して1番目のモータだけ回す場合
+        /*//エンコーダとモータの対応関係を確かめる用
         for(int i=0; i<4; i++) {
             data_[i+1] = 25; //3はdata_[1],4はdata_[2],1はdata_[3],2はdata_[4]に対応, 
             //data_[1] = 25;
