@@ -29,7 +29,7 @@
         | data[15] | Servo7 | 0 ~ 270 |
         | data[16] | Servo8 | 0 ~ 270 |
         | data[17] | TR1 | 0 or 1|
-        | data[18] | TR2 | 0 or 1|        rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した
+        | data[18] | TR2 | 0 or 1|        
         | data[19] | TR3 | 0 or 1|
         | data[20] | TR4 | 0 or 1|
         | data[21] | TR5 | 0 or 1|
@@ -37,6 +37,7 @@
         | data[23] | TR7 | 0 or 1|
         | data[24] | TR8 | 0 or 1|
         */
+       //rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した<-なんか消してもビルド通った
 
         std::cout << "Waiting to receive topics." << std::endl;//なにもトピックを受け取ってないときの状態が欲しかった
 
@@ -65,7 +66,7 @@
         RCLCPP_INFO(get_logger(),
                     "serial_tx_%d started.", tx_device_id_);
         RCLCPP_INFO(get_logger(),
-                    "serial_rx_%d started.", rx_device_id_);
+                    "serial_rx_%d started.", rx_device_id_);//tx =rxではないので
         
     }
 
@@ -129,7 +130,7 @@
         angle = radian * 180.0 / opPI; //角度を度数法に変換（デバッグ用） 
 
         //移動モード
-        if(LS_X != 0.0 || LS_Y != 0.0){
+        if(LS_X || LS_Y){
 
             target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
             target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
@@ -139,7 +140,7 @@
 
         
         //旋回モード
-        if(RS_X != 0.0){
+        if(RS_X){
 
             target_v[0] = max_target_yaw_cps * RS_X;//+は反時計回り、-は時計回りのつもり
             target_v[1] = max_target_yaw_cps * RS_X;//こっちは No problem
@@ -149,26 +150,26 @@
             // 配列操作ここまで
 
             joy_received = true;//joystick受信フラグ
-            last_joy_time = this->get_clock()->now();
+            last_joy_time = this->now();
             
         }
 
     void Zakicar::publisher_timer_callback() {
 
-        about_PID();
+        about_PID();//一定周期でtimerが呼び出されるときに連動してActivate!
 
         if(!shivangelion_activated && joy_received){
             Shivangelion();
         }
 
         std_msgs::msg::Int16MultiArray msg;
-        msg.data = data_; // 送信するデータをセット
-        publisher_->publish(msg); // トピックを発行
+        msg.data = data_; 
+        publisher_->publish(msg); //送信
     }
 
-    void Zakicar::sensor_callback(
-        const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
-        current = this->get_clock()->now();
+    void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg) {
+        
+        current = this->now();
         dt = (current - last).seconds();
 
         ENC1 = msg->data[1];
@@ -204,33 +205,34 @@
 
         //エンコーダのオーバーフローを防止と回転数の計算
 
-        if(dt <= 0.0) {//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
-                last = current;
-                return;
-            } else if(dt <= 0.005){
-                return;
-            }// 申し訳ないが初期のdt（=0)はNG                
-            
-            diff32[0] =  ENC1- pre_enc32[0]; 
-            diff32[1] =  ENC2- pre_enc32[1];
-            diff32[2] =  ENC3- pre_enc32[2];
-            diff32[3] =  ENC4- pre_enc32[3];
-
-            for(int i = 0; i < 4; i++){
-                pre_enc32[i] = static_cast<int16_t>(pre_enc[i]);//計算の都合上、型を変える
-                if(diff32[i] > enc_max/2) {
-                    diff32[i] -= enc_max; 
-                } else if (diff32[i] < -enc_max/2) {
-                    diff32[i] += enc_max; 
-                }
-                diff[i] = static_cast<int16_t>(diff32[i]);
-                zakirps[i] = -diff[i]/(dt * cpr); // 回転数を計算(-は回転方向の調整)
-                }
+        if(dt <= 0.0) {// 申し訳ないが初期のdt（=0)はNG          
             last = current;
-            pre_enc[0] = ENC1;
-            pre_enc[1] = ENC2;
-            pre_enc[2] = ENC3;
-            pre_enc[3] = ENC4;
+            return;
+        }
+        if(dt <= 0.005){//dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
+            return;
+        }      
+            
+        diff32[0] =  ENC1- pre_enc32[0]; 
+        diff32[1] =  ENC2- pre_enc32[1];
+        diff32[2] =  ENC3- pre_enc32[2];
+        diff32[3] =  ENC4- pre_enc32[3];
+
+        for(int i = 0; i < 4; i++){
+            pre_enc32[i] = static_cast<int16_t>(pre_enc[i]);//計算の都合上、型を変える
+            if(diff32[i] > enc_max/2) {
+                diff32[i] -= enc_max; 
+            } else if (diff32[i] < -enc_max/2) {
+                diff32[i] += enc_max; 
+            }
+            diff[i] = static_cast<int16_t>(diff32[i]);
+            zakirps[i] = -diff[i]/(dt * cpr); // 回転数を計算(-は回転方向の調整)
+        }
+        last = current;
+        pre_enc[0] = ENC1;
+        pre_enc[1] = ENC2;
+        pre_enc[2] = ENC3;
+        pre_enc[3] = ENC4;
 
         // 受信データ処理ここまで
     }
@@ -248,15 +250,14 @@
         }
 
         //セーフティチェック（joy）その2
-        double blank_time = (this->get_clock()->now() - last_joy_time).seconds();//joyとの通信間隔        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
-        if(blank_time > 1.0) {
+        double blank_time = (this->now() - last_joy_time).seconds();//joyとの通信間隔        
+
+        if(blank_time > 1.0) {//申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
             for(int j = 0; j < 4; j++){
                 target_v[j] = 0.0;
             }
            joy_received = false; //ジョイスティックの入力がない状態に戻す
         }
-
-        auto msg = std_msgs::msg::Int16MultiArray();
         
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
@@ -270,7 +271,7 @@
             motor_power[l] = P[l] + I[l];
         }
 
-        // 目標速度が0の時は停止したいから蓄積をリセット
+        // 目標速度がほぼ0の時は停止したいから蓄積をリセット
         for(int m = 0; m < 4; m++){
             if (fabs(target_v[m]) <= 0.1) {
                 err_sum[m] = 0.0;
@@ -279,8 +280,8 @@
         }
 
         for(int n = 0; n < 4; n++){
-            data_[n+1] = static_cast<int16_t>(std::clamp(motor_power[n],-motor_limit,motor_limit)); // モーターの出力を制限        
-            data_[n+1] = std::clamp<int16_t>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限
+            data_[n+1] = std::clamp(motor_power[n],-motor_limit,motor_limit); // モーターの出力を制限        
+            data_[n+1] = std::clamp<int>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限)
             
             last_data_[n] = data_[n+1];
         }
@@ -290,9 +291,6 @@
             data_[i+1] = 25; //3はdata_[1],4はdata_[2],1はdata_[3],2はdata_[4]に対応, 
             //data_[1] = 25;
         }*/
-
-        msg.data = this->data_;
-        publisher_->publish(msg);//一旦送っちゃおう
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
@@ -307,17 +305,22 @@
         if(!shivangelion_activated){
             const char* msg = " Shivangelion!!! Activatation!!!";
             std::string fig_msg = "figlet " + std::string(msg);
-        int result = std::system(fig_msg.c_str());
+            int result = std::system(fig_msg.c_str());
 
-        if (result != 0) {
-            std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            if (result != 0) {
+                std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
                       << std::endl;
-            std::cerr << "Please install 'figlet' with the following command:"
+                std::cerr << "Please install 'figlet' with the following command:"
                       << std::endl;
-            std::cerr << "sudo apt install figlet" << std::endl;
-            std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                std::cerr << "sudo apt install figlet" << std::endl;
+                std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
                       << std::endl;
-        }
+                std::cerr << "Please install 'figlet' with the following command:"
+                      << std::endl;
+                std::cerr << "sudo apt install figlet" << std::endl;
+                std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                      << std::endl;
+            }
 
             shivangelion_activated = true;
         }
