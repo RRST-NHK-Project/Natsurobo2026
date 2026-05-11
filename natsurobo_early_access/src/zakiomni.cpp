@@ -120,32 +120,38 @@
         //     data_[1], data_[2], data_[3], data_[4],
         //     data_[9], data_[10], data_[11], data_[12]);
 
-        if(fabs(LS_X) <= DEADZONE_L)
+        if(0.0 <= std::abs(LS_X) && std::abs(LS_X) <= DEADZONE_L)
             LS_X = 0.0;
-        if(fabs(LS_Y) <= DEADZONE_L)
+        if(0.0 <= std::abs(LS_Y) && std::abs(LS_Y) <= DEADZONE_L)
             LS_Y = 0.0;
-        if(fabs(RS_X) <= DEADZONE_R)            
+        if(0.0 <= std::abs(RS_X) && std::abs(RS_X) <= DEADZONE_R)
             RS_X = 0.0;
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
         angle = radian * 180.0 / opPI; //角度を度数法に変換（デバッグ用） 
+        for(int i = 0; i < 4; i++){
+            target_v[i] = 0.0;//初期化
+        }
 
         //移動モード
         if(LS_X || LS_Y){
 
             target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
             target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
-            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian);
-            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);
+            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos(radian + (opPI /4.0));
+            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos((opPI /4.0) - radian);
         }
 
         
         //旋回モード
         if(RS_X){
 
-            target_v[0] = max_target_yaw_cps * RS_X;//+は反時計回り、-は時計回りのつもり
+            for(int i = 0; i < 4; i++){
+                target_v[i] = max_target_yaw_cps * RS_X;
+            }
+           /* target_v[0] = max_target_yaw_cps * RS_X;//+は反時計回り、-は時計回りのつもり
             target_v[1] = max_target_yaw_cps * RS_X;//こっちは No problem
             target_v[2] = max_target_yaw_cps * RS_X;
-            target_v[3] = max_target_yaw_cps * RS_X;
+            target_v[3] = max_target_yaw_cps * RS_X;*/
         }
             // 配列操作ここまで
 
@@ -266,22 +272,26 @@
 
         // PI制御の出力を計算
         for(int l = 0; l < 4; l++){
+            //FF[l] = kff * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎた)
             P[l] = Kp * err[l];
             I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
-            motor_power[l] = P[l] + I[l];
+            D[l] =  Kd * (err[l] - last_err[l]) / dt; // D制御
+            motor_power[l] = /*FF[l]*/ + P[l] + I[l] + D[l];
+            err[l] = last_err[l];
         }
 
         // 目標速度がほぼ0の時は停止したいから蓄積をリセット
         for(int m = 0; m < 4; m++){
-            if (fabs(target_v[m]) <= 0.1) {
+            if (fabs(target_v[m]) <= 0.3) {
                 err_sum[m] = 0.0;
                 motor_power[m] = 0.0;
             }
         }
-
+        std::swap(motor_power[0], motor_power[2]);//モーターの配置に合わせて入れ替え
+        std::swap(motor_power[1], motor_power[3]);
         for(int n = 0; n < 4; n++){
             data_[n+1] = std::clamp(motor_power[n],-motor_limit,motor_limit); // モーターの出力を制限        
-            data_[n+1] = std::clamp<int>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限)
+            data_[n+1] = std::clamp<int16_t>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限)
             
             last_data_[n] = data_[n+1];
         }
@@ -289,7 +299,6 @@
         /*//エンコーダとモータの対応関係を確かめる用
         for(int i=0; i<4; i++) {
             data_[i+1] = 25; //3はdata_[1],4はdata_[2],1はdata_[3],2はdata_[4]に対応, 
-            //data_[1] = 25;
         }*/
 
         // デバッグ用のログ出力

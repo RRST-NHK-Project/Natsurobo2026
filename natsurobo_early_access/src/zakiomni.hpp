@@ -24,19 +24,20 @@
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
 // スティックのデッドゾーン
-#define DEADZONE_L 0.2
-#define DEADZONE_R 0.2
-
+#define DEADZONE_L 0.15
+#define DEADZONE_R 0.15
 
 //　よく調整する定数集(For Mabuchi 775 motor))
-#define cpr 8192//1回転あたり8000カウントと仮定
-const double max_target_move_cps = 7.0; // 1秒あたりの最大回転数(移動方向)
-const double max_target_yaw_cps = 7.0; // 1秒あたりの最大回転数(回転方向)
-const double Kp  = 3.0;//P制御(必要に応じて調整)
-const double Ki = 0.0; // I制御（必要に応じて調整）
+#define cpr 8000//1回転あたり8000カウントと仮定
+const double max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
+const double max_target_yaw_cps = 11.0; // 1秒あたりの最大回転数(回転方向)
+//const double kff = 0.0; // フィードフォワード（必要に応じて調整）
+const double Kp = 7.0; // P制御//無負荷なら7.5あたり？負荷がかかると8,0でもいいかも
+const double Ki = 2.0; // I制御
+const double Kd = 0.0; // D制御(必要に応じて調整)
 const double Imax = 45.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
-const int delta_power_limit = 6;// 出力変化の上限
+const int delta_power_limit = 15;// 出力変化の上限
 const double enc_max = 32767.0; // エンコーダーの最大値
 
 using namespace std::chrono_literals;
@@ -64,20 +65,22 @@ class Zakicar : public rclcpp::Node {
     std::vector<int16_t> data_;
     std::vector<int16_t> last_data_ = {0, 0, 0, 0}; 
     
-    rclcpp::Time current = this->get_clock()->now();
-    rclcpp::Time last = this->get_clock()->now();
+    rclcpp::Time current = this->now();
+    rclcpp::Time last = this->now();
 
     double target_v[4] = {0.0, 0.0, 0.0, 0.0};
     double err[4] =      {0.0, 0.0, 0.0, 0.0};
+    double last_err[4] = {0.0, 0.0, 0.0, 0.0};
     double err_sum[4] =  {0.0, 0.0, 0.0, 0.0};
     double zakirps[4] =  {0.0, 0.0, 0.0, 0.0};
-    double P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, motor_power[4] = {0.0, 0.0, 0.0, 0.0};
+    double FF[4] = {0.0, 0.0, 0.0, 0.0};
+    double P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, D[4] = {0.0, 0.0, 0.0, 0.0}, motor_power[4] = {0.0, 0.0, 0.0, 0.0};
     double dt = 0.0; 
     double radian = 0.0;
     double angle = 0.0;
 
     //フラグ関連の変数
-    rclcpp::Time last_joy_time = this->get_clock()->now();
+    rclcpp::Time last_joy_time = this->now();
     bool joy_received = false;
     bool enc_received = false;
     bool shivangelion_activated = false;
