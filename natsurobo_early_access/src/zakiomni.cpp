@@ -93,7 +93,7 @@
         // bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
-        // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
+        R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
         // bool L2 = msg->buttons[6];
         // bool R2 = msg->buttons[7];
@@ -131,28 +131,37 @@
         for(int i = 0; i < 4; i++){
             target_v[i] = 0.0;//初期化
         }
+        //直進モード
+        if((LS_X == 0.0 && LS_Y == 0.0) && R2_DIGITAL > 0.0) {
+            radian = opPI / 2.0;//R2を押してるときは前進する
+            target_v[0] = max_target_move_cps * R2_DIGITAL * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+            target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((opPI /4.0) - radian);
+            target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI /4.0));
+            target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI /4.0) - radian);
+        }
 
         //移動モード
         if(LS_X || LS_Y){
-
-            target_v[0] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-            target_v[1] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos((opPI /4.0) - radian);//(何番か分からんけど多分計算か車輪位置の仮定がミスってる)
-            target_v[2] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * std::cos(radian + (opPI /4.0));
-            target_v[3] = max_target_move_cps * sqrt( pow(LS_X ,2) + pow(LS_Y ,2) ) * -std::cos((opPI /4.0) - radian);
+            target_v[0] += max_target_move_cps * R2_DIGITAL * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+            target_v[1] += max_target_move_cps * R2_DIGITAL * std::cos((opPI /4.0) - radian);
+            target_v[2] += max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI /4.0));
+            target_v[3] += max_target_move_cps * R2_DIGITAL * -std::cos((opPI /4.0) - radian);
         }
-
         
         //旋回モード
         if(RS_X){
-
             for(int i = 0; i < 4; i++){
-                target_v[i] = max_target_yaw_cps * RS_X;
+                target_v[i] = -max_target_yaw_cps * RS_X;
             }
-           /* target_v[0] = max_target_yaw_cps * RS_X;//+は反時計回り、-は時計回りのつもり
-            target_v[1] = max_target_yaw_cps * RS_X;//こっちは No problem
-            target_v[2] = max_target_yaw_cps * RS_X;
-            target_v[3] = max_target_yaw_cps * RS_X;*/
+           
         }
+        for (int l = 0; l < 4; l++) {
+            static double prev_target_v[4] = {0.0, 0.0, 0.0, 0.0};
+            constexpr double alpha = 0.2;  // フィルタ係数（小さいほどスムーズ）
+            target_v[l] = alpha * target_v[l] + (1.0 - alpha) * prev_target_v[l];//低速帯の振動が激しいため、AIに書かせたけど割と優秀
+            prev_target_v[l] = target_v[l];  // 保存
+        }
+
             // 配列操作ここまで
 
             joy_received = true;//joystick受信フラグ
@@ -276,6 +285,11 @@
             P[l] = Kp * err[l];
             I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
             D[l] =  Kd * (err[l] - last_err[l]) / dt; // D制御
+
+            if(fabs(target_v[l]) <= 5.0 ) {
+                I[l] = 0.0;
+                D[l] = 0.0;
+            }
             motor_power[l] = /*FF[l]*/ + P[l] + I[l] + D[l];
             err[l] = last_err[l];
         }
@@ -287,8 +301,10 @@
                 motor_power[m] = 0.0;
             }
         }
+
         std::swap(motor_power[0], motor_power[2]);//モーターの配置に合わせて入れ替え
         std::swap(motor_power[1], motor_power[3]);
+
         for(int n = 0; n < 4; n++){
             data_[n+1] = std::clamp(motor_power[n],-motor_limit,motor_limit); // モーターの出力を制限        
             data_[n+1] = std::clamp<int16_t>(data_[n+1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限)
@@ -304,9 +320,9 @@
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
                 "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
-                "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f",
+                "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f,R2:%f",
                 dt,ENC1,ENC2,ENC3,ENC4,LS_X, LS_Y, angle, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
-                data_[1],data_[2],data_[3],data_[4], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]);//現状一輪しかないので
+                data_[3],data_[4],data_[1],data_[2], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3], R2_DIGITAL);//現状一輪しかないので
 
     };
     void Zakicar::Shivangelion(){

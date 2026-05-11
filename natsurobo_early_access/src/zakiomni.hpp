@@ -30,14 +30,14 @@
 //　よく調整する定数集(For Mabuchi 775 motor))
 #define cpr 8000//1回転あたり8000カウントと仮定
 const double max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
-const double max_target_yaw_cps = 11.0; // 1秒あたりの最大回転数(回転方向)
-//const double kff = 0.0; // フィードフォワード（必要に応じて調整）
-const double Kp = 7.0; // P制御//無負荷なら7.5あたり？負荷がかかると8,0でもいいかも
-const double Ki = 2.0; // I制御
-const double Kd = 0.0; // D制御(必要に応じて調整)
-const double Imax = 45.0; // I制御の蓄積の上限（必要に応じて調整）
+const double max_target_yaw_cps = 10.0; // 1秒あたりの最大回転数(回転方向)
+//const double kff = 0.0; // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
+const double Kp = 8.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
+const double Ki = 1.5; // I制御
+const double Kd = 0.0; // D制御(ただしめっちゃ振動するから封印中)
+const double Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
 const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
-const int delta_power_limit = 15;// 出力変化の上限
+const int delta_power_limit = 25;// 出力変化の上限
 const double enc_max = 32767.0; // エンコーダーの最大値
 
 using namespace std::chrono_literals;
@@ -105,7 +105,7 @@ class Zakicar : public rclcpp::Node {
     //bool L1;
     //bool R1;
     //float L2;
-    //float R2;
+    float R2_DIGITAL;
     //bool SHARE;
     //bool OPTION;
     //bool PS;
