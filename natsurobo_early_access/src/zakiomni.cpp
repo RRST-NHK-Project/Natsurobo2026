@@ -140,7 +140,7 @@
             target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI /4.0) - radian);
         }
 
-        //移動モード
+        //移動モード(R2を押し込みながら)
         if(LS_X || LS_Y){
             target_v[0] += max_target_move_cps * R2_DIGITAL * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
             target_v[1] += max_target_move_cps * R2_DIGITAL * std::cos((opPI /4.0) - radian);
@@ -290,7 +290,7 @@
                 D[l] = 0.0;
             }
             motor_power[l] = FF[l] + P[l] + I[l] + D[l];
-            err[l] = last_err[l];
+            last_err[l] = err[l];
         }
 
         // 目標速度がほぼ0の時は停止したいから蓄積をリセット
@@ -311,7 +311,7 @@
             last_data_[n] = data_[n+1];
         }
 
-        data_[4] = 0;//4番が物理的に故障しました
+        data_[2] = 0;//data_[2](4)番が物理的に故障しました
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
