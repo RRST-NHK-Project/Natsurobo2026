@@ -130,7 +130,7 @@
         for(int i = 0; i < 4; i++){
             target_v[i] = 0.0;//初期化（これがないとスティックを元に戻しても0にならない）
         }
-        
+
         //直進モード(R2のみを押したとき)
         if(R2_DIGITAL && (LS_X == 0.0 && LS_Y == 0.0) ) {
             radian = opPI / 2.0;
@@ -311,10 +311,13 @@
             last_data_[n] = data_[n+1];
         }
 
+        data_[4] = 0;//4番が物理的に故障しました
+
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
                 "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,"
                 "power[1-4]: %d,%d,%d,%d,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f,"/*D[1-4]: %f,%f,%f,%f,KFF: %f*///使ってないからコメントだけ
+            
                 ,dt, target_v[0],target_v[1],target_v[2],target_v[3], zakirps[0],zakirps[1],zakirps[2],zakirps[3],
                 data_[3],data_[4],data_[1],data_[2], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]/*,D[0],D[1],D[2],D[3],Kff*/);
 
