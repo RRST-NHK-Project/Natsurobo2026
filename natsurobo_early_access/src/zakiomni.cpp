@@ -79,37 +79,37 @@
         RS_X = -1 * msg->axes[3];
         // RS_Y = msg->axes[4];
 
-        // bool CROSS = msg->buttons[0];
-        // bool CIRCLE = msg->buttons[1];
-        // bool TRIANGLE = msg->buttons[2];
-        // bool SQUARE = msg->buttons[3];
+        // CROSS = msg->buttons[0];
+        // CIRCLE = msg->buttons[1];
+        // TRIANGLE = msg->buttons[2];
+        // SQUARE = msg->buttons[3];
 
-        // bool LEFT = msg->axes[6] == 1.0;
-        // bool RIGHT = msg->axes[6] == -1.0;
-        // bool UP = msg->axes[7] == 1.0;
-        // bool DOWN = msg->axes[7] == -1.0;
+        // LEFT = msg->axes[6] == 1.0;
+        // RIGHT = msg->axes[6] == -1.0;
+        // UP = msg->axes[7] == 1.0;
+        // DOWN = msg->axes[7] == -1.0;
 
-        // bool L1 = msg->buttons[4];
-        // bool R1 = msg->buttons[5];
+        // L1 = msg->buttons[4];
+        // R1 = msg->buttons[5];
 
-        // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
+        // L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
-        // bool L2 = msg->buttons[6];
-        // bool R2 = msg->buttons[7];
+        // L2 = msg->buttons[6];
+        // R2 = msg->buttons[7];
 
-        // bool SHARE = msg->buttons[8];
-        // bool OPTION = msg->buttons[9];
-        // bool PS = msg->buttons[10];
+        // SHARE = msg->buttons[8];
+        // OPTION = msg->buttons[9];
+        // PS = msg->buttons[10];
 
-        // bool L3 = msg->buttons[11];
-        // bool R3 = msg->buttons[12];
+        // L3 = msg->buttons[11];
+        // R3 = msg->buttons[12];
 
-        // static bool last_option = false;
-        // static bool option_latch = false;
+        // last_option = false;
+        // option_latch = false;
 
-        // static bool last_share = false;
-        // static bool share_latch = false;
+        // last_share = false;
+        // share_latch = false;
 
         // 以降、配列data_を操作する
 
@@ -120,21 +120,21 @@
         //     data_[1], data_[2], data_[3], data_[4],
         //     data_[9], data_[10], data_[11], data_[12]);
 
-        if(0.0 <= std::abs(LS_X) && std::abs(LS_X) <= DEADZONE_L)
+        if(fabs(LS_X) <= DEADZONE_L)
             LS_X = 0.0;
-        if(0.0 <= std::abs(LS_Y) && std::abs(LS_Y) <= DEADZONE_L)
+        if(fabs(LS_Y) <= DEADZONE_L)
             LS_Y = 0.0;
-        if(0.0 <= std::abs(RS_X) && std::abs(RS_X) <= DEADZONE_R)
+        if(fabs(RS_X) <= DEADZONE_R)
             RS_X = 0.0;
         radian = atan2(LS_Y, LS_X); //スティックの角度を算出
-        angle = radian * 180.0 / opPI; //角度を度数法に変換（デバッグ用） 
         for(int i = 0; i < 4; i++){
-            target_v[i] = 0.0;//初期化
+            target_v[i] = 0.0;//初期化（これがないとスティックを元に戻しても0にならない）
         }
-        //直進モード
-        if((LS_X == 0.0 && LS_Y == 0.0) && R2_DIGITAL > 0.0) {
-            radian = opPI / 2.0;//R2を押してるときは前進する
-            target_v[0] = max_target_move_cps * R2_DIGITAL * std::cos((3.0/4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+        
+        //直進モード(R2のみを押したとき)
+        if(R2_DIGITAL && (LS_X == 0.0 && LS_Y == 0.0) ) {
+            radian = opPI / 2.0;
+            target_v[0] = max_target_move_cps * R2_DIGITAL * std::cos((3.0/4.0 * opPI) - radian); 
             target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((opPI /4.0) - radian);
             target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI /4.0));
             target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI /4.0) - radian);
@@ -156,10 +156,8 @@
            
         }
         for (int l = 0; l < 4; l++) {
-            static double prev_target_v[4] = {0.0, 0.0, 0.0, 0.0};
-            constexpr double alpha = 0.2;  // フィルタ係数（小さいほどスムーズ）
-            target_v[l] = alpha * target_v[l] + (1.0 - alpha) * prev_target_v[l];//低速帯の振動が激しいため、AIに書かせたけど割と優秀
-            prev_target_v[l] = target_v[l];  // 保存
+            target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l];//低速帯の振動が激しいため、AIに書かせたけど割と優秀
+            last_target_v[l] = target_v[l];  
         }
 
             // 配列操作ここまで
@@ -173,7 +171,7 @@
 
         about_PID();//一定周期でtimerが呼び出されるときに連動してActivate!
 
-        if(!shivangelion_activated && joy_received){
+        if(!shivangelion_activated && joy_received){//デバック用
             Shivangelion();
         }
 
@@ -277,20 +275,21 @@
         for(int k = 0; k < 4; k++){
             err[k] = target_v[k] - zakirps[k];//P制御
             err_sum[k]  += err[k] * dt; //I制御
+            err_diff[k] = (err[k] - last_err[k]) / dt; //D制御
         }
 
         // PI制御の出力を計算
         for(int l = 0; l < 4; l++){
-            //FF[l] = kff * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎた)
+            FF[l] = Kff * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
             P[l] = Kp * err[l];
             I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
-            D[l] =  Kd * (err[l] - last_err[l]) / dt; // D制御
+            D[l] =  Kd * err_diff[l];
 
-            if(fabs(target_v[l]) <= 5.0 ) {
+            if(fabs(target_v[l]) <= 5.0 ) {//低速ではPのみで十分かなって
                 I[l] = 0.0;
                 D[l] = 0.0;
             }
-            motor_power[l] = /*FF[l]*/ + P[l] + I[l] + D[l];
+            motor_power[l] = FF[l] + P[l] + I[l] + D[l];
             err[l] = last_err[l];
         }
 
@@ -312,17 +311,12 @@
             last_data_[n] = data_[n+1];
         }
 
-        /*//エンコーダとモータの対応関係を確かめる用
-        for(int i=0; i<4; i++) {
-            data_[i+1] = 25; //3はdata_[1],4はdata_[2],1はdata_[3],2はdata_[4]に対応, 
-        }*/
-
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
-                "dt: %f,Enc[1-4] : %d,%d,%d,%d,LS_X: %f,LS_Y: %f,θ: %f,rps[1-4]: %f,%f,%f,%f,power[1-4]: %d,%d,%d,%d,"
-                "T_v[1-4]: %f,%f,%f,%f,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f,R2:%f",
-                dt,ENC1,ENC2,ENC3,ENC4,LS_X, LS_Y, angle, zakirps[0],zakirps[1],zakirps[2],zakirps[3],
-                data_[3],data_[4],data_[1],data_[2], target_v[0],target_v[1],target_v[2],target_v[3], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3], R2_DIGITAL);//現状一輪しかないので
+                "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,"
+                "power[1-4]: %d,%d,%d,%d,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f,"/*D[1-4]: %f,%f,%f,%f,KFF: %f*///使ってないからコメントだけ
+                ,dt, target_v[0],target_v[1],target_v[2],target_v[3], zakirps[0],zakirps[1],zakirps[2],zakirps[3],
+                data_[3],data_[4],data_[1],data_[2], P[0],P[1],P[2],P[3], I[0],I[1],I[2],I[3]/*,D[0],D[1],D[2],D[3],Kff*/);
 
     };
     void Zakicar::Shivangelion(){
