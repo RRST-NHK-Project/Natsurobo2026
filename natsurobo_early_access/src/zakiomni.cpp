@@ -208,7 +208,7 @@
         if(!enc_received) {//初回限定初期化
 
             for(int i = 0; i < 4; i++){
-                pre_enc[i] = static_cast<uint16_t>(msg->data[i+1]);//こいつだけここに配置するしかなかった
+                last_enc[i] = static_cast<uint16_t>(msg->data[i+1]);//こいつだけここに配置するしかなかった
             }
             enc_received = true;
             last = current;
@@ -226,13 +226,13 @@
             return;
         }      
             
-        diff32[0] =  ENC1- pre_enc32[0]; 
-        diff32[1] =  ENC2- pre_enc32[1];
-        diff32[2] =  ENC3- pre_enc32[2];
-        diff32[3] =  ENC4- pre_enc32[3];
+        diff32[0] =  ENC1- last_enc32[0]; 
+        diff32[1] =  ENC2- last_enc32[1];
+        diff32[2] =  ENC3- last_enc32[2];
+        diff32[3] =  ENC4- last_enc32[3];
 
         for(int i = 0; i < 4; i++){
-            pre_enc32[i] = static_cast<int16_t>(pre_enc[i]);//計算の都合上、型を変える
+            last_enc32[i] = static_cast<int16_t>(last_enc[i]);//計算の都合上、型を変える
             if(diff32[i] > enc_max/2) {
                 diff32[i] -= enc_max; 
             } else if (diff32[i] < -enc_max/2) {
@@ -242,10 +242,10 @@
             zakirps[i] = -diff[i]/(dt * cpr); // 回転数を計算(-は回転方向の調整)
         }
         last = current;
-        pre_enc[0] = ENC1;
-        pre_enc[1] = ENC2;
-        pre_enc[2] = ENC3;
-        pre_enc[3] = ENC4;
+        last_enc[0] = ENC1;
+        last_enc[1] = ENC2;
+        last_enc[2] = ENC3;
+        last_enc[3] = ENC4;
 
         // 受信データ処理ここまで
     }

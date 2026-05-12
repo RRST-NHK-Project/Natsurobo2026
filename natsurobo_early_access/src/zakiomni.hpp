@@ -90,8 +90,8 @@ class Zakicar : public rclcpp::Node {
     bool shivangelion_activated = false;
     int32_t diff32[4] = {0, 0, 0, 0};
     int16_t diff[4] = {0, 0, 0, 0};
-    int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
-    uint16_t pre_enc[4] = {0, 0, 0, 0};
+    int32_t last_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
+    uint16_t last_enc[4] = {0, 0, 0, 0};
    
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
         float LS_X;
