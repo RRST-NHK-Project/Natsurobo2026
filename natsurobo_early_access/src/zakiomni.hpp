@@ -30,16 +30,16 @@
 const float enc_max = 32767.0; // エンコーダーの最大値
 
 //　よく調整する定数集(For Mabuchi 775 motor))
-const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
-const float max_target_yaw_cps = 15.0; // 1秒あたりの最大回転数(回転方向)
+const float max_target_move_cps = 5.5; // 1秒あたりの最大回転数(移動方向)
+const float max_target_yaw_cps = 6.0; // 1秒あたりの最大回転数(回転方向)
 const float Kff = 0.0; // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
 const float Kp = 6.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
-const float Ki = 2.5; // I制御
+const float Ki = 0.0; // I制御
 const float Kd = 0.0; // D制御(ただしめっちゃ振動するから封印中)
-const float filter = 0.2;  // フィルタ係数（小さいほどスムーズらしい）
+const float filter = 0.4;  // フィルタ係数（小さいほどスムーズらしい）
 const float Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
 const float motor_limit = 50.0; // モーターの出力の上限（0~100で）
-const int delta_power_limit = 10;// 出力変化の上限
+const int delta_power_limit = 15;// 出力変化の上限
 
 using namespace std::chrono_literals;
 
