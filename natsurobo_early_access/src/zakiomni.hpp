@@ -26,20 +26,19 @@
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
-#define cpr 8000//1回転あたり8000カウントと仮定
-const float enc_max = 32767.0; // エンコーダーの最大値
 
 //　よく調整する定数集(For Mabuchi 775 motor))
-const float max_target_move_cps = 5.5; // 1秒あたりの最大回転数(移動方向)
-const float max_target_yaw_cps = 6.0; // 1秒あたりの最大回転数(回転方向)
-const float Kff = 0.0; // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
-const float Kp = 6.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
-const float Ki = 0.0; // I制御
-const float Kd = 0.0; // D制御(ただしめっちゃ振動するから封印中)
-const float filter = 0.4;  // フィルタ係数（小さいほどスムーズらしい）
-const float Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
-const float motor_limit = 50.0; // モーターの出力の上限（0~100で）
-const int delta_power_limit = 15;// 出力変化の上限
+#define cpr 8000//1回転あたり8000カウントと仮定
+const double max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
+const double max_target_yaw_cps = 10.0; // 1秒あたりの最大回転数(回転方向)
+//const double kff = 0.0; // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
+const double Kp = 8.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
+const double Ki = 1.5; // I制御
+const double Kd = 0.0; // D制御(ただしめっちゃ振動するから封印中)
+const double Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
+const double motor_limit = 80.0; // モーターの出力の上限（0~100で）
+const int delta_power_limit = 25;// 出力変化の上限
+const double enc_max = 32767.0; // エンコーダーの最大値
 
 using namespace std::chrono_literals;
 
@@ -69,18 +68,16 @@ class Zakicar : public rclcpp::Node {
     rclcpp::Time current = this->now();
     rclcpp::Time last = this->now();
 
-    float target_v[4] = {0.0, 0.0, 0.0, 0.0};
-    float last_target_v[4] = {0.0, 0.0, 0.0, 0.0};
-    float err[4] =      {0.0, 0.0, 0.0, 0.0};
-    float last_err[4] = {0.0, 0.0, 0.0, 0.0};
-    float err_diff[4] = {0.0, 0.0, 0.0, 0.0};
-    float err_sum[4] =  {0.0, 0.0, 0.0, 0.0};
-    float zakirps[4] =  {0.0, 0.0, 0.0, 0.0};
-    float FF[4] = {0.0, 0.0, 0.0, 0.0};
-    float P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, D[4] = {0.0, 0.0, 0.0, 0.0};
-    float motor_power[4] = {0.0, 0.0, 0.0, 0.0};
-    float dt = 0.0; 
-    float radian = 0.0;
+    double target_v[4] = {0.0, 0.0, 0.0, 0.0};
+    double err[4] =      {0.0, 0.0, 0.0, 0.0};
+    double last_err[4] = {0.0, 0.0, 0.0, 0.0};
+    double err_sum[4] =  {0.0, 0.0, 0.0, 0.0};
+    double zakirps[4] =  {0.0, 0.0, 0.0, 0.0};
+    double FF[4] = {0.0, 0.0, 0.0, 0.0};
+    double P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, D[4] = {0.0, 0.0, 0.0, 0.0}, motor_power[4] = {0.0, 0.0, 0.0, 0.0};
+    double dt = 0.0; 
+    double radian = 0.0;
+    double angle = 0.0;
 
     //フラグ関連の変数
     rclcpp::Time last_joy_time = this->now();
@@ -89,45 +86,31 @@ class Zakicar : public rclcpp::Node {
     bool shivangelion_activated = false;
     int32_t diff32[4] = {0, 0, 0, 0};
     int16_t diff[4] = {0, 0, 0, 0};
-    int32_t last_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
-    uint16_t last_enc[4] = {0, 0, 0, 0};
+    int32_t pre_enc32[4] = {0, 0, 0, 0};//エンコーダの値の計算用
+    uint16_t pre_enc[4] = {0, 0, 0, 0};
    
     // コントローラーの入力を取得、使わない入力はコメントアウト推奨
-        float LS_X;
-        float LS_Y;
-        float RS_X;
-        // float RS_Y;
-        // bool CROSS;
-        // bool CIRCLE;
-        // bool TRIANGLE;
-        // bool SQUARE;
-
-        // bool LEFT;
-        // bool RIGHT;
-        // bool UP;
-        // bool DOWN;
-
-        // bool L1;
-        // bool R1;
-
-        // float L2_DIGITAL;
-        float R2_DIGITAL;
-
-        // bool L2;
-        // bool R2;
-
-        // bool SHARE;
-        // bool OPTION;
-        // bool PS;
-
-        // bool L3;
-        // bool R3;
-
-        // static bool last_option = false;
-        // static bool option_latch = false;
-
-        // static bool last_share = false;
-        // static bool share_latch = false;
+    float LS_X;
+    float LS_Y;
+    float RS_X;
+    //float RS_Y;
+    //bool CROSS;
+    //bool CIRCLE;
+    //bool TRIANGLE;
+    //bool SQUARE;
+    //bool LEFT;
+    //bool RIGHT;
+    //bool UP;
+    //bool DOWN;
+    //bool L1;
+    //bool R1;
+    //float L2;
+    float R2_DIGITAL;
+    //bool SHARE;
+    //bool OPTION;
+    //bool PS;
+    //bool L3;
+    //bool R3;   
 
    int16_t ENC1 = 0;
    int16_t ENC2 = 0;
