@@ -26,20 +26,19 @@
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
-
 #define cpr 8000//1回転あたり8000カウントと仮定
 const float enc_max = 32767.0; // エンコーダーの最大値
 
 //　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
-const float max_target_yaw_cps = 10.0; // 1秒あたりの最大回転数(回転方向)
+const float max_target_yaw_cps = 15.0; // 1秒あたりの最大回転数(回転方向)
 const float Kff = 0.0; // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
-const float Kp = 8.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
-const float Ki = 1.5; // I制御
+const float Kp = 6.5; // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
+const float Ki = 2.5; // I制御
 const float Kd = 0.0; // D制御(ただしめっちゃ振動するから封印中)
 const float filter = 0.2;  // フィルタ係数（小さいほどスムーズらしい）
 const float Imax = 30.0; // I制御の蓄積の上限（必要に応じて調整）
-const float motor_limit = 70.0; // モーターの出力の上限（0~100で）
+const float motor_limit = 50.0; // モーターの出力の上限（0~100で）
 const int delta_power_limit = 10;// 出力変化の上限
 
 using namespace std::chrono_literals;

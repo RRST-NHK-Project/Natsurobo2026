@@ -39,7 +39,7 @@
         */
        //rclcpp::Time current = this->get_clock()->now();//何故か知らないけど間にget_clock()挟まないとコンパイルエラーと化した<-なんか消してもビルド通った
 
-        std::cout << "Waiting to receive topics." << std::endl;//なにもトピックを受け取ってないときの状態が欲しかった
+        std::cout << "Fuck You!!" << std::endl;//なにもトピックを受け取ってないときの状態が欲しかった
 
         //joyスティックからトピックを受信
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
@@ -88,10 +88,8 @@
         // RIGHT = msg->axes[6] == -1.0;
         // UP = msg->axes[7] == 1.0;
         // DOWN = msg->axes[7] == -1.0;
-
         // L1 = msg->buttons[4];
         // R1 = msg->buttons[5];
-
         // L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
@@ -215,6 +213,7 @@
             dt = 0.0;
             return;
         } 
+        //std::swap(ENC1, ENC3);//モーターの配置の関係でエンコーダの値を入れ替える必要がある
 
         //エンコーダのオーバーフローを防止と回転数の計算
 
@@ -301,7 +300,7 @@
             }
         }
 
-        std::swap(motor_power[0], motor_power[2]);//モーターの配置に合わせて入れ替え
+        std::swap(motor_power[0], motor_power[2]);//モーターの配置の関係で目標速度を入れ替える必要がある
         std::swap(motor_power[1], motor_power[3]);
 
         for(int n = 0; n < 4; n++){
@@ -310,8 +309,10 @@
             
             last_data_[n] = data_[n+1];
         }
-
-        data_[2] = 0;//data_[2](4)番が物理的に故障しました
+       
+        // for(int u = 0;u<4;u++){
+        //     data_[u+1] = 0;
+        //     }
 
         // デバッグ用のログ出力
         RCLCPP_INFO(this->get_logger(),
