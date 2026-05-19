@@ -165,19 +165,19 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
 
     // 配列操作ここまで
 
-    joy_received = true; // joystick受信フラグ
+    joy_received.store(true); // joystick受信フラグ
     last_joy_time = this->now();
 }
 
 void Zakicar::publisher_timer_callback()
 {
 
-    about_PID(); // 一定周期でtimerが呼び出されるときに連動してActivate!
+    Timeout_check() // joyとencの両方のタイムアウトをチェック
 
-    if (!shivangelion_activated && joy_received)
-    { // デバック用
+        about_PID(); // 一定周期でtimerが呼び出されるときに連動してActivate!
+
+    if (!shivangelion_activated.load() && joy_received.load() && enc_received.load()) // デバッグ用（必要なノードを全て起動したときにこれが出る）
         Shivangelion();
-    }
 
     std_msgs::msg::Int16MultiArray msg;
     msg.data = data_;
@@ -188,7 +188,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
 {
 
     current = this->now();
-    dt = (current - last).seconds();
+    dt = (current - last_enc_time).seconds();
 
     ENC1 = msg->data[1];
     ENC2 = msg->data[2];
@@ -210,25 +210,24 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
 
     // 以降、受信データを使った処理を記述
 
-    if (!enc_received)
+    if (!enc_received.load())
     { // 初回限定初期化
 
         for (int i = 0; i < 4; i++)
         {
             last_enc[i] = static_cast<uint16_t>(msg->data[i + 1]); // こいつだけここに配置するしかなかった
         }
-        enc_received = true;
-        last = current;
+        enc_received.store(true);
+        last_enc_time = current;
         dt = 0.0;
         return;
     }
-    // std::swap(ENC1, ENC3);//モーターの配置の関係でエンコーダの値を入れ替える必要がある
 
     // エンコーダのオーバーフローを防止と回転数の計算
 
     if (dt <= 0.0)
     { // 申し訳ないが初期のdt（=0)はNG
-        last = current;
+        last_enc_time = current;
         return;
     }
     if (dt <= 0.005)
@@ -263,48 +262,75 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
         rps[i] = -diff[i] / (dt * cpr); // 回転数を計算(-は回転方向の調整)
         if (rps[i])
         {
-            rps_count[i] = true; // エンコーダが回転してるか判定する
+            rps_count[i].store(true); // エンコーダが回転してるか判定する
             count_true++;
         }
         else
         {
-            rps_count[i] = false;
+            rps_count[i].store(false);
             count_false++;
         }
     }
-    rps_num_count = rps_count[0] + rps_count[1] + rps_count[2] + rps_count[3]; // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
-    last = current;
+    rps_num_count = rps_count[0].load() + rps_count[1].load() + rps_count[2].load() + rps_count[3].load(); // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
+
     last_enc[0] = ENC1;
     last_enc[1] = ENC2;
     last_enc[2] = ENC3;
     last_enc[3] = ENC4;
 
     // 受信データ処理ここまで
+    // 最後に受信時刻を更新してタイムアウト判定に使えるようにする
+    last_enc_time = current;
+}
+void Zakicar::Timeout_check()
+{
+    // エンコーダ受信タイムアウト判定（about_PID の早期リターンに影響されないようここで処理）
+    enc_blank_time = (this->now() - last_enc_time).seconds();
+    if (enc_blank_time > timeout)
+    {
+        enc_received.store(false);
+    }
+
+    // ジョイ受信タイムアウト判定をタイマー側で行う（about_PID の早期リターンに影響されないように）
+    joy_blank_time = (this->now() - last_joy_time).seconds();
+    if (joy_blank_time > timeout)
+    {
+        joy_received.store(false);
+    }
+    // About_PIDで一定時間（とりあえず一秒以上）トピックが来なければタイムアウトとして受信フラグをリセット
+
+    if (shivangelion_activated.load() && (!joy_received.load() || !enc_received.load())) // タイムアウトして必要なトピックが受信できてないときの警告（デバッグ用）
+    {
+        RCLCPP_WARN(this->get_logger(),
+                    "TIMEOUT!!");
+        if (!joy_received.load() && !enc_received.load())
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Please check BOTH Joy Joy_node or controller and Serial_bridge_node or USB");
+        }
+        else if (!joy_received.load())
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Please check Joy_node or controller.");
+        }
+        else if (!enc_received.load())
+        {
+            RCLCPP_WARN(this->get_logger(),
+                        "Please check Serial_bridge_node or USB.");
+        }
+    }
 }
 
 void Zakicar::about_PID()
 {
-
-    // セーフティチェック（joy）
-    if (!joy_received)
+    // セーフティチェック（joy）その2
+    if (!joy_received.load())
     {
         for (int i = 0; i < 4; i++)
         {
             target_v[i] = 0.0;
         }
         return;
-    }
-
-    // セーフティチェック（joy）その2
-    double blank_time = (this->now() - last_joy_time).seconds(); // joyとの通信間隔
-
-    if (blank_time > 1.0)
-    { // 申し訳ないが1秒以上入力しないとタイムアウトして速度をゼロにする
-        for (int j = 0; j < 4; j++)
-        {
-            target_v[j] = 0.0;
-        }
-        joy_received = false; // ジョイスティックの入力がない状態に戻す
     }
 
     for (int k = 0; k < 4; k++)
@@ -370,26 +396,37 @@ void Zakicar::about_PID()
     }
     else if (count_true > count_false)
     { // 回転しているエンコーダの数が3のときは空転している可能性が高いからログを出す
-
-        doubt_enc = std::find(std::begin(rps_count), std::end(rps_count), false) - std::begin(rps_count) + 1; // 回転してないエンコーダの番号を特定
+        for (int x = 0; x < 4; x++)
+        {
+            if (!rps_count[x].load())
+            {
+                doubt_enc_num = x + 1;
+                break;
+            }
+        }
         RCLCPP_WARN(this->get_logger(),
-                    "Encoder%d or Motor%d might not be active correctly. Please check the hardware."
-
-                    ,
-                    doubt_enc, doubt_enc);
+                    "Encoder%d or Motor%d might not be active correctly. Please check the hardware.",
+                    doubt_enc_num, doubt_enc_num);
     }
     else
-    { // そんなわけないと思うけど一個だけ回転してる（と思われる）ときはこの警告を出す
-
-        doubt_enc = std::find(std::begin(rps_count), std::end(rps_count), true) - std::begin(rps_count) + 1; // 回転してるエンコーダの番号を特定
+    { // 1つだけ回転している（と思われる）ときの警告
+        for (int y = 0; y < 4; y++)
+        {
+            if (rps_count[y].load())
+            {
+                doubt_enc_num = y + 1;
+                break;
+            }
+        }
         RCLCPP_WARN(this->get_logger(),
-                    "Only an encoder%d or motor%d might be active incorrectly. Please check the hardware.", doubt_enc, doubt_enc);
+                    "Only an encoder%d or motor%d might be active incorrectly. Please check the hardware.",
+                    doubt_enc_num, doubt_enc_num);
     }
 }
+
 void Zakicar::Shivangelion()
 {
-
-    if (!shivangelion_activated)
+    if (!shivangelion_activated.load();)
     {
         const char *msg = " Shivangelion!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
@@ -411,13 +448,12 @@ void Zakicar::Shivangelion()
                       << std::endl;
         }
 
-        shivangelion_activated = true;
+        shivangelion_activated.store(true);
     }
 }
 
 int main(int argc, char *argv[])
 {
-
     rclcpp::init(argc, argv);
 
     rclcpp::executors::MultiThreadedExecutor exec;
