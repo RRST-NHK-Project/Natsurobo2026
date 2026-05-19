@@ -172,7 +172,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
 void Zakicar::publisher_timer_callback()
 {
 
-    Timeout_check() // joyとencの両方のタイムアウトをチェック
+    Timeout_check(); // joyとencの両方のタイムアウトをチェック
 
         about_PID(); // 一定周期でtimerが呼び出されるときに連動してActivate!
 
@@ -426,7 +426,7 @@ void Zakicar::about_PID()
 
 void Zakicar::Shivangelion()
 {
-    if (!shivangelion_activated.load();)
+    if (!shivangelion_activated.load())
     {
         const char *msg = " Shivangelion!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
