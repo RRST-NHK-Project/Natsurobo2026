@@ -4,6 +4,10 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id)
 {
     //: Node("hardware_control_" + std::to_string(tx_device_id)),
+    current = this->now();
+    last = this->now();
+    last_joy_time = this->now();
+    last_enc_time = this->now();
 
     // 配列を0で初期化
     data_.assign(TX16NUM, 0);
@@ -129,7 +133,6 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
         target_v[i] = 0.0; // 初期化（これがないとスティックを元に戻しても0にならない）
     }
-
     // 直進モード(R2のみを押したとき)
     if (R2_DIGITAL && (LS_X == 0.0 && LS_Y == 0.0))
     {
@@ -235,11 +238,6 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
         return;
     }
 
-    diff32[0] = ENC1 - last_enc32[0];
-    diff32[1] = ENC2 - last_enc32[1];
-    diff32[2] = ENC3 - last_enc32[2];
-    diff32[3] = ENC4 - last_enc32[3];
-
     if (rps_num_count)
     {
         rps_num_count = 0;
@@ -247,18 +245,12 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
         count_false = 0;
     }
 
+    diff[0] = ENC1 - last_enc[0];//int32_tとか使ってたけど現状は速度制御だけだからint16_tどうしの引き算で十分そう（32のつく変数はオミットされました）
+    diff[1] = ENC2 - last_enc[1];
+    diff[2] = ENC3 - last_enc[2];
+    diff[3] = ENC4 - last_enc[3];
     for (int i = 0; i < 4; i++)
     {
-        last_enc32[i] = static_cast<int16_t>(last_enc[i]); // 計算の都合上、型を変える
-        if (diff32[i] > enc_max / 2)
-        {
-            diff32[i] -= enc_max;
-        }
-        else if (diff32[i] < -enc_max / 2)
-        {
-            diff32[i] += enc_max;
-        }
-        diff[i] = static_cast<int16_t>(diff32[i]);
         rps[i] = -diff[i] / (dt * cpr); // 回転数を計算(-は回転方向の調整)
         if (rps[i])
         {
@@ -329,15 +321,22 @@ void Zakicar::about_PID()
         for (int i = 0; i < 4; i++)
         {
             target_v[i] = 0.0;
+            data_[i + 1] = 0; // joyが来なかったら出力0(さらなるセーフティロック)
+            err_sum[i] = 0.0; 
         }
         return;
     }
+    if(dt >= 0.005){//然るべきdtのときのみPIDを更新する
 
-    for (int k = 0; k < 4; k++)
-    {
-        err[k] = target_v[k] - rps[k];             // P制御
-        err_sum[k] += err[k] * dt;                 // I制御
-        err_diff[k] = (err[k] - last_err[k]) / dt; // D制御
+        for (int k = 0; k < 4; k++)
+        {
+            err[k] = target_v[k] - rps[k];             // P制御
+            err_sum[k] += err[k] * dt;                 // I制御
+            err_diff[k] = (err[k] - last_err[k]) / dt; // D制御
+        }
+    }else{
+        std::swap(motor_power[0], motor_power[2]); // 基本何もしないけどこの先のswapを無効化するために入れてる(というより配線しなおしてオミットする予定)
+        std::swap(motor_power[1], motor_power[3]);
     }
 
     // PI制御の出力を計算
@@ -351,6 +350,7 @@ void Zakicar::about_PID()
         if (fabs(target_v[l]) <= 5.0)
         { // 低速ではPのみで十分かなって
             I[l] = 0.0;
+            err_sum[l] = 0.0; // Iの蓄積もリセット(今までこれをど忘れしてた)
             D[l] = 0.0;
         }
         motor_power[l] = FF[l] + P[l] + I[l] + D[l];
@@ -367,7 +367,7 @@ void Zakicar::about_PID()
         }
     }
 
-    std::swap(motor_power[0], motor_power[2]); // モーターの配置の関係で目標速度を入れ替える必要がある
+    std::swap(motor_power[0], motor_power[2]); // モーターの配置の関係で目標速度を入れ替える必要がある（配線し直して近々オミットする予定）
     std::swap(motor_power[1], motor_power[3]);
 
     for (int n = 0; n < 4; n++)
@@ -377,6 +377,7 @@ void Zakicar::about_PID()
 
         last_data_[n] = data_[n + 1];
     }
+    
 
     // for(int u = 0;u<4;u++){
     //     data_[u+1] = 0;//モーターとエンコーダの対応確認用（デバックメッセージ）
