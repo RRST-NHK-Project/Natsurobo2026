@@ -4,6 +4,8 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id)
 {
     //: Node("hardware_control_" + std::to_string(tx_device_id)),
+
+    //時刻の初期化
     current = this->now();
     last = this->now();
     last_joy_time = this->now();
@@ -334,9 +336,6 @@ void Zakicar::about_PID()
             err_sum[k] += err[k] * dt;                 // I制御
             err_diff[k] = (err[k] - last_err[k]) / dt; // D制御
         }
-    }else{
-        std::swap(motor_power[0], motor_power[2]); // 基本何もしないけどこの先のswapを無効化するために入れてる(というより配線しなおしてオミットする予定)
-        std::swap(motor_power[1], motor_power[3]);
     }
 
     // PI制御の出力を計算
@@ -367,9 +366,6 @@ void Zakicar::about_PID()
         }
     }
 
-    std::swap(motor_power[0], motor_power[2]); // モーターの配置の関係で目標速度を入れ替える必要がある（配線し直して近々オミットする予定）
-    std::swap(motor_power[1], motor_power[3]);
-
     for (int n = 0; n < 4; n++)
     {
         data_[n + 1] = std::clamp(motor_power[n], -motor_limit, motor_limit);                                                   // モーターの出力を制限
@@ -385,7 +381,7 @@ void Zakicar::about_PID()
 
     // デバッグ用のログ出力
     if (rps_num_count != 1 && rps_num_count != 3)
-    { // 回転しているエンコーダの数が1か2のときは正常に走行できている可能性が高いからログを出す（1,3輪で動くようなものは実装していない）
+    { // 回転しているエンコーダの数が0か2か4のときは正常に走行できている可能性が高いからログを出す（1,3輪で動くようなものは実装していない）
 
         RCLCPP_INFO(this->get_logger(),
                     "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,"
@@ -393,7 +389,7 @@ void Zakicar::about_PID()
 
                     ,
                     dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],
-                    data_[3], data_[4], data_[1], data_[2], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3] /*,D[0],D[1],D[2],D[3],Kff*/);
+                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3] /*,D[0],D[1],D[2],D[3],Kff*/);
     }
     else if (count_true > count_false)
     { // 回転しているエンコーダの数が3のときは空転している可能性が高いからログを出す
