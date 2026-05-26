@@ -1,0 +1,10 @@
+{
+    "cmake.sourceDirectory": "C:/Users/貸出アカウント/Natsurobo2026/natsurobo_early_access",
+    "python-envs.pythonProjects": [
+        {
+            "path": ".",
+            "envManager": "ms-python.python:system",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
+}

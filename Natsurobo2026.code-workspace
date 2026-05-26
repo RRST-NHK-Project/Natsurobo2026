@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../rrst-ros2-ws"
+		},
+		{
+			"path": "../rrst-ros2-ws-nr26"
+		},
+		{
+			"path": "../serial_can_bridge"
+		},
+		{
+			"path": "../LeetCode_arai60"
+		}
+	],
+	"settings": {}
+}
