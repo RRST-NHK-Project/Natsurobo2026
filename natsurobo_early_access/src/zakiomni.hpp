@@ -69,8 +69,8 @@ private:
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};
 
-   rclcpp::Time current = this->now();
-   rclcpp::Time last = this->now();
+   rclcpp::Time current;
+   rclcpp::Time last;
 
    float target_v[4] = {0.0, 0.0, 0.0, 0.0};
    float last_target_v[4] = {0.0, 0.0, 0.0, 0.0};
@@ -88,8 +88,8 @@ private:
    // フラグ関連の変数
    double enc_blank_time = 0.0;
    double joy_blank_time = 0.0;
-   rclcpp::Time last_joy_time = this->now();
-   rclcpp::Time last_enc_time = this->now();
+   rclcpp::Time last_joy_time;
+   rclcpp::Time last_enc_time;
    std::atomic<bool> joy_received{false};
    std::atomic<bool> enc_received{false};
    std::atomic<bool> shivangelion_activated{false};
@@ -98,9 +98,7 @@ private:
    int8_t count_false = 0;                                        // rps_countの中でfalseの数を数えるための変数
    int8_t doubt_enc_num = 0;                                      // 疑わしきエンコーダの番号を特定するための変数
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
-   int32_t diff32[4] = {0, 0, 0, 0};
    int16_t diff[4] = {0, 0, 0, 0};
-   int32_t last_enc32[4] = {0, 0, 0, 0}; // エンコーダの値の計算用
    uint16_t last_enc[4] = {0, 0, 0, 0};
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨
