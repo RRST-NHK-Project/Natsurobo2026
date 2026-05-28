@@ -86,7 +86,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // RS_Y = msg->axes[4];
 
     // CROSS = msg->buttons[0];
-    // CIRCLE = msg->buttons[1];
+    CIRCLE = msg->buttons[1];
     // TRIANGLE = msg->buttons[2];
     // SQUARE = msg->buttons[3];
 
@@ -167,12 +167,46 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
         last_target_v[l] = target_v[l];
     }
-
+    if(CIRCLE && !last_CIRCLE){ // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
+        //自動化出来るか分からんから一応完全マニュアル操作を想定
+        /*
+        static int correct = 0; 
+        for(int v =0; v<4; v++){
+            if(magnet_sensor[v].load() == last_magnet_sensor[v].load()){ 
+            //ボタンを押す前と押した後のマグネットセンサーの状態を比較（一致するならシリンダーが司令通り作動していると判断）
+                correct++;    
+            }
+        }
+        if(correct == 4){ //4輪ともセンサーの状態が一致したときのみシリンダーに指示する
+            static int count = 0;
+            if(count % 3 == 0){
+                //data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
+                //data_[17]~data_[24]までのどっか(後輪) = 1;
+                //この辺にオドメトリと付属のエンコーダの処理がくるかな？
+                count++;
+            }else if(count % 3 == 1){
+                //data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
+                count++;
+            }else{
+                //data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
+                count++;
+            }
+            for(int u = 0; u < 4; u++){
+                last_magnet_sensor[u].store(magnet_sensor[u].load());
+                //ボタンを押したときに想定されうる状態をlast_magnet_sensorに格納
+                //（次のCIRCLE入力のときにこれとmagnet_sensorを比較することでシリンダーの動作状況を判断）
+            }
+        }
+        correct = 0; //次の判定に備えて初期化
+        */
+    }//夏ロボ機体は後退（下降）のネジを外してる
+    last_CIRCLE = CIRCLE;
     // 配列操作ここまで
 
     joy_received.store(true); // joystick受信フラグ
     last_joy_time = this->now();
 }
+
 
 void Zakicar::publisher_timer_callback()
 {
@@ -239,6 +273,12 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
     { // dtが0かあまりに小さいと計算に使えるか怪しいのでなかったコトにしてreturn
         return;
     }
+    /*
+    magnet_sensor[0].store(); // マグネットセンサーの状態を更新(どこにつなげるかわからないので空白（多分SWのどっかかな？）)
+    magnet_sensor[1].store();
+    magnet_sensor[2].store();
+    magnet_sensor[3].store();
+    */
 
     if (rps_num_count)
     {
