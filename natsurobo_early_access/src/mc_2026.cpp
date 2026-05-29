@@ -113,15 +113,15 @@ private:
         // float RS_X = -1 * msg->axes[3];
         // float RS_Y = msg->axes[4];
 
-        // bool CROSS = msg->buttons[0];
+        bool CROSS = msg->buttons[0];
         // bool CIRCLE = msg->buttons[1];
-        // bool TRIANGLE = msg->buttons[2];
-        // bool SQUARE = msg->buttons[3];
+        bool TRIANGLE = msg->buttons[2];
+        bool SQUARE = msg->buttons[3];
 
-        // bool LEFT = msg->axes[6] == 1.0;
-        // bool RIGHT = msg->axes[6] == -1.0;
-        // bool UP = msg->axes[7] == 1.0;
-        // bool DOWN = msg->axes[7] == -1.0;
+        bool LEFT = msg->axes[6] == 1.0;
+        bool RIGHT = msg->axes[6] == -1.0;
+        bool UP = msg->axes[7] == 1.0;
+        bool DOWN = msg->axes[7] == -1.0;
 
         // bool L1 = msg->buttons[4];
         // bool R1 = msg->buttons[5];
@@ -163,27 +163,47 @@ private:
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
         // =================================================================
-        // CROSS:「ハンド操作」
+        // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
+            static int cross_state = 0; 
+        if (CROSS && cross_state == 0){
+        
+        }
+        else if (!CROSS && cross_state == 1){
+
+        }
+             cross_state = 1;
+
         // =================================================================
 
     
         // =================================================================
-        // CIRCLE: 「ハンド回転」
+        // CIRCLE: 足回りで使用×
         // =================================================================
  
 
         // =================================================================
         // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
+            if (TRIANGLE){
+                data_[1] = 50; // 射出部分　出力は一旦50にしておく　要調整
+            }
         // =================================================================
 
 
         // =================================================================
-        // SQUARE:　「昇降機構」
+        // SQUARE:　「ハンド回転」
+            static int square_state = 0;
+            if (SQUARE && square_state == 0){
+                data_[9] = 0; // 角度は要調整
+            }
+            else if (!SQUARE && square_state == 1){
+                data_[9] = 90; // 角度は要調整
+            }
+             square_state = SQUARE;
         // =================================================================
 
 
         // =================================================================
-        // UP,DOWN:
+        // UP,DOWN:「昇降機構」
         // =================================================================
 
 
