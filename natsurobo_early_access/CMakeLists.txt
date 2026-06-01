@@ -16,16 +16,24 @@ find_package(geometry_msgs REQUIRED)
 add_executable(omni_drive 
   src/zakiomni.cpp
 )
+add_executable(hardware_control_2
+  src/mc_2026.cpp
+)
 target_include_directories(omni_drive PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_compile_features(omni_drive PUBLIC c_std_99 cxx_std_17)
+target_include_directories(hardware_control_2 PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(hardware_control_2 PUBLIC c_std_99 cxx_std_17)
 
 # Link dependencies
 ament_target_dependencies(omni_drive rclcpp std_msgs sensor_msgs geometry_msgs)
+ament_target_dependencies(hardware_control_2 rclcpp std_msgs sensor_msgs geometry_msgs)
 
 # Install
-install(TARGETS omni_drive
+install(TARGETS omni_drive hardware_control_2
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

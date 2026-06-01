@@ -94,12 +94,15 @@ private:
    std::atomic<bool> enc_received{false};
    std::atomic<bool> shivangelion_activated{false};
    std::atomic<bool> rps_count[4] = {false, false, false, false}; // エンコーダが回転しているかのフラグ（trueなら回転していると判断）
+   std::atomic<bool> magnet_sensor[4] = {false, false, false, false}; //エアシリンダのマグネットセンサー用（使うとは言ってない）（とりあえずtrueで伸びてfalseで伸縮と仮定）
+   std::atomic<bool> last_magnet_sensor[4] = {false, false, false, false}; //エアシリンダがちゃんと動いてるかを判断する変数
    int8_t count_true = 0;                                         // rps_countの中でtrueの数を数えるための変数
    int8_t count_false = 0;                                        // rps_countの中でfalseの数を数えるための変数
    int8_t doubt_enc_num = 0;                                      // 疑わしきエンコーダの番号を特定するための変数
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
    int16_t diff[4] = {0, 0, 0, 0};
    uint16_t last_enc[4] = {0, 0, 0, 0};
+   bool last_CIRCLE = false;
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨
    float LS_X;
@@ -107,7 +110,7 @@ private:
    float RS_X;
    // float RS_Y;
    // bool CROSS;
-   // bool CIRCLE;
+   bool CIRCLE;
    // bool TRIANGLE;
    // bool SQUARE;
 
