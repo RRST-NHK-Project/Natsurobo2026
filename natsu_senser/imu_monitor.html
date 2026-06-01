@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>IMU Monitor — MPU9250</title>
+  <style>
+    :root {
+      --bg:     #0d1117;
+      --panel:  #161b22;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --green:  #3fb950;
+      --red:    #f85149;
+      --yellow: #d29922;
+      --text:   #c9d1d9;
+      --dim:    #6e7681;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Consolas, monospace;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* 3D canvas */
+    #three-container {
+      flex: 1;
+      position: relative;
+      cursor: grab;
+    }
+    #three-container:active { cursor: grabbing; }
+    #three-container canvas { display: block; }
+
+    #hint {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: var(--dim);
+      pointer-events: none;
+      text-align: center;
+    }
+
+    #legend {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      font-size: 11px;
+      color: var(--dim);
+      line-height: 1.8;
+      pointer-events: none;
+    }
+
+    /* Right panel */
+    #panel {
+      width: 280px;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 18px 14px;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    .panel-title {
+      font-size: 0.95em;
+      font-weight: bold;
+      color: var(--accent);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    #btn-connect {
+      padding: 9px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85em;
+      font-weight: bold;
+    }
+    #btn-connect:hover { opacity: 0.85; }
+    #btn-connect.active {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78em;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--dim);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.ok  { background: var(--green); }
+    .dot.err { background: var(--red); }
+
+    hr { border: none; border-top: 1px solid var(--border); }
+
+    /* Value cards */
+    .card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .card-label {
+      font-size: 0.65em;
+      color: var(--dim);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .card-value {
+      font-size: 1.7em;
+      font-weight: bold;
+      line-height: 1;
+      margin-bottom: 7px;
+    }
+    .gauge-track {
+      height: 4px;
+      background: #30363d;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .gauge-fill {
+      height: 100%;
+      width: 50%;
+      border-radius: 2px;
+      transition: width 0.07s linear;
+    }
+
+    .roll-color  { color: #ff6b6b; }
+    .pitch-color { color: #4ecdc4; }
+    .yaw-color   { color: #ffe66d; }
+    #roll-gauge  { background: #ff6b6b; }
+    #pitch-gauge { background: #4ecdc4; }
+    #yaw-gauge   { background: #ffe66d; }
+
+    /* Step badge */
+    .step-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75em;
+      background: #21262d;
+      color: var(--dim);
+      transition: all 0.15s;
+    }
+    .step-badge.active {
+      background: #3d1f00;
+      color: var(--yellow);
+      box-shadow: 0 0 8px rgba(210,153,34,.5);
+      animation: pulse 0.6s infinite alternate;
+    }
+    @keyframes pulse { from { opacity:1; } to { opacity:0.6; } }
+
+    /* Log */
+    .log-box {
+      font-size: 0.68em;
+      color: var(--dim);
+      height: 72px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .log-ok  { color: var(--green); }
+    .log-err { color: var(--red); }
+
+    #hz { font-size: 0.72em; color: var(--dim); text-align:right; }
+  </style>
+</head>
+<body>
+
+<div id="three-container">
+  <div id="legend">
+    <div><span style="color:#ff4444">■</span> X軸 (Roll)</div>
+    <div><span style="color:#44ff44">■</span> Y軸 (Pitch)</div>
+    <div><span style="color:#4488ff">■</span> Z軸 (Yaw)</div>
+    <div style="margin-top:6px"><span style="color:#00ffff">→</span> 前方</div>
+  </div>
+  <div id="hint">ドラッグ: 視点回転 &nbsp;|&nbsp; ホイール: ズーム</div>
+</div>
+
+<div id="panel">
+  <div class="panel-title">IMU Monitor</div>
+
+  <button id="btn-connect" onclick="handleConnect()">接続 (Chrome / Edge)</button>
+
+  <div class="status-row">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label">未接続</span>
+  </div>
+
+  <hr>
+
+  <div class="card">
+    <div class="card-label">Roll &nbsp;(X軸)</div>
+    <div class="card-value roll-color"  id="roll-val">0.00°</div>
+    <div class="gauge-track"><div class="gauge-fill" id="roll-gauge"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Pitch (Y軸)</div>
+    <div class="card-value pitch-color" id="pitch-val">0.00°</div>
+    <div class="gauge-track"><div class="gauge-fill" id="pitch-gauge"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Yaw &nbsp;(Z軸)</div>
+    <div class="card-value yaw-color"   id="yaw-val">0.00°</div>
+    <div class="gauge-track"><div class="gauge-fill" id="yaw-gauge"></div></div>
+  </div>
+
+  <hr>
+
+  <div>
+    <div class="card-label" style="margin-bottom:6px">段差検知</div>
+    <span class="step-badge" id="step-badge">通常走行</span>
+  </div>
+
+  <hr>
+
+  <div class="card-label">ステータスログ</div>
+  <div class="log-box" id="log-box"></div>
+
+  <div id="hz">-- Hz</div>
+</div>
+
+<!-- Three.js (CDN, インターネット接続が必要) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+// =============================================
+// Three.js セットアップ
+// =============================================
+const container = document.getElementById('three-container');
+const renderer  = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x0d1117);
+container.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+
+// カメラ球面座標
+const sph = { r: 7, theta: Math.PI * 0.3, phi: Math.PI * 0.35 };
+function updateCamera() {
+  camera.position.set(
+    sph.r * Math.sin(sph.phi) * Math.sin(sph.theta),
+    sph.r * Math.cos(sph.phi),
+    sph.r * Math.sin(sph.phi) * Math.cos(sph.theta)
+  );
+  camera.lookAt(0, 0, 0);
+}
+updateCamera();
+
+// マウス操作
+let drag = false, px = 0, py = 0;
+container.addEventListener('mousedown', e => { drag=true; px=e.clientX; py=e.clientY; });
+window.addEventListener('mouseup', () => drag=false);
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  sph.theta -= (e.clientX - px) * 0.012;
+  sph.phi    = Math.max(0.05, Math.min(Math.PI-0.05, sph.phi + (e.clientY - py) * 0.012));
+  px=e.clientX; py=e.clientY;
+  updateCamera();
+});
+container.addEventListener('wheel', e => {
+  sph.r = Math.max(3, Math.min(18, sph.r + e.deltaY * 0.01));
+  updateCamera();
+});
+
+// リサイズ
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// 照明
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirA = new THREE.DirectionalLight(0xffffff, 0.8);
+dirA.position.set(5, 10, 5);
+scene.add(dirA);
+const dirB = new THREE.DirectionalLight(0x8888ff, 0.3);
+dirB.position.set(-5, -3, -5);
+scene.add(dirB);
+
+// グリッド
+scene.add(new THREE.GridHelper(10, 10, 0x222830, 0x1a1f26));
+
+// 座標軸ヘルパー (世界座標)
+scene.add(new THREE.AxesHelper(2.5));
+
+// IMUボックス (PCB風)
+const boxGeo = new THREE.BoxGeometry(3, 0.25, 2);
+const mats = [
+  new THREE.MeshLambertMaterial({ color: 0xcc2222 }), // +X 右
+  new THREE.MeshLambertMaterial({ color: 0x661111 }), // -X 左
+  new THREE.MeshLambertMaterial({ color: 0x22aa44 }), // +Y 上面 (緑 = TOP)
+  new THREE.MeshLambertMaterial({ color: 0x0d3320 }), // -Y 底面
+  new THREE.MeshLambertMaterial({ color: 0x2255cc }), // +Z 前面 (青 = FRONT)
+  new THREE.MeshLambertMaterial({ color: 0x112255 }), // -Z 後面
+];
+const box = new THREE.Mesh(boxGeo, mats);
+box.rotation.order = 'YXZ'; // Yaw → Pitch → Roll の順で適用
+scene.add(box);
+
+// 前方矢印 (シアン)
+const arrow = new THREE.ArrowHelper(
+  new THREE.Vector3(0, 0, 1),
+  new THREE.Vector3(0, 0.15, 0),
+  1.6, 0x00ffff, 0.4, 0.2
+);
+box.add(arrow);
+
+// ボックスエッジ
+const edges = new THREE.LineSegments(
+  new THREE.EdgesGeometry(boxGeo),
+  new THREE.LineBasicMaterial({ color: 0x88aadd, linewidth: 1 })
+);
+box.add(edges);
+
+// 影 (地面に投影するための薄い楕円)
+const shadowGeo = new THREE.EllipseGeometry(1.6, 1.1, 32);
+const shadowMat = new THREE.MeshBasicMaterial({
+  color: 0x000000, transparent: true, opacity: 0.3, side: THREE.DoubleSide
+});
+const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.y = 0.001;
+scene.add(shadowMesh);
+
+// アニメーション
+const DEG = Math.PI / 180;
+let targetRoll = 0, targetPitch = 0, targetYaw = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  // 少しスムージング (追従速度)
+  const alpha = 0.25;
+  box.rotation.z += (targetRoll  * DEG - box.rotation.z) * alpha;
+  box.rotation.x += (targetPitch * DEG - box.rotation.x) * alpha;
+  box.rotation.y += (targetYaw   * DEG - box.rotation.y) * alpha;
+  renderer.render(scene, camera);
+}
+animate();
+
+// =============================================
+// シリアル / データ処理
+// =============================================
+let serialReader = null;
+let connected    = false;
+let frameCount   = 0;
+let lastHzTime   = Date.now();
+
+function setConnected(v) {
+  connected = v;
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  const btn   = document.getElementById('btn-connect');
+  dot.className   = 'dot' + (v ? ' ok' : '');
+  label.textContent = v ? '接続済み (115200 bps)' : '未接続';
+  btn.textContent   = v ? '切断' : '接続 (Chrome / Edge)';
+  btn.className     = v ? 'active' : '';
+}
+
+function addLog(msg, type) {
+  const box = document.getElementById('log-box');
+  const div = document.createElement('div');
+  div.className   = type ? 'log-' + type : '';
+  div.textContent = new Date().toLocaleTimeString('ja-JP') + ' ' + msg;
+  box.appendChild(div);
+  while (box.children.length > 80) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+function gaugeW(deg, max) {
+  return Math.min(100, Math.max(0, 50 + deg / max * 50)).toFixed(1) + '%';
+}
+
+function updateUI(roll, pitch, yaw, step) {
+  targetRoll  = roll;
+  targetPitch = pitch;
+  targetYaw   = yaw;
+
+  document.getElementById('roll-val').textContent  = roll.toFixed(2)  + '°';
+  document.getElementById('pitch-val').textContent = pitch.toFixed(2) + '°';
+  document.getElementById('yaw-val').textContent   = yaw.toFixed(2)   + '°';
+
+  document.getElementById('roll-gauge').style.width  = gaugeW(roll, 90);
+  document.getElementById('pitch-gauge').style.width = gaugeW(pitch, 90);
+
+  // Yaw はどこまでも積算するので ±180 に正規化して表示
+  const yawN = ((yaw % 360) + 360) % 360 - 180;
+  document.getElementById('yaw-gauge').style.width = gaugeW(yawN, 180);
+
+  const badge = document.getElementById('step-badge');
+  badge.textContent = step ? '⚠ 段差検知中' : '通常走行';
+  badge.className   = 'step-badge' + (step ? ' active' : '');
+
+  frameCount++;
+  const now = Date.now();
+  if (now - lastHzTime >= 1000) {
+    document.getElementById('hz').textContent = frameCount + ' Hz';
+    frameCount  = 0;
+    lastHzTime  = now;
+  }
+}
+
+function parseLine(line) {
+  line = line.trim();
+  if (!line) return;
+
+  if (line.startsWith('IMU:')) {
+    const p = line.substring(4).split(',');
+    if (p.length >= 3) {
+      const r = parseFloat(p[0]);
+      const pi = parseFloat(p[1]);
+      const y = parseFloat(p[2]);
+      const s = p.length >= 4 && p[3].trim() === '1';
+      if (!isNaN(r) && !isNaN(pi) && !isNaN(y)) updateUI(r, pi, y, s);
+    }
+  } else if (line.startsWith('STATUS:')) {
+    const msg = line.substring(7);
+    const isErr = msg.includes('ERROR') || msg.includes('WARNING');
+    addLog(msg, isErr ? 'err' : 'ok');
+  } else if (line.startsWith('CAL_OFFSET:') || line.startsWith('OFFSET_UPDATED:')) {
+    addLog(line, 'ok');
+  }
+}
+
+async function handleConnect() {
+  if (connected) {
+    if (serialReader) { try { await serialReader.cancel(); } catch(_){} }
+    return;
+  }
+
+  if (!('serial' in navigator)) {
+    addLog('WebSerial非対応ブラウザです。Chrome / Edge で開いてください', 'err');
+    return;
+  }
+
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    setConnected(true);
+    addLog('ポート接続完了', 'ok');
+
+    const decoder = new TextDecoderStream();
+    port.readable.pipeTo(decoder.writable);
+    serialReader = decoder.readable.getReader();
+
+    let buf = '';
+    try {
+      while (true) {
+        const { value, done } = await serialReader.read();
+        if (done) break;
+        buf += value;
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const l of lines) parseLine(l);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') addLog('読み取りエラー: ' + e.message, 'err');
+    }
+
+    setConnected(false);
+    addLog('切断', 'ok');
+    serialReader = null;
+  } catch (e) {
+    addLog('接続失敗: ' + e.message, 'err');
+    setConnected(false);
+  }
+}
+</script>
+</body>
+</html>
