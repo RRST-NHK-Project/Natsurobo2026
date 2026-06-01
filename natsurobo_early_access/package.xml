@@ -3,7 +3,7 @@
 <package format="3">
   <name>natsurobo_early_access</name>
   <version>0.0.0</version>
-  <description>Encoder and Motor test node for omnidirectional robot</description>
+  <description>Ros2 package for Natsurobo 2026</description>
   <maintainer email="vnfaf69349@yahoo.co.jp">Kaho-YAMAMOTO</maintainer>
   <license>Apache-2.0</license>
 
