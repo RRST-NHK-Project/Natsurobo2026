@@ -9,8 +9,6 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp      REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs    REQUIRED)
-# std_srvs はリトライリセットサービスを将来追加するときのために残す
-# find_package(std_srvs REQUIRED)
 
 add_executable(wall_detection_node
   src/wall_detection_node.cpp
