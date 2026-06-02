@@ -2,12 +2,15 @@
 #define ZAKIOMNI_HPP
 
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/int16.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
+#include "std_msgs/msg/float32_multi_array.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include <chrono>
 #include <iostream>
-#include "sensor_msgs/msg/joy.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -29,6 +32,7 @@
 #define DEADZONE_R 0.15
 #define cpr 8000               // 1回転あたり8000カウントと仮定
 const float enc_max = 32767.0; // エンコーダーの最大値
+const float wheel_fai =0.0;//車輪直径
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
@@ -49,6 +53,7 @@ class Zakicar : public rclcpp::Node
 {
 public:
    Zakicar(uint8_t tx_device_id, uint8_t rx_device_id);
+   
 
 private:
    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
@@ -65,6 +70,7 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
+   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr rps_pub;
 
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};
@@ -82,6 +88,7 @@ private:
    float FF[4] = {0.0, 0.0, 0.0, 0.0};
    float P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, D[4] = {0.0, 0.0, 0.0, 0.0};
    float motor_power[4] = {0.0, 0.0, 0.0, 0.0};
+
    float dt = 0.0;
    float radian = 0.0;
 
@@ -159,5 +166,32 @@ private:
    // int16_t SW7 = msg->data[15];
    // int16_t SW8 = msg->data[16];
 };
+class Shivalian_control : public rclcpp::Node
 
+public:
+   Shivalian_control();
+
+private:
+   void publisher_position_callback();
+   void rps_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
+
+   float current;
+   float last;
+   float dt = 0.0;
+   float rps[4] = {0.0, 0.0, 0.0, 0.0};
+   float Vx[4] = {opPI*wheel_fai*rps[0]*-std::cos(opPI/4), opPI*wheel_fai*rps[1]*std::cos(opPI/4), opPI*wheel_fai*rps[2]*std::cos(opPI/4), opPI*wheel_fai*rps[3]*-std::cos(opPI/4)};
+   float Vy[4] = {opPI*wheel_fai*rps[0]*std::sin(opPI/4), opPI*wheel_fai*rps[1]*std::sin(opPI/4), opPI*wheel_fai*rps[2]*-std::sin(opPI/4), -opPI*wheel_fai*rps[3]*std::sin(opPI/4)};
+
+   float Vx;
+   float Vy;
+
+   float point_Px = 0.0; 
+   float point_Py = 0.0; 
+   
+   bool topic_received = false;
+
+   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+   rclcpp::std_msgs::msg::Float32MultiArray rps_msg_;
+   rclcpp::TimerBase::SharedPtr timer_;
+   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 #endif

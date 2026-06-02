@@ -1,4 +1,5 @@
 #include "zakiomni.hpp"
+#include "summer2026_odometry.cpp"
 
 Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id)
@@ -69,6 +70,10 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
         std::bind(&Zakicar::sensor_callback,
                   this,
                   std::placeholders::_1));
+    
+    rps_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+        "rps",
+        10);
 
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
@@ -312,9 +317,20 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
     last_enc[2] = ENC3;
     last_enc[3] = ENC4;
 
-    // 受信データ処理ここまで
     // 最後に受信時刻を更新してタイムアウト判定に使えるようにする
     last_enc_time = current;
+
+    for(int u = 0; u < 4; u++){
+        rps_msg.data[u] = rps[u];
+    }
+    std_msgs::msg::Float32MultiArray rps_msg;
+    for(int u = 0; u < 4; u++){
+        rps_msg.data[u] = rps[u];
+    }
+    rps_pub->publish(rps_msg);//rpsをオドメトリでモニターする用にpublish
+
+    // 受信データ処理ここまで
+    
 }
 void Zakicar::Timeout_check()
 {
@@ -496,7 +512,9 @@ int main(int argc, char *argv[])
     rclcpp::executors::MultiThreadedExecutor exec;
 
     auto zakicar = std::make_shared<Zakicar>(TX_DEVICE_ID, RX_DEVICE_ID);
+    auto odometry = std::make_shared<Shivalian_control>();
     exec.add_node(zakicar);
+    exec.add_node(odometry);
     exec.spin();
 
     rclcpp::shutdown();
