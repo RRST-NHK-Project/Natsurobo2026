@@ -1,10 +1,10 @@
 /*
-夏ロボ機構制御
+naturobo機構制御
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 
-// これから発展予定　データの割当はまだ調べてないのでのちのち変更予定 一旦足回りの方に合わせておく
-
+// まだ未確認なので絶対に許可なしに起動しないこと！！
+// 破壊しても自己責任！！
 
 #include <atomic>
 #include <chrono>
@@ -32,7 +32,161 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
+// =================================================================
+// マイクロスイッチの状態（ID=3のESP32から受信、2ノード間で共有）
+// atomic: スレッドセーフに読み書きするため
+std::atomic<int16_t> g_micro1_sw{0}; // マイクロスイッチ(上): 1=押されている
+std::atomic<int16_t> g_micro2_sw{0}; // マイクロスイッチ(下): 1=押されている
+std::atomic<int16_t> g_micro3_sw{0}; // マイクロスイッチ(外側): SW3
+std::atomic<int16_t> g_micro4_sw{0}; // マイクロスイッチ(内側): SW4
+std::atomic<int16_t> g_enc1_val{0};  // エンコーダ1: data[1]から受信
 
+// フォークリフト座標管理 (EncoderCoordinator)
+// エンコーダ減少 -> 座標増加 / エンコーダ増加 -> 座標減少
+std::atomic<int32_t> g_rotation_count{0};     // エンコーダの回転数(巻回り数)
+std::atomic<int64_t> g_zero_offset{0};        // 下端リセット時の絶対エンコーダ値
+std::atomic<int16_t> g_last_enc1_val{0};      // 前回のエンコーダ生値
+std::atomic<bool> g_coord_initialized{false}; // 初期化フラグ
+std::atomic<int64_t> g_abs_coord{0};          // 最終的な高さ座標(下端=0方向=プラス)
+
+// =================================================================
+
+// =================================================================
+// SwitchInputノード: ID=3のESP32からマイクロスイッチの状態を受信する
+// =================================================================
+class SwitchInput : public rclcpp::Node
+{
+public:
+    SwitchInput()
+        : Node("switch_input_" + std::to_string(INPUT_DEVICE_ID))
+    {
+
+        sw_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
+            "serial_rx_" + std::to_string(INPUT_DEVICE_ID),
+            10,
+            std::bind(&SwitchInput::sw_callback, this, std::placeholders::_1));
+
+        RCLCPP_INFO(get_logger(),
+                    "SwitchInput: serial_rx_%d を受信開始", INPUT_DEVICE_ID);
+    }
+
+private:
+    void sw_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
+    {
+        // SW4 (data[12]) まで使用するため、サイズチェックを13以上に変更
+        if (msg->data.size() < 13)
+        {
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+                                 "serial_rx_%d: データが短すぎます (%zu)",
+                                 INPUT_DEVICE_ID, msg->data.size());
+            return;
+        }
+
+        // マイクロスイッチの値を更新
+        // マイクロスイッチの値を更新 (物理配線に合わせて修正: 9=下, 10=上)
+        g_micro1_sw = msg->data[10]; // 上端スイッチ(micro1)
+        g_micro2_sw = msg->data[9];  // 下端スイッチ(micro2)
+        g_micro3_sw = msg->data[11];
+        g_micro4_sw = msg->data[12];
+        g_enc1_val = msg->data[1];
+
+        // =============================================================
+        // 座標調査・ラップアラウンド計算実装
+        // =============================================================
+        int16_t current_enc1 = msg->data[1];
+
+        if (!g_coord_initialized.load())
+        {
+            g_last_enc1_val.store(current_enc1);
+            g_coord_initialized.store(true);
+        }
+
+        // =====================================================================
+        // 【重要】エンコーダの「飛躍（16bitハードの限界）」は 32768 または 65536
+        // （「1周=8000」は機械的な回転数であり、デジタル的なラップアラウンド値とは別）
+        // =====================================================================
+        const int HALF_ENCODER = 16384;    // デジタルデータの飛躍値の半分
+        const int64_t ENCODER_MAX = 32768; // デジタルデータの飛躍幅
+
+        int diff = (int)current_enc1 - (int)g_last_enc1_val.load();
+        int32_t r_count = g_rotation_count.load();
+
+        if (diff > HALF_ENCODER)
+        {
+            r_count--;
+        }
+        else if (diff < -HALF_ENCODER)
+        {
+            r_count++;
+        }
+
+        g_rotation_count.store(r_count);
+        g_last_enc1_val.store(current_enc1);
+
+        // 連続化された総エンコーダカウント
+        int64_t total_encoder = (int64_t)r_count * ENCODER_MAX + (int64_t)current_enc1;
+
+        // 下端スイッチ(data[9])で座標リセット用のオフセットを設定
+        if (msg->data[9] != 0)
+        {
+            g_zero_offset.store(total_encoder);
+            RCLCPP_INFO(get_logger(), "[COORD RESET!] 下端ボタン押下により座標0へオフセット設定");
+        }
+
+        // 最終的な高さを計算
+        int64_t zero_offset = g_zero_offset.load();
+        int64_t abs_coord = -(total_encoder - zero_offset);
+        g_abs_coord.store(abs_coord);
+
+        // ★ここで 8000 で割ることで「物理的な1回転」を算出します
+        double rot = (double)abs_coord / 8192.0;
+
+        // 以下リアルタイムで数値取るデバックログ　重いとき消すこと推奨
+        if (diff != 0)
+        {
+            // RCLCPP_INFO(get_logger(),
+            //             "\n--- ROTATION DEBUG ---\n"
+            //             "  生値の変化 : %d -> %d (diff: %d)\n"
+            //             "  デジタルラップ : %d 回\n"
+            //             "  絶対カウント   : %ld\n"
+            //             "  現在回転数     : %.3f 回転 (1周8000)\n"
+            //             "----------------------",
+            //             (int)current_enc1 - diff, (int)current_enc1, diff,
+            //             (int)r_count, abs_coord, rot);
+        }
+
+        // --- 通信デバッグ追加 ---
+        static uint64_t packet_count = 0;
+        packet_count++;
+
+        // 状態変化時のみ即時表示
+        static int16_t l9 = 0, l10 = 0, l11 = 0, l12 = 0;
+        if (msg->data[9] != l9 || msg->data[10] != l10 || msg->data[11] != l11 || msg->data[12] != l12)
+        {
+            // RCLCPP_INFO(get_logger(), "SW Changed! [下(9):%d, 上(10):%d, 外(11):%d, 内(12):%d]",
+            //             msg->data[9], msg->data[10], msg->data[11], msg->data[12]);
+            l9 = msg->data[9];
+            l10 = msg->data[10];
+            l11 = msg->data[11];
+            l12 = msg->data[12];
+        }
+
+        // 定期ダンプに受信件数を追加
+        // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
+        //                      "RX Heartbeat (Total:%lu) | Dump: [%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]",
+        //                      packet_count,
+        //                      msg->data[0], msg->data[1], msg->data[2], msg->data[3],
+        //                      msg->data[4], msg->data[5], msg->data[6], msg->data[7],
+        //                      msg->data[8], msg->data[9], msg->data[10], msg->data[11],
+        //                      msg->data[12], msg->data[13], msg->data[14], msg->data[15]);
+
+        // SW3, SW4専用の明示的なデバッグ
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
+                             "【通信確認】SW3(外側):%d, SW4(内側):%d", msg->data[11], msg->data[12]);
+    }
+
+    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sw_sub_;
+};
 
 // =================================================================
 // HardWareControlノード: ID=2のESP32へモーター指令を送信する
@@ -145,12 +299,6 @@ private:
         // static bool last_share = false;
         // static bool share_latch = false;
 
-        // マイクロスイッチの状態をグローバル変数から取得
-        int16_t micro1_sw = g_micro1_sw.load();
-        int16_t micro2_sw = g_micro2_sw.load();
-        int16_t micro3_sw = g_micro3_sw.load();
-        int16_t micro4_sw = g_micro4_sw.load();
-
         // 制御ノード側のデバッグログ
         // RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 500,
         //                      "【制御ノード表示】SW状態: 上=%d (%s), 下=%d (%s), 外=%d (%s), 内=%d (%s)",
@@ -165,13 +313,17 @@ private:
         // =================================================================
         // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
             static int cross_state = 0; 
+            
         if (CROSS && cross_state == 0){
         
         }
         else if (!CROSS && cross_state == 1){
 
         }
-             cross_state = 1;
+        
+        if (CROSS) {
+            cross_state = 1;
+        }
 
         // =================================================================
 
@@ -221,6 +373,27 @@ private:
     void publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
+
+        // ★★★ コントローラーの操作が無い時でも、マイクロスイッチの安全停止を最優先で適用する ★★★
+        // （PS4コントローラーのイベントが来ない間も常に制限をかけるため、ここに記述する）
+        int16_t micro1_sw = g_micro1_sw.load();
+        int16_t micro2_sw = g_micro2_sw.load();
+
+        // 上昇中（data_[2] が正の値）かつ 上端スイッチが押されている場合
+        if (micro2_sw == 1 && data_[2] > 0)
+        {
+            data_[2] = 0;
+            // 重い場合以下のデバックのコメントアウト可
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 500, "【安全装置】上端リミット到達！モーターの上昇を即時遮断しました！");
+        }
+
+        // 下降中（data_[2] が負の値）かつ 下端スイッチが押されている場合
+        if (micro1_sw == 1 && data_[2] < 0)
+        {
+            data_[2] = 0;
+            // 重い場合以下のデバックのコメントアウト可
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 500, "【安全装置】下端リミット到達！モーターの下降を即時遮断しました！");
+        }
 
         msg.data = data_;
 
