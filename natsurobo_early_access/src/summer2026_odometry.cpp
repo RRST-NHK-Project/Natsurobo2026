@@ -8,13 +8,15 @@ zakiomni.cppからrpsを受け取ってオドメトリの値を計算し、tfも
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control()
-    : Node("odom_drive")
+    : Node("omni_drive")
 {
 
-    rps_sub = this->create_subscription<std_msgs::msg::Float32MultiArray>(
+    rps_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
         "rps",
         10,
-        std::bind(&Shivalian_control::rps_callback, this, std::placeholders::_1));
+        std::bind(&Shivalian_control::rps_callback,
+            this,
+            std::placeholders::_1));
     
     odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 
@@ -23,9 +25,7 @@ Shivalian_control::Shivalian_control()
     // timer_callbackを呼び出すタイマーを作成
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(PUBLISH_RATE_MS), 
-        std::bind(&Shivalian_control::publisher_position_callback, 
-        this,
-        std::placeholders::_1));
+        std::bind(&Shivalian_control::publisher_position_callback, this));
 
     RCLCPP_INFO(this->get_logger(), "odom_drive node has been started.");
 
@@ -63,12 +63,12 @@ Shivalian_control::rps_callback(
 
     dt = PUBLISH_RATE_MS/1000.0;
     
-    Vx = (Vx[0] + Vx[1] + Vx[2] + Vx[3]) / 4.0;
-    Vy = (Vy[0] + Vy[1] + Vy[2] + Vy[3]) / 4.0;
+    Vx_ = (Vx[0] + Vx[1] + Vx[2] + Vx[3]) / 4.0;
+    Vy_ = (Vy[0] + Vy[1] + Vy[2] + Vy[3]) / 4.0;
 
 
-    point_Px += Vx * dt;
-    point_Py += Vy * dt;
+    point_Px += Vx_ * dt;
+    point_Py += Vy_ * dt;
 
     last = current;
 
@@ -94,8 +94,8 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.pose.pose.orientation.z =0.0;//まだ計算していない
     odom_msg.pose.pose.orientation.w =0.0;
 
-    odom_msg.twist.twist.linear.x = Vx;
-    odom_msg.twist.twist.linear.y = Vy;
+    odom_msg.twist.twist.linear.x = Vx_;
+    odom_msg.twist.twist.linear.y = Vy_;
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0

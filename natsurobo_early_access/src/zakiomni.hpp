@@ -9,6 +9,7 @@
 #include "std_msgs/msg/int32_multi_array.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 #include <chrono>
 #include <iostream>
 #include <algorithm>
@@ -48,6 +49,7 @@ const float timeout = 1.0;              // タイムアウト時間(s)（joyとe
 
 using namespace std::chrono_literals;
 
+//zakiomni.hpp
 class Zakicar : public rclcpp::Node
 {
 public:
@@ -165,7 +167,10 @@ private:
    // int16_t SW7 = msg->data[15];
    // int16_t SW8 = msg->data[16];
 };
+
+//summer2026_odometry.cpp
 class Shivalian_control : public rclcpp::Node
+{
 
 public:
    Shivalian_control();
@@ -187,15 +192,15 @@ private:
     static constexpr double ODOM_Y_SCALE = 1.0;
     static constexpr double ODOM_YAW_SCALE = 1.0;
 
-   float current;
-   float last;
+   rclcpp::Time current;
+   rclcpp::Time last;
    float dt = 0.0;
    float rps[4] = {0.0, 0.0, 0.0, 0.0};
    float Vx[4] = {0.0, 0.0, 0.0, 0.0};
    float Vy[4] = {0.0, 0.0, 0.0, 0.0};
 
-   float Vx;
-   float Vy;
+   float Vx_;
+   float Vy_;
 
    float point_Px = 0.0; 
    float point_Py = 0.0; 
@@ -203,7 +208,8 @@ private:
    bool topic_received = false;
 
    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
-   rclcpp::std_msgs::msg::Float32MultiArray rps_msg_;
+   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr rps_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+};
 #endif

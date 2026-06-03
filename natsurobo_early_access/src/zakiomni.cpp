@@ -1,5 +1,4 @@
 #include "zakiomni.hpp"
-#include "summer2026_odometry.cpp"
 
 Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id)
@@ -234,7 +233,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
     if (msg->data.size() < RX16NUM) {
             RCLCPP_WARN(get_logger(),
                         "serial_rx_%d: data too short (%zu)",
-                        device_id_, msg->data.size());
+                        rx_device_id_, msg->data.size());
             return;
         }
     current = this->now();
@@ -325,10 +324,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
 
     // 最後に受信時刻を更新してタイムアウト判定に使えるようにする
     last_enc_time = current;
-
-    for(int u = 0; u < 4; u++){
-        rps_msg.data[u] = rps[u];
-    }
+    
     std_msgs::msg::Float32MultiArray rps_msg;
     for(int u = 0; u < 4; u++){
         rps_msg.data[u] = rps[u];
