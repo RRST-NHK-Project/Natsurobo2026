@@ -19,7 +19,7 @@
 #define opPI 3.1415926
 
 // 以下マイコンに合わせて設定
-#define TX_DEVICE_ID 2 // 送信先マイコンのID
+#define TX_DEVICE_ID 1 // 送信先マイコンのID
 #define RX_DEVICE_ID 1 // 受信先マイコンのID
 
 #define TX16NUM 24 // 送信データ数
@@ -32,7 +32,6 @@
 #define DEADZONE_R 0.15
 #define cpr 8000               // 1回転あたり8000カウントと仮定
 const float enc_max = 32767.0; // エンコーダーの最大値
-const float wheel_fai =0.0;//車輪直径
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
@@ -175,12 +174,25 @@ private:
    void publisher_position_callback();
    void rps_callback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
 
+   // オドメトリ設定(値がまだ変更してなくてデタラメになってる)
+    static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
+    static constexpr double ODOM_WHEEL_RADIUS = ODOM_WHEEL_DIAMETER / 2.0;
+    static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;
+    static constexpr double ENCODER_RESOLUTION = 1024.0;
+    static constexpr double ENC_TO_M = ODOM_WHEEL_CIRC / ENCODER_RESOLUTION;
+    static constexpr double ODOM_LR_DISTANCE = 0.385;
+    static constexpr double ODOM_F_OFFSET = 0.335;
+
+    static constexpr double ODOM_X_SCALE = 1.0;
+    static constexpr double ODOM_Y_SCALE = 1.0;
+    static constexpr double ODOM_YAW_SCALE = 1.0;
+
    float current;
    float last;
    float dt = 0.0;
    float rps[4] = {0.0, 0.0, 0.0, 0.0};
-   float Vx[4] = {opPI*wheel_fai*rps[0]*-std::cos(opPI/4), opPI*wheel_fai*rps[1]*std::cos(opPI/4), opPI*wheel_fai*rps[2]*std::cos(opPI/4), opPI*wheel_fai*rps[3]*-std::cos(opPI/4)};
-   float Vy[4] = {opPI*wheel_fai*rps[0]*std::sin(opPI/4), opPI*wheel_fai*rps[1]*std::sin(opPI/4), opPI*wheel_fai*rps[2]*-std::sin(opPI/4), -opPI*wheel_fai*rps[3]*std::sin(opPI/4)};
+   float Vx[4] = {0.0, 0.0, 0.0, 0.0};
+   float Vy[4] = {0.0, 0.0, 0.0, 0.0};
 
    float Vx;
    float Vy;

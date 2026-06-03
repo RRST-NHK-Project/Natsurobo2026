@@ -22,7 +22,7 @@ Shivalian_control::Shivalian_control()
     
     // timer_callbackを呼び出すタイマーを作成
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(100), 
+        std::chrono::milliseconds(PUBLISH_RATE_MS), 
         std::bind(&Shivalian_control::publisher_position_callback, 
         this,
         std::placeholders::_1));
@@ -51,17 +51,17 @@ Shivalian_control::rps_callback(
     for(int i = 0; i < 4; i++){
         rps[i] = msg->data[i];
     }
-    Vx[0] = opPI*wheel_fai*rps[0]*-std::cos(opPI/4);
-    Vx[1] = opPI*wheel_fai*rps[1]*std::cos(opPI/4);
-    Vx[2] = opPI*wheel_fai*rps[2]*std::cos(opPI/4);
-    Vx[3] = opPI*wheel_fai*rps[3]*-std::cos(opPI/4);//一つ一つ計算式が微妙に違うのでfor文にできず、見づらいけど許してください
+    Vx[0] = ODOM_WHEEL_CIRC*rps[0]*-std::cos(opPI/4);
+    Vx[1] = ODOM_WHEEL_CIRC*rps[1]*std::cos(opPI/4);
+    Vx[2] = ODOM_WHEEL_CIRC*rps[2]*std::cos(opPI/4);
+    Vx[3] = ODOM_WHEEL_CIRC*rps[3]*-std::cos(opPI/4);//一つ一つ計算式が微妙に違うのでfor文にできず、見づらいけど許してください
 
-    Vy[0] = opPI*wheel_fai*rps[0]*std::sin(opPI/4);
-    Vy[1] = opPI*wheel_fai*rps[1]*std::sin(opPI/4);
-    Vy[2] = opPI*wheel_fai*rps[2]*-std::sin(opPI/4);
-    Vy[3] = -opPI*wheel_fai*rps[3]*std::sin(opPI/4);
+    Vy[0] = ODOM_WHEEL_CIRC*rps[0]*std::sin(opPI/4);
+    Vy[1] = ODOM_WHEEL_CIRC*rps[1]*std::sin(opPI/4);
+    Vy[2] = ODOM_WHEEL_CIRC*rps[2]*-std::sin(opPI/4);
+    Vy[3] = ODOM_WHEEL_CIRC*rps[3]*std::sin(opPI/4);
 
-    dt = (current - last).seconds();
+    dt = PUBLISH_RATE_MS/1000.0;
     
     Vx = (Vx[0] + Vx[1] + Vx[2] + Vx[3]) / 4.0;
     Vy = (Vy[0] + Vy[1] + Vy[2] + Vy[3]) / 4.0;

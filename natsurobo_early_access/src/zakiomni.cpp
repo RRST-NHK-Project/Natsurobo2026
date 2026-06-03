@@ -230,7 +230,13 @@ void Zakicar::publisher_timer_callback()
 
 void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
 {
-
+    //最低限、サイズチェック
+    if (msg->data.size() < RX16NUM) {
+            RCLCPP_WARN(get_logger(),
+                        "serial_rx_%d: data too short (%zu)",
+                        device_id_, msg->data.size());
+            return;
+        }
     current = this->now();
     dt = (current - last_enc_time).seconds();
 
