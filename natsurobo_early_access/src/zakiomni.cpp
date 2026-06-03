@@ -233,7 +233,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
     if (msg->data.size() < RX16NUM) {
             RCLCPP_WARN(get_logger(),
                         "serial_rx_%d: data too short (%zu)",
-                        rx_device_id_, msg->data.size());
+                        device_id_, msg->data.size());
             return;
         }
     current = this->now();
@@ -514,9 +514,7 @@ int main(int argc, char *argv[])
     rclcpp::executors::MultiThreadedExecutor exec;
 
     auto zakicar = std::make_shared<Zakicar>(TX_DEVICE_ID, RX_DEVICE_ID);
-    auto odometry = std::make_shared<Shivalian_control>();
     exec.add_node(zakicar);
-    exec.add_node(odometry);
     exec.spin();
 
     rclcpp::shutdown();

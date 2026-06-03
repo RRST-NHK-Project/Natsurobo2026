@@ -1,4 +1,4 @@
-#include "zakiomni.hpp"
+#include "summer2026_odometry.hpp"
 
 
 
@@ -8,13 +8,13 @@ zakiomni.cppからrpsを受け取ってオドメトリの値を計算し、tfも
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control()
-    : Node("omni_drive")
+    : Node("hardware_control_"+std::to_string(RX_DEVICE_ID))
 {
 
-    rps_sub_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-        "rps",
+    sensor_sub_2 = this->create_subscription<std_msgs::msg::Float32MultiArray>(
+        "serial_rx_"+std::to_string(RX_DEVICE_ID),
         10,
-        std::bind(&Shivalian_control::rps_callback,
+        std::bind(&Shivalian_control::sensor_callback_2,
             this,
             std::placeholders::_1));
     
@@ -27,12 +27,12 @@ Shivalian_control::Shivalian_control()
         std::chrono::milliseconds(PUBLISH_RATE_MS), 
         std::bind(&Shivalian_control::publisher_position_callback, this));
 
-    RCLCPP_INFO(this->get_logger(), "odom_drive node has been started.");
+    RCLCPP_INFO(this->get_logger(), "odometry node has also been started.");
 
 }
 
 void 
-Shivalian_control::rps_callback(
+Shivalian_control::sensor_callback_2(
     const std_msgs::msg::Float32MultiArray::SharedPtr msg){   
     current = this->now();
 
@@ -47,24 +47,32 @@ Shivalian_control::rps_callback(
 
     // 以降、受信データを使った処理を記述
 
-    // Update RPS values based on the received message
-    for(int i = 0; i < 4; i++){
-        rps[i] = msg->data[i];
+    int16_t ENC_1 = msg->data[0];
+    int16_t ENC_2 = msg->data[1];
+    int16_t ENC_3 = msg->data[2];
+
+    enc[0] = ENC_1;
+    enc[1] = ENC_2;
+    enc[2] = ENC_3;
+
+    for(int i=0; i<3; i++){
+        diff[i] = enc[i] - enc_prev[i];
+        rps[i] = -diff[i] / (dt*cpr);
+        enc_prev[i] = enc[i];
     }
-    Vx[0] = ODOM_WHEEL_CIRC*rps[0]*-std::cos(opPI/4);
-    Vx[1] = ODOM_WHEEL_CIRC*rps[1]*std::cos(opPI/4);
-    Vx[2] = ODOM_WHEEL_CIRC*rps[2]*std::cos(opPI/4);
-    Vx[3] = ODOM_WHEEL_CIRC*rps[3]*-std::cos(opPI/4);//一つ一つ計算式が微妙に違うのでfor文にできず、見づらいけど許してください
 
-    Vy[0] = ODOM_WHEEL_CIRC*rps[0]*std::sin(opPI/4);
-    Vy[1] = ODOM_WHEEL_CIRC*rps[1]*std::sin(opPI/4);
-    Vy[2] = ODOM_WHEEL_CIRC*rps[2]*-std::sin(opPI/4);
-    Vy[3] = ODOM_WHEEL_CIRC*rps[3]*std::sin(opPI/4);
+    Vx[0] = ODOM_WHEEL_CIRC*rps[0]*-std::cos(opPI/3);
+    Vx[1] = ODOM_WHEEL_CIRC*rps[1]*std::cos(opPI/3);
+    Vx[2] = ODOM_WHEEL_CIRC*rps[2]*std::cos(opPI/3);//一つ一つ計算式が微妙に違うのでfor文にできず、見づらいけど許してください
 
-    dt = PUBLISH_RATE_MS/1000.0;
+    Vy[0] = ODOM_WHEEL_CIRC*rps[0]*std::sin(opPI/3);
+    Vy[1] = ODOM_WHEEL_CIRC*rps[1]*std::sin(opPI/3);
+    Vy[2] = ODOM_WHEEL_CIRC*rps[2]*-std::sin(opPI/3);
+
+    dt = PUBLISH_RATE_MS / 1000.0;
     
-    Vx_ = (Vx[0] + Vx[1] + Vx[2] + Vx[3]) / 4.0;
-    Vy_ = (Vy[0] + Vy[1] + Vy[2] + Vy[3]) / 4.0;
+    Vx_ = (Vx[0] + Vx[1] + Vx[2]) / 3.0;
+    Vy_ = (Vy[0] + Vy[1] + Vy[2]) / 3.0;
 
 
     point_Px += Vx_ * dt;

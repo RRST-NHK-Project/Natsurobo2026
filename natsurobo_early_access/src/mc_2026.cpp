@@ -20,6 +20,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 
+
+
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 出力マイコン（モーター制御）のID
 #define INPUT_DEVICE_ID 3  // 入力マイコン（マイクロスイッチやエンコーダ）のID
@@ -479,6 +481,10 @@ int main(int argc, char *argv[])
     // ID=3: マイクロスイッチ＆エンコーダ入力ノード
     auto switch_input = std::make_shared<SwitchInput>();
     exec.add_node(switch_input);
+
+    //オドメトリノード
+    auto odometry = std::make_shared<Shivalian_control>(RX_DEVICE_ID);
+    exec.add_node(odometry);
 
     exec.spin();
 

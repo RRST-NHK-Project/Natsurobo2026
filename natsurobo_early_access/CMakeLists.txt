@@ -17,10 +17,10 @@ find_package(tf2_ros REQUIRED)
 # Add executable
 add_executable(omni_drive 
   src/zakiomni.cpp
-  src/summer2026_odometry.cpp
 )
 add_executable(hardware_control_2
   src/mc_2026.cpp
+  src/summer2026_odometry.cpp
 )
 target_include_directories(omni_drive PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -32,8 +32,8 @@ target_include_directories(hardware_control_2 PUBLIC
 target_compile_features(hardware_control_2 PUBLIC c_std_99 cxx_std_17)
 
 # Link dependencies
-ament_target_dependencies(omni_drive rclcpp std_msgs sensor_msgs geometry_msgs nav_msgs tf2_ros)
-ament_target_dependencies(hardware_control_2 rclcpp std_msgs sensor_msgs geometry_msgs)
+ament_target_dependencies(omni_drive rclcpp std_msgs sensor_msgs geometry_msgs )
+ament_target_dependencies(hardware_control_2 rclcpp std_msgs sensor_msgs geometry_msgs nav_msgs tf2_ros)
 
 # Install
 install(TARGETS omni_drive hardware_control_2 
