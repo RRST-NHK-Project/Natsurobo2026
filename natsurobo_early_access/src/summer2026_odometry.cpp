@@ -36,6 +36,14 @@ Shivalian_control::sensor_callback_2(
     const std_msgs::msg::Float32MultiArray::SharedPtr msg){   
     current = this->now();
 
+    // 最低限：サイズチェック
+    if (msg->data.size() < RX16NUM) {
+        RCLCPP_WARN(this->get_logger(),
+                    "serial_rx_%d: data too short (%zu)",
+                    device_id_, msg->data.size());
+        return;
+    }
+
     if(!topic_received){
         
         point_Px = 0.0;//ノード起動時の座標を原点とする
