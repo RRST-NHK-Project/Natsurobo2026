@@ -1,41 +1,43 @@
-#ifndef MAT_H
-#define MAT_H
-
+#pragma once
 #include <iostream>
 #include <vector>
+#include <string>
+#include "rclcpp/rclcpp.hpp"
+#include "geometry_msgs/msg/vector3.hpp"
+#include "geometry_msgs/msg/point.hpp"
+using namespace std;
 
-class Ma {
-public:
-    std::vector<std::vector<double>> vec;
-
-    Ma() {}
-    Ma(std::vector<std::vector<double>> v) : vec(v) {}
-
+class Ma{
+  private:
+    vector<double> get_column(vector<vector<double>> x, int n);
+    double dot(vector<double> x, vector<double> y);
+    vector<vector<double>> vec;
+    vector<double> div(vector<double> x, double y);
     double pow(double x, int n);
-    int size();
-    std::vector<int> shape();
-
-    Ma operator-(Ma x);
+  public:
+    Ma(vector<vector<double>> x){vec=x;};
+    void show(rclcpp::Logger logger);
+    static void show(Ma x, rclcpp::Logger logger);
     Ma operator+(Ma x);
+    friend Ma operator+(Ma X, double y);
+    friend Ma operator+(double y, Ma X);
     Ma operator*(Ma x);
+    friend Ma operator*(Ma X, double y);
+    friend Ma operator*(double y, Ma X);
+    Ma operator-(Ma x);
+    friend Ma operator-(Ma X, double y);
+    friend Ma operator-(double y, Ma X);
     Ma operator/(double x);
     Ma operator-();
-
-    std::vector<double> get_column(std::vector<std::vector<double>> x, int n);
-    double dot(std::vector<double> x, std::vector<double> y);
-    void show();
-    void show(Ma x);
     Ma T();
-    std::vector<double> div(std::vector<double> x, double y);
+    operator vector<vector<double>>(){return vec;};
+    double operator()(int x, int y){return vec[x][y];};
+    int size();
+    vector<int> shape();
     Ma inv();
     double det();
+
+    static Ma from_vector3(const geometry_msgs::msg::Vector3 & v);
+    geometry_msgs::msg::Vector3 to_vector3() const;
+    geometry_msgs::msg::Point to_point() const;
 };
-
-Ma operator+(Ma X, double y);
-Ma operator+(double y, Ma X);
-Ma operator*(Ma X, double y);
-Ma operator*(double y, Ma X);
-Ma operator-(Ma X, double y);
-Ma operator-(double y, Ma X);
-
-#endif // MAT_H
