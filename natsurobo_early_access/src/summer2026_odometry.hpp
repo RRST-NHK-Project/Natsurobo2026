@@ -63,9 +63,6 @@ private:
    float rps[3] = {0.0, 0.0, 0.0};
    float V[3] = {0.0, 0.0, 0.0};
 
-   float Vx[3] = {0.0, 0.0, 0.0};
-   float Vy[3] = {0.0, 0.0, 0.0};
-
    float q_rad = 0.0;
    float q_z = 0.0;
    float q_w = 0.0;

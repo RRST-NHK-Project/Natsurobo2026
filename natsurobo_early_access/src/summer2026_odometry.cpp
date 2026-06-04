@@ -56,13 +56,13 @@ Shivalian_control::sensor_callback_2(
 
     // 以降、受信データを使った処理を記述
 
-    int16_t ENC_1 = msg->data[0];
-    int16_t ENC_2 = msg->data[1];
-    int16_t ENC_3 = msg->data[2];
+    int16_t ENC1 = msg->data[0];
+    int16_t ENC2 = msg->data[1];
+    int16_t ENC3 = msg->data[2];
 
-    enc[0] = ENC_1;
-    enc[1] = ENC_2;
-    enc[2] = ENC_3;
+    enc[0] = ENC1;
+    enc[1] = ENC2;
+    enc[2] = ENC3;
 
     for(int i=0; i<3; i++){
         diff[i] = enc[i] - last_enc[i];
@@ -75,7 +75,7 @@ Shivalian_control::sensor_callback_2(
 
     V_ = (V[0] + V[1] + V[2]) / 3.0;
     
-    dt = PUBLISH_RATE_MS / 1000.0;
+    dt = (current - last).seconds();
     
     
     Vx_ = (V[0]*std::cos(opPI/2.0) + V[1]*-std::sin(opPI/6.0) + V[2]*-std::cos(opPI/6.0)) / 3.0;
@@ -102,7 +102,7 @@ void Shivalian_control::publisher_position_callback()
 {
     nav_msgs::msg::Odometry odom_msg;
 
-    //受信したrpsを元にオドメトリの値を計算する処理をここに追加
+    //sensor_callback_2で計算した位置と速度をodom_msgにセットしてpublishする
 
     odom_msg.header.stamp = this->get_clock()->now();
     odom_msg.header.frame_id = "odom";
