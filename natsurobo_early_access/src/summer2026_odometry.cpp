@@ -48,6 +48,12 @@ Shivalian_control::sensor_callback_2(
         
         point_Px = 0.0;//ノード起動時の座標を原点とする
         point_Py = 0.0;
+        d_x = 0.0;
+        d_y = 0.0;
+        d_x_r = 0.0;
+        d_y_r = 0.0;
+        d_yaw = 0.0;
+        yaw_ = 0.0;
         last =this->now();
         topic_received = true;
         return;
@@ -57,9 +63,9 @@ Shivalian_control::sensor_callback_2(
 
     // 以降、受信データを使った処理を記述
 
-    int16_t ENC1 = msg->data[0];
-    int16_t ENC2 = msg->data[1];
-    int16_t ENC3 = msg->data[2];
+    int16_t ENC1 = msg->data[1];
+    int16_t ENC2 = msg->data[2];
+    int16_t ENC3 = msg->data[3];
 
     enc[0] = ENC1;
     enc[1] = ENC2;
@@ -93,9 +99,9 @@ Shivalian_control::sensor_callback_2(
     point_Px += Vx_ * dt;
     point_Py += Vy_ * dt;
 
-    //v=rωより、角速度ω=v/rで計算できる。r(ODOM_RADIUS)は設計されてないから分からない
+    //v=rωより、角速度ω=v/rで計算できる。r(ODOM_LR_DISTANCE)は設計されてないから分からない
 
-    d_rad = V_ / ODOM_RADIUS; 
+    d_rad = V_ / ODOM_LR_DISTANCE; 
 
     last = current;
 
