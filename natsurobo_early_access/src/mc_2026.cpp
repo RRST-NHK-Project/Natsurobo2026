@@ -19,9 +19,11 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include "sensor_msgs/msg/joy.hpp"
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 // 自作
 #include "summer2026_odometry.hpp"
+#include "natsurobo_early_access/mat.h"
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 出力マイコン（モーター制御）のID

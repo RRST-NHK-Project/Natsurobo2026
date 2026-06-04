@@ -19,6 +19,9 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
+// 自作
+#include "natsurobo_early_access/mat.h"
+
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 3 // 送信先マイコンのID
 #define INPUT_DEVICE_ID 2 // 受信先マイコンのID
