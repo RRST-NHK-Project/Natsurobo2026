@@ -34,6 +34,7 @@
 const float enc_max = 32767.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
+
 class Shivalian_control : public rclcpp::Node
 {
 
@@ -43,6 +44,7 @@ public:
 private:
    void publisher_position_callback();
    void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
+   Ma rot(float degree);
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
     static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
@@ -57,6 +59,7 @@ private:
     static constexpr double ODOM_Y_SCALE = 1.0;
     static constexpr double ODOM_YAW_SCALE = 1.0;
 
+   //命名規則:小文字は変数、大文字は行列、ii、jj、kkは単位はそれぞれx、y、z方向の単位ベクトルを表す行列、dの接頭辞が付くと変化量、r、Rは位置
    rclcpp::Time current;
    rclcpp::Time last;
    float dt = 0.0;
@@ -64,7 +67,9 @@ private:
    int16_t last_enc[3] = {0, 0, 0};
    int16_t diff[3] = {0, 0, 0};
    float rps[3] = {0.0, 0.0, 0.0};
-   float V[3] = {0.0, 0.0, 0.0};
+   float v[3] = {0.0, 0.0, 0.0};
+   float v_ = 0.0;   
+   Ma V[3] = {Ma ({{0.0},{0.0}}),Ma ({{0.0},{0.0}}),Ma ({{0.0},{0.0}})}; //ロボットを原点とした基準での直交座標系の速度ベクトル
 
    float q_rad = 0.0;
    float q_z = 0.0;
@@ -72,14 +77,19 @@ private:
 
    float Vx_;
    float Vy_;
-   float V_;
+   Ma V_ = Ma ({{0.0},
+                {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
    float d_rad = 0.0;
 
-   float d_x_r = 0.0;
-   float d_y_r = 0.0;
+   Ma dR_r = Ma ({{0.0},
+                  {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   float dx_r = 0.0;
+   float dy_r = 0.0;
 
-   float d_x = 0.0;
-   float d_y = 0.0;
+   Ma dR = Ma ({{0.0},
+                {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   float dx = 0.0;
+   float dy = 0.0;
    float d_yaw = 0.0;
 
    float point_Px = 0.0; 
@@ -88,6 +98,9 @@ private:
    float yaw_ = 0.0;
    
    bool topic_received = false;
+
+   //Matrix
+   
 
    uint8_t rx_device_id_;
    uint8_t device_id_;
