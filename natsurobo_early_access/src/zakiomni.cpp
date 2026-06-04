@@ -69,10 +69,6 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
         std::bind(&Zakicar::sensor_callback,
                   this,
                   std::placeholders::_1));
-    
-    rps_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>(
-        "rps",
-        10);
 
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
@@ -324,12 +320,6 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
 
     // 最後に受信時刻を更新してタイムアウト判定に使えるようにする
     last_enc_time = current;
-    
-    std_msgs::msg::Float32MultiArray rps_msg;
-    for(int u = 0; u < 4; u++){
-        rps_msg.data[u] = rps[u];
-    }
-    rps_pub->publish(rps_msg);//rpsをオドメトリでモニターする用にpublish
 
     // 受信データ処理ここまで
     

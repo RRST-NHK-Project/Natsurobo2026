@@ -14,12 +14,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/int16.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
-#include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2_ros/transform_broadcaster.h"
 
 #define opPI 3.1415926
 
@@ -76,7 +72,6 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
-   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr rps_pub;
 
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};

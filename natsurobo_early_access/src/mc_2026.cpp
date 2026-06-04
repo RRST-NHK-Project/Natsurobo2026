@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
     exec.add_node(switch_input);
 
     //オドメトリノード
-    auto odometry = std::make_shared<Shivalian_control>(RX_DEVICE_ID);
+    auto odometry = std::make_shared<Shivalian_control>(INPUT_DEVICE_ID);
     exec.add_node(odometry);
 
     exec.spin();

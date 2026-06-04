@@ -16,13 +16,12 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
-#include "std_msgs/msg/float32_multi_array.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
 // 以下マイコンに合わせて設定
-#define TX_DEVICE_ID 2 // 送信先マイコンのID
-#define RX_DEVICE_ID 3 // 受信先マイコンのID
+#define OUTPUT_DEVICE_ID 3 // 送信先マイコンのID
+#define INPUT_DEVICE_ID 2 // 受信先マイコンのID
 
 #define TX16NUM 24 // 送信データ数
 #define RX16NUM 17 // 受信データ数
@@ -40,7 +39,7 @@ public:
 
 private:
    void publisher_position_callback();
-   void sensor_callback_2(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
+   void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
     static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
@@ -48,7 +47,7 @@ private:
     static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;
     static constexpr double ENCODER_RESOLUTION = 1024.0;
     static constexpr double ENC_TO_M = ODOM_WHEEL_CIRC / ENCODER_RESOLUTION;
-    static constexpr double ODOM_LR_DISTANCE = 0.385;
+    static constexpr double ODOM_RADIUS = 0.385;
     static constexpr double ODOM_F_OFFSET = 0.335;
 
     static constexpr double ODOM_X_SCALE = 1.0;
@@ -59,14 +58,22 @@ private:
    rclcpp::Time last;
    float dt = 0.0;
    int16_t enc[3] = {0, 0, 0};
-   int16_t enc_prev[3] = {0, 0, 0};
+   int16_t last_enc[3] = {0, 0, 0};
    int16_t diff[3] = {0, 0, 0};
    float rps[3] = {0.0, 0.0, 0.0};
+   float V[3] = {0.0, 0.0, 0.0};
+
    float Vx[3] = {0.0, 0.0, 0.0};
    float Vy[3] = {0.0, 0.0, 0.0};
 
+   float q_rad = 0.0;
+   float q_z = 0.0;
+   float q_w = 0.0;
+
    float Vx_;
    float Vy_;
+   float V_;
+   float d_rad = 0.0;
 
    float point_Px = 0.0; 
    float point_Py = 0.0; 
@@ -77,8 +84,9 @@ private:
    uint8_t device_id_;
 
    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
-   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sensor_sub_2;
-   rclcpp::TimerBase::SharedPtr timer_;d
+   rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_2;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+   rclcpp::TimerBase::SharedPtr timer_;
 };
 
 #endif

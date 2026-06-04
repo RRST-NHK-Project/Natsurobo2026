@@ -3,16 +3,17 @@
 
 
 /*
-zakiomni.cppからrpsを受け取ってオドメトリの値を計算し、tfも送信するノード（但し現状では無意味）。
-4輪オムニホイールをオドメトリと思って書いてたけど違う気がしてきた。ubuntuでFusion見れないのが悪い
+hardware_control_2を起動するとオドメトリの自己位置を計算し、tfも送信する（但し現状では無意味）。
+mc_2026.cppが死ぬとこいつも共倒れする
+3輪オドメトリの回転をエンコーダから受け取って位置を計算する
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
-Shivalian_control::Shivalian_control()
-    : Node("hardware_control_"+std::to_string(RX_DEVICE_ID))
+Shivalian_control::Shivalian_control(uint8_t rx_device_id)
+    : Node("hardware_control_"+std::to_string(INPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
 {
 
-    sensor_sub_2 = this->create_subscription<std_msgs::msg::Float32MultiArray>(
-        "serial_rx_"+std::to_string(RX_DEVICE_ID),
+    sensor_sub_2 = this->create_subscription<std_msgs::msg::Int16MultiArray>(
+        "serial_rx_"+std::to_string(INPUT_DEVICE_ID),
         10,
         std::bind(&Shivalian_control::sensor_callback_2,
             this,
@@ -33,7 +34,7 @@ Shivalian_control::Shivalian_control()
 
 void 
 Shivalian_control::sensor_callback_2(
-    const std_msgs::msg::Float32MultiArray::SharedPtr msg){   
+    const std_msgs::msg::Int16MultiArray::SharedPtr msg){   
     current = this->now();
 
     // 最低限：サイズチェック
@@ -64,27 +65,32 @@ Shivalian_control::sensor_callback_2(
     enc[2] = ENC_3;
 
     for(int i=0; i<3; i++){
-        diff[i] = enc[i] - enc_prev[i];
+        diff[i] = enc[i] - last_enc[i];
         rps[i] = -diff[i] / (dt*cpr);
-        enc_prev[i] = enc[i];
+        last_enc[i] = enc[i];
     }
+    V[0] = ODOM_WHEEL_CIRC*rps[0];//正面かつx軸正を進行方向とする
+    V[1] = ODOM_WHEEL_CIRC*rps[1];//θ=120°の回転行列をかけた方向が進行方向(行列で計算するとは言っていない)
+    V[2] = ODOM_WHEEL_CIRC*rps[2];//さらにθ=120°の回転行列をかけた方向が進行方向
 
-    Vx[0] = ODOM_WHEEL_CIRC*rps[0]*-std::cos(opPI/3);
-    Vx[1] = ODOM_WHEEL_CIRC*rps[1]*std::cos(opPI/3);
-    Vx[2] = ODOM_WHEEL_CIRC*rps[2]*std::cos(opPI/3);//一つ一つ計算式が微妙に違うのでfor文にできず、見づらいけど許してください
-
-    Vy[0] = ODOM_WHEEL_CIRC*rps[0]*std::sin(opPI/3);
-    Vy[1] = ODOM_WHEEL_CIRC*rps[1]*std::sin(opPI/3);
-    Vy[2] = ODOM_WHEEL_CIRC*rps[2]*-std::sin(opPI/3);
-
+    V_ = (V[0] + V[1] + V[2]) / 3.0;
+    
     dt = PUBLISH_RATE_MS / 1000.0;
     
-    Vx_ = (Vx[0] + Vx[1] + Vx[2]) / 3.0;
-    Vy_ = (Vy[0] + Vy[1] + Vy[2]) / 3.0;
+    
+    Vx_ = (V[0]*std::cos(opPI/2.0) + V[1]*-std::sin(opPI/6.0) + V[2]*-std::cos(opPI/6.0)) / 3.0;
+    Vy_ = (V[0]*std::sin(opPI/2.0) + V[1]*-std::cos(opPI/6.0) + V[2]*std::sin(opPI/6.0)) / 3.0;
 
+    q_rad = atan2(Vy_, Vx_); 
+    q_z = sin(q_rad / 2.0);
+    q_w = cos(q_rad / 2.0);
 
     point_Px += Vx_ * dt;
     point_Py += Vy_ * dt;
+
+    //v=rωより、角速度ω=v/rで計算できる。r(ODOM_RADIUS)は設計されてないから分からない
+
+    d_rad = V_ / ODOM_RADIUS; 
 
     last = current;
 
@@ -107,15 +113,15 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.pose.pose.position.z = 0.0;  //z軸での計算はいたしません
     odom_msg.pose.pose.orientation.x =0.0;
     odom_msg.pose.pose.orientation.y =0.0;
-    odom_msg.pose.pose.orientation.z =0.0;//まだ計算していない
-    odom_msg.pose.pose.orientation.w =0.0;
+    odom_msg.pose.pose.orientation.z =q_z;
+    odom_msg.pose.pose.orientation.w =q_w;
 
     odom_msg.twist.twist.linear.x = Vx_;
     odom_msg.twist.twist.linear.y = Vy_;
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0
-    odom_msg.twist.twist.angular.z = 0.0;//(Yaw)まだ計算していない
+    odom_msg.twist.twist.angular.z = d_rad;//(Yaw)まだ計算していない
     
     odom_pub_->publish(odom_msg);
 
@@ -128,7 +134,7 @@ void Shivalian_control::publisher_position_callback()
         tf.transform.translation.z = 0.0;
         tf.transform.rotation.x = 0.0;
         tf.transform.rotation.y = 0.0;
-        tf.transform.rotation.z = 0.0;//まだ全然計算していない
-        tf.transform.rotation.w = 0.0;
+        tf.transform.rotation.z = q_z;
+        tf.transform.rotation.w = q_w;
         tf_broadcaster_->sendTransform(tf);
 }
