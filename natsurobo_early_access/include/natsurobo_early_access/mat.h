@@ -36,7 +36,7 @@ class Ma{
     vector<int> shape();
     Ma inv();
     double det();
-
+    static Ma from_point(const geometry_msgs::msg::Point & p);
     static Ma from_vector3(const geometry_msgs::msg::Vector3 & v);
     geometry_msgs::msg::Vector3 to_vector3() const;
     geometry_msgs::msg::Point to_point() const;
