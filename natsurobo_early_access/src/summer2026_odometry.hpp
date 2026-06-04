@@ -23,8 +23,8 @@
 #include "natsurobo_early_access/mat.h"
 
 // 以下マイコンに合わせて設定
-#define OUTPUT_DEVICE_ID 3 // 送信先マイコンのID
-#define INPUT_DEVICE_ID 2 // 受信先マイコンのID
+#define OUTPUT_DEVICE_ID 2 // 送信先マイコンのID
+#define INPUT_DEVICE_ID 3 // 受信先マイコンのID
 
 #define TX16NUM 24 // 送信データ数
 #define RX16NUM 17 // 受信データ数
@@ -50,7 +50,7 @@ private:
     static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;
     static constexpr double ENCODER_RESOLUTION = 1024.0;
     static constexpr double ENC_TO_M = ODOM_WHEEL_CIRC / ENCODER_RESOLUTION;
-    static constexpr double ODOM_RADIUS = 0.385;
+    static constexpr double ODOM_LR_DISTANCE = 0.385;
     static constexpr double ODOM_F_OFFSET = 0.335;
 
     static constexpr double ODOM_X_SCALE = 1.0;
@@ -75,8 +75,17 @@ private:
    float V_;
    float d_rad = 0.0;
 
+   float d_x_r = 0.0;
+   float d_y_r = 0.0;
+
+   float d_x = 0.0;
+   float d_y = 0.0;
+   float d_yaw = 0.0;
+
    float point_Px = 0.0; 
    float point_Py = 0.0; 
+
+   float yaw_ = 0.0;
    
    bool topic_received = false;
 
