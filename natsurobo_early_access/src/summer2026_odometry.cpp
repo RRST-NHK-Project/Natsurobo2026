@@ -23,7 +23,6 @@ Shivalian_control::Shivalian_control(uint8_t rx_device_id)
 
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
     
-    // timer_callbackを呼び出すタイマーを作成
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(PUBLISH_RATE_MS), 
         std::bind(&Shivalian_control::publisher_position_callback, this));
@@ -54,6 +53,8 @@ Shivalian_control::sensor_callback_2(
         return;
     }
 
+        dt = (current - last).seconds();
+
     // 以降、受信データを使った処理を記述
 
     int16_t ENC1 = msg->data[0];
@@ -75,15 +76,19 @@ Shivalian_control::sensor_callback_2(
 
     V_ = (V[0] + V[1] + V[2]) / 3.0;
     
-    dt = (current - last).seconds();
-    
-    
     Vx_ = (V[0]*std::cos(opPI/2.0) + V[1]*-std::sin(opPI/6.0) + V[2]*-std::cos(opPI/6.0)) / 3.0;
     Vy_ = (V[0]*std::sin(opPI/2.0) + V[1]*-std::cos(opPI/6.0) + V[2]*std::sin(opPI/6.0)) / 3.0;
 
     q_rad = atan2(Vy_, Vx_); 
     q_z = sin(q_rad / 2.0);
     q_w = cos(q_rad / 2.0);
+
+    d_x_r = Vx_ * dt;//ロボットを原点とした基準での直交座標系
+    d_y_r = Vy_ * dt;
+
+    d_x = d_x_r *std::cos(yaw_) - d_y_r * std::sin(yaw_);//ロボットの初期位置と向きを原点とした基準での直交座標系
+    d_y = d_x_r *std::sin(yaw_) + d_y_r * std::cos(yaw_);
+    d_yaw = d_rad * dt;
 
     point_Px += Vx_ * dt;
     point_Py += Vy_ * dt;

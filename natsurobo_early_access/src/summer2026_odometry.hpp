@@ -72,8 +72,17 @@ private:
    float V_;
    float d_rad = 0.0;
 
+   float d_x_r = 0.0;
+   float d_y_r = 0.0;
+
+   float d_x = 0.0;
+   float d_y = 0.0;
+   float d_yaw = 0.0;
+
    float point_Px = 0.0; 
    float point_Py = 0.0; 
+
+   float yaw_ = 0.0;
    
    bool topic_received = false;
 
