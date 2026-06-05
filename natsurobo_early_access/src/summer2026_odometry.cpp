@@ -78,49 +78,35 @@ Shivalian_control::sensor_callback_2(
         v[i] = ODOM_WHEEL_CIRC * rps[i];//各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
     }
     
-    V_r = matrix ({{v[0]},
-                   {v[1]},
-                   {v[2]}});
+    V_wheel = matrix ({{v[0]},
+                       {v[1]},
+                       {v[2]}});//各車輪の速度をベクトル化
 
-    A = matrix ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
-                 {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
-                 {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}});
+    FK_inv = FK.inv();
 
-    A_inv = A.inv();
+    V_r = FK_inv * V_wheel; //タイヤの速度ベクトルから、ロボットを原点とした基準での直交座標系の速度ベクトルへ
 
-    V = A_inv * V_r; //ロボットを原点とした基準での直交座標系の速度と回転角のベクトル
-
-    vx = V.operator()(0,0);
-    vy = V.operator()(1,0);
-    d_rad = V.operator()(2,0);
+    vx_r = V_r.operator()(0,0);
+    vy_r = V_r.operator()(1,0);
+    d_rad = V_r.operator()(2,0);
     
-    dx_r = vx * dt;
-    dy_r = vy * dt;
+    dx_r = vx_r * dt;
+    dy_r = vy_r * dt;
 
     dR_r = matrix ({{dx_r},
                     {dy_r},
                     {d_rad*dt}}); //ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
     
-    rot3 = matrix ({{cos(yaw), -sin(yaw),0},
-                    {sin(yaw), cos(yaw) ,0},
-                    { 0,        0,       1}}); // 3×3のyaw回転行列
-    
-    dR = rot3 * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
+    dR = R * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
     
     dx = dR.operator()(0,0);
     dy = dR.operator()(1,0);
     d_yaw = dR.operator()(2,0);
 
-    point_Px += dx;
-    point_Py += dy;
-    yaw += d_yaw;
-
-    yaw =std::atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
-
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;
 
-    yaw += d_rad * dt;
+    yaw += d_yaw;
     yaw = atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
 
     last = current;
@@ -147,8 +133,8 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.pose.pose.orientation.z =q_z;
     odom_msg.pose.pose.orientation.w =q_w;
 
-    odom_msg.twist.twist.linear.x = vx;
-    odom_msg.twist.twist.linear.y = vy;
+    odom_msg.twist.twist.linear.x = vx_r;
+    odom_msg.twist.twist.linear.y = vy_r;
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0

@@ -75,9 +75,8 @@ private:
    float q_z = 0.0;
    float q_w = 0.0;
 
-   float vx;
-   float vy;
-   
+   float vx_r = 0.0;
+   float vy_r = 0.0;
    float d_rad = 0.0;
 
    float dx_r = 0.0;
@@ -95,27 +94,32 @@ private:
    bool topic_received = false;
 
    //Matrix(mat.hで定義した行列)
-   matrix V_ = matrix ({{0.0},
-                        {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+
+   matrix V_wheel = matrix ({{0.0},
+                             {0.0},
+                             {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+
+   matrix V_r = matrix ({{0.0},
+                         {0.0},
+                         {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+
    matrix dR_r = matrix ({{0.0},
                           {0.0},
                           {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+
    matrix dR = matrix ({{0.0},
+                        {0.0},
                         {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
-   
-   matrix A = matrix ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
-                       {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
-                       {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列
 
-   matrix A_inv = A.inv(); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列の逆行列
+   matrix R = matrix({{cos(yaw), -sin(yaw),0},
+                      {sin(yaw), cos(yaw) ,0},
+                      { 0,        0,       1}}); // 3×3のyaw回転行列
 
-   matrix dV_;
-   matrix dP_r;
-   matrix dP;
+   matrix FK = matrix ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
+                        {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
+                        {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); //逆運動学における変換行列
 
-   matrix V_r;
-   matrix V;
-   matrix rot3;
+   matrix FK_inv = FK.inv(); //mat.cppで逆行列へ(順運動学における変換行列)
 
    uint8_t rx_device_id_;
    uint8_t device_id_;
