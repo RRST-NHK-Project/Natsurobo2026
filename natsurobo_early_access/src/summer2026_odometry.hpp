@@ -46,8 +46,6 @@ public:
 private:
    void publisher_position_callback();
    void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
-   Ma rot(float degree);
-   Ma rotR(float degree);
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
     static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
@@ -72,7 +70,6 @@ private:
    float rps[3] = {0.0, 0.0, 0.0};
    float v[3] = {0.0, 0.0, 0.0};
    float v_ = 0.0;   
-   Ma V[3] = {Ma ({{0.0},{0.0}}),Ma ({{0.0},{0.0}}),Ma ({{0.0},{0.0}})}; //ロボットを原点とした基準での直交座標系の速度ベクトル
 
    float q_rad = 0.0;
    float q_z = 0.0;
@@ -98,21 +95,27 @@ private:
    bool topic_received = false;
 
    //Matrix(mat.hで定義した行列)
-   Ma V_ = Ma ({{0.0},
-                {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
-   Ma dR_r = Ma ({{0.0},
-                  {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
-   Ma dR = Ma ({{0.0},
-                {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   matrix V_ = matrix ({{0.0},
+                        {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+   matrix dR_r = matrix ({{0.0},
+                          {0.0},
+                          {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   matrix dR = matrix ({{0.0},
+                        {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
    
-   Ma A = Ma ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
-               {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
-               {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列
+   matrix A = matrix ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
+                       {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
+                       {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列
 
-   Ma A_inv = A.inv(); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列の逆行列
+   matrix A_inv = A.inv(); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列の逆行列
 
-   Ma dV_;
+   matrix dV_;
+   matrix dP_r;
+   matrix dP;
 
+   matrix V_r;
+   matrix V;
+   matrix rot3;
 
    uint8_t rx_device_id_;
    uint8_t device_id_;
