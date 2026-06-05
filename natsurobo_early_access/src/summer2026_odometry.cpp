@@ -77,7 +77,7 @@ Shivalian_control::sensor_callback_2(
         last_enc[i] = enc[i];
         v[i] = ODOM_WHEEL_CIRC * rps[i];//各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
     }
-
+    /*
     V[0] =Ma ({{v[0]},
                  {0}});//正面かつx軸正の方向を進行方向とする列ベクトル
 
@@ -85,26 +85,28 @@ Shivalian_control::sensor_callback_2(
                  {0}}); //単位ベクトル(x軸)
 
     V[1] = Ma (rotR(120.0) * ii *v[1]); // θ=120°の右回転行列をかけた方向が進行方向(行列で計算するとは言っていない)
-    V[2] = Ma (rotR(120.0 + 120.0) * ii*v[2]); // さらにθ=120°の右回転行列をかけた方向が進行方向
+    V[2] = Ma (rotR(120.0 + 120.0) * ii*v[2]); // さらにθ=120°の右回転行列をかけた方向が進行方向*/
 
-    /*
-    Ma V = Ma ({{v[0]},
-                {v[1]},
-                {v[2]}})
+    
+    V = Ma ({{v[0]},
+             {v[1]},
+             {v[2]}})
 
-    Ma A = Ma ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
-                {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
-                {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); 
+    A = Ma ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
+             {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
+             {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}});
 
-    Ma dV_ = A.inv() * V; //ロボットを原点とした基準での直交座標系の速度と回転角のベクトル
+    A_inv = A.inv();
+
+    dV_ = A_inv * V; //ロボットを原点とした基準での直交座標系の速度と回転角のベクトル
 
     vx = dV_.operator()(0,0);
     vy = dV_.operator()(1,0);
     d_rad = dV_.operator()(2,0);
     
-    */
+    
 
-    V_ = Ma ((V[0] + V[1] + V[2]) / (3.0*sin(opPI/3.0))); 
+    /*V_ = Ma ((V[0] + V[1] + V[2]) / (3.0*sin(opPI/3.0))); 
     v_ = (v[0] + v[1] + v[2]) / 3.0;//接線方向の速度の平均 
     d_rad = v_ / ODOM_LR_DISTANCE; //v=rωより、角速度ω=v/rで計算できる。r(ODOM_LR_DISTANCE)は設計されてないから分からない
 
@@ -120,12 +122,11 @@ Shivalian_control::sensor_callback_2(
     dR_r = Ma ({{dx_r},
                 {dy_r}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
 
-    dR = Ma (rot(yaw * 180.0 / opPI) * dR_r); //現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
+    dR = Ma (rot(yaw * 180.0 / opPI) * dR_r); //現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換*/
 
     dx = dR.operator()(0,0);
     dy = dR.operator()(1,0);
 
-    /*
     Ma dP_r = Ma ({{dx},
                    {dy}},
                    {d_rad*dt}); //ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
@@ -141,8 +142,6 @@ Shivalian_control::sensor_callback_2(
     yaw += dP.operator()(2,0);
 
     yaw =std::atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
-    */
-
 
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;

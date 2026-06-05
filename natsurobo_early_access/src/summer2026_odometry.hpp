@@ -104,6 +104,15 @@ private:
                   {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
    Ma dR = Ma ({{0.0},
                 {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   
+   Ma A = Ma ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
+               {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
+               {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列
+
+   Ma A_inv = A.inv(); //ロボットを原点とした基準での直交座標系の速度ベクトルから各車輪の速度ベクトルへの変換行列の逆行列
+
+   Ma dV_;
+
 
    uint8_t rx_device_id_;
    uint8_t device_id_;
