@@ -34,6 +34,8 @@
 const float enc_max = 32767.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
+using namespace std;
+
 
 class Shivalian_control : public rclcpp::Node
 {

@@ -87,15 +87,15 @@ Shivalian_control::sensor_callback_2(
     V[1] = Ma (rot(120.0) * ii*v[1]); // θ=120°の回転行列をかけた方向が進行方向(行列で計算するとは言っていない)
     V[2] = Ma (rot(120.0 + 120.0) * ii*v[2]); // さらにθ=120°の回転行列をかけた方向が進行方向
 
-    V_ = Ma ((V[0] + V[1] + V[2]) / (3.0*std::sin(opPI/3.0))); 
+    V_ = Ma ((V[0] + V[1] + V[2]) / (3.0*sin(opPI/3.0))); 
     v_ = (v[0] + v[1] + v[2]) / 3.0;//接線方向の速度の平均 
     d_rad = v_ / ODOM_LR_DISTANCE; //v=rωより、角速度ω=v/rで計算できる。r(ODOM_LR_DISTANCE)は設計されてないから分からない
 
     vx = V_.operator()(0,0);
     vy = V_.operator()(1,0);
 
-    q_z = sin(yaw_ / 2.0);//クォータニオンのz成分
-    q_w = cos(yaw_ / 2.0);//クォータニオンのw成分
+    q_z = sin(yaw / 2.0);//クォータニオンのz成分
+    q_w = cos(yaw / 2.0);//クォータニオンのw成分
 
     dx_r = vx * dt;//ロボットを原点とした基準での直交座標系の変位
     dy_r = vy * dt;
@@ -123,7 +123,7 @@ Shivalian_control::sensor_callback_2(
     point_Py += dP.operator()(1,0);
     yaw += dP.operator()(2,0);
 
-    yaw =std::atan2(std::sin(yaw), std::cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
+    yaw =std::atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
     */
 
 
@@ -131,7 +131,7 @@ Shivalian_control::sensor_callback_2(
     point_Py += dy;
 
     yaw += d_rad * dt;
-    yaw =std::atan2(std::sin(yaw), std::cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
+    yaw = atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
 
     last = current;
 
@@ -157,8 +157,8 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.pose.pose.orientation.z =q_z;
     odom_msg.pose.pose.orientation.w =q_w;
 
-    odom_msg.twist.twist.linear.x = Vx;
-    odom_msg.twist.twist.linear.y = Vy;
+    odom_msg.twist.twist.linear.x = vx;
+    odom_msg.twist.twist.linear.y = vy;
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0
@@ -183,15 +183,15 @@ void Shivalian_control::publisher_position_callback()
 //回転行列を返す関数。引数は回転角度(度数法)
 Ma Shivalian_control::rot(float degree){
     float rad = degree * opPI / 180.0;
-    Ma A_rot = Ma ({{std::cos(rad), -std::sin(rad)},
-                    {std::sin(rad), std::cos(rad)}}); // θ=degreeの回転行列
+    Ma A_rot = Ma ({{cos(rad), -sin(rad)},
+                    {sin(rad), cos(rad)}}); // θ=degreeの回転行列
     return A_rot;
 }
 
 //右回転の回転行列を返す関数
 Ma Shivalian_control::rotR(float degree){
     float rad = degree * opPI / 180.0;
-    Ma A_rot = Ma ({{std::cos(rad), std::sin(rad)},
-                    {-std::sin(rad), std::cos(rad)}});
+    Ma A_rot = Ma ({{cos(rad), sin(rad)},
+                    {-sin(rad), cos(rad)}});
     return A_rot;
 }
