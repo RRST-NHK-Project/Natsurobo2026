@@ -106,6 +106,9 @@ Shivalian_control::sensor_callback_2(
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;
 
+    q_z = sin(yaw/2.0);
+    q_w = cos(yaw/2.0);
+
     yaw += d_yaw;
     yaw = atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
 
