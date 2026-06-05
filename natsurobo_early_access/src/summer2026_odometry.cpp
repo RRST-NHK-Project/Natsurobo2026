@@ -63,9 +63,9 @@ Shivalian_control::sensor_callback_2(
 
     // 以降、受信データを使った処理を記述
 
-    int16_t ENC1 = msg->data[1];
-    int16_t ENC2 = msg->data[2];
-    int16_t ENC3 = msg->data[3];
+    ENC1 = msg->data[0];
+    ENC2 = msg->data[1];
+    ENC3 = msg->data[2];
 
     enc[0] = ENC1;
     enc[1] = ENC2;

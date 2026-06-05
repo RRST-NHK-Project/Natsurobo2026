@@ -67,6 +67,9 @@ private:
    int16_t enc[3] = {0, 0, 0};
    int16_t last_enc[3] = {0, 0, 0};
    int16_t diff[3] = {0, 0, 0};
+   int16_t ENC1;
+   int16_t ENC2;
+   int16_t ENC3;
    float rps[3] = {0.0, 0.0, 0.0};
    float v[3] = {0.0, 0.0, 0.0};
    float v_ = 0.0;   
