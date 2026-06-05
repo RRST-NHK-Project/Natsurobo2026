@@ -9,7 +9,7 @@ mc_2026.cppが死ぬとこいつも共倒れする
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control(uint8_t rx_device_id)
-    : Node("hardware_control_"+std::to_string(INPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
+    : Node("hardware_control_"+std::to_string(OUTPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
 {
 
     sensor_sub_2 = this->create_subscription<std_msgs::msg::Int16MultiArray>(
@@ -84,8 +84,25 @@ Shivalian_control::sensor_callback_2(
     Ma ii = Ma ({{1},
                  {0}}); //単位ベクトル(x軸)
 
-    V[1] = Ma (rot(120.0) * ii*v[1]); // θ=120°の回転行列をかけた方向が進行方向(行列で計算するとは言っていない)
-    V[2] = Ma (rot(120.0 + 120.0) * ii*v[2]); // さらにθ=120°の回転行列をかけた方向が進行方向
+    V[1] = Ma (rotR(120.0) * ii *v[1]); // θ=120°の右回転行列をかけた方向が進行方向(行列で計算するとは言っていない)
+    V[2] = Ma (rotR(120.0 + 120.0) * ii*v[2]); // さらにθ=120°の右回転行列をかけた方向が進行方向
+
+    /*
+    Ma V = Ma ({{v[0]},
+                {v[1]},
+                {v[2]}})
+
+    Ma A = Ma ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
+                {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},
+                {cos(-4*opPI/3), sin(-4*opPI/3), ODOM_LR_DISTANCE}}); 
+
+    Ma dV_ = A.inv() * V; //ロボットを原点とした基準での直交座標系の速度と回転角のベクトル
+
+    vx = dV_.operator()(0,0);
+    vy = dV_.operator()(1,0);
+    d_rad = dV_.operator()(2,0);
+    
+    */
 
     V_ = Ma ((V[0] + V[1] + V[2]) / (3.0*sin(opPI/3.0))); 
     v_ = (v[0] + v[1] + v[2]) / 3.0;//接線方向の速度の平均 
@@ -114,7 +131,7 @@ Shivalian_control::sensor_callback_2(
                    {d_rad*dt}); //ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
     
     Ma rot3 = Ma ({{cos(yaw), -sin(yaw),0},
-                   {sin(yaw), cos(yaw), 0},
+                   {sin(yaw), cos(yaw) ,0},
                    { 0,        0,       1}}); // 3×3のyaw回転行列
     
     dP = rot3 * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換

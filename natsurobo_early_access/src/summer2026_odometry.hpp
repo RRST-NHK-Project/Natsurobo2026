@@ -97,7 +97,7 @@ private:
    
    bool topic_received = false;
 
-   //Matrix(mat.h)
+   //Matrix(mat.hで定義した行列)
    Ma V_ = Ma ({{0.0},
                 {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
    Ma dR_r = Ma ({{0.0},
