@@ -48,12 +48,12 @@ private:
    void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
-    static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
-    static constexpr double ODOM_WHEEL_RADIUS = ODOM_WHEEL_DIAMETER / 2.0;
-    static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;
+    static constexpr double ODOM_WHEEL_DIAMETER = 0.05;//あってる
+    static constexpr double ODOM_WHEEL_RADIUS = ODOM_WHEEL_DIAMETER / 2.0;//自動的にあってる
+    static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;  //自動的に(ry
     static constexpr double ENCODER_RESOLUTION = 1024.0;
     static constexpr double ENC_TO_M = ODOM_WHEEL_CIRC / ENCODER_RESOLUTION;
-    static constexpr double ODOM_LR_DISTANCE = 0.385;
+    static constexpr double ODOM_LR_DISTANCE = 0.093;//0.0928がCAD上の値だけど
     static constexpr double ODOM_F_OFFSET = 0.335;
 
     static constexpr double ODOM_X_SCALE = 1.0;
