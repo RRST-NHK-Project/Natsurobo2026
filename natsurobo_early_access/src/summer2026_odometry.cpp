@@ -53,7 +53,7 @@ Shivalian_control::sensor_callback_2(
         dx_r = 0.0;
         dy_r = 0.0;
         d_rad = 0.0;
-        yaw_ = 0.0;
+        yaw = 0.0;
         last =this->now();
         topic_received = true;
         return;
@@ -75,7 +75,7 @@ Shivalian_control::sensor_callback_2(
         diff[i] = enc[i] - last_enc[i];
         rps[i] = -diff[i] / (dt*cpr);
         last_enc[i] = enc[i];
-        v[i] = ODOM_WHEEL_CIRC * rps[i];//各車輪のスカラーを算出
+        v[i] = ODOM_WHEEL_CIRC * rps[i];//各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
     }
 
     V[0] =Ma ({{v[0]},
@@ -91,32 +91,47 @@ Shivalian_control::sensor_callback_2(
     v_ = (v[0] + v[1] + v[2]) / 3.0;//接線方向の速度の平均 
     d_rad = v_ / ODOM_LR_DISTANCE; //v=rωより、角速度ω=v/rで計算できる。r(ODOM_LR_DISTANCE)は設計されてないから分からない
 
-    Vx_ = V_.operator()(0,0);
-    Vy_ = V_.operator()(1,0);
+    vx = V_.operator()(0,0);
+    vy = V_.operator()(1,0);
 
     q_z = sin(yaw_ / 2.0);//クォータニオンのz成分
     q_w = cos(yaw_ / 2.0);//クォータニオンのw成分
 
-    dx_r = Vx_ * dt;//ロボットを原点とした基準での直交座標系の変位
-    dy_r = Vy_ * dt;
+    dx_r = vx * dt;//ロボットを原点とした基準での直交座標系の変位
+    dy_r = vy * dt;
 
     dR_r = Ma ({{dx_r},
-               {dy_r}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+                {dy_r}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
 
-    /*d_x = dx_r *std::cos(yaw_) - dy_r * std::sin(yaw_);//ロボットの初期位置と向きを原点とした基準での直交座標系
-    d_y = dx_r *std::sin(yaw_) + dy_r * std::cos(yaw_);*/
-
-    dR = Ma (rot(yaw_ * 180.0 / opPI) * dR_r); //ロボットの初期位置と向きを原点とした基準での直交座標系の変位ベクトル
+    dR = Ma (rot(yaw * 180.0 / opPI) * dR_r); //現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
 
     dx = dR.operator()(0,0);
     dy = dR.operator()(1,0);
+
+    /*
+    Ma dP_r = Ma ({{dx},
+                   {dy}},
+                   {d_rad*dt}); //ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
+    
+    Ma rot3 = Ma ({{cos(yaw), -sin(yaw),0},
+                   {sin(yaw), cos(yaw), 0},
+                   { 0,        0,       1}}); // 3×3のyaw回転行列
+    
+    dP = rot3 * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
+    
+    point_Px += dP.operator()(0,0);
+    point_Py += dP.operator()(1,0);
+    yaw += dP.operator()(2,0);
+
+    yaw =std::atan2(std::sin(yaw), std::cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
+    */
 
 
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;
 
-    yaw_ += d_rad * dt;
-    yaw_ =std::atan2(std::sin(yaw_), std::cos(yaw_));//atan2を通すことでyaw_の増長を防ぐ
+    yaw += d_rad * dt;
+    yaw =std::atan2(std::sin(yaw), std::cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
 
     last = current;
 
@@ -142,8 +157,8 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.pose.pose.orientation.z =q_z;
     odom_msg.pose.pose.orientation.w =q_w;
 
-    odom_msg.twist.twist.linear.x = Vx_;
-    odom_msg.twist.twist.linear.y = Vy_;
+    odom_msg.twist.twist.linear.x = Vx;
+    odom_msg.twist.twist.linear.y = Vy;
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0
@@ -169,6 +184,14 @@ void Shivalian_control::publisher_position_callback()
 Ma Shivalian_control::rot(float degree){
     float rad = degree * opPI / 180.0;
     Ma A_rot = Ma ({{std::cos(rad), -std::sin(rad)},
-                {-std::sin(rad), std::cos(rad)}}); // θ=degreeの回転行列
+                    {std::sin(rad), std::cos(rad)}}); // θ=degreeの回転行列
+    return A_rot;
+}
+
+//右回転の回転行列を返す関数
+Ma Shivalian_control::rotR(float degree){
+    float rad = degree * opPI / 180.0;
+    Ma A_rot = Ma ({{std::cos(rad), std::sin(rad)},
+                    {-std::sin(rad), std::cos(rad)}});
     return A_rot;
 }

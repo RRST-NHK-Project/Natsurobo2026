@@ -45,6 +45,7 @@ private:
    void publisher_position_callback();
    void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
    Ma rot(float degree);
+   Ma rotR(float degree);
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
     static constexpr double ODOM_WHEEL_DIAMETER = 0.05;
@@ -59,7 +60,7 @@ private:
     static constexpr double ODOM_Y_SCALE = 1.0;
     static constexpr double ODOM_YAW_SCALE = 1.0;
 
-   //命名規則:小文字は変数、大文字は行列、ii、jj、kkは単位はそれぞれx、y、z方向の単位ベクトルを表す行列、dの接頭辞が付くと変化量、r、Rは位置
+   //命名規則:小文字は変数、大文字は行列、ii、jj、kkは単位はそれぞれx、y、z方向の単位ベクトルを表す行列、dの接頭辞が付くと変化量、r、Rは位置、_rはロボットを基準とした直行座標系
    rclcpp::Time current;
    rclcpp::Time last;
    float dt = 0.0;
@@ -75,19 +76,14 @@ private:
    float q_z = 0.0;
    float q_w = 0.0;
 
-   float Vx_;
-   float Vy_;
-   Ma V_ = Ma ({{0.0},
-                {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+   float vx;
+   float vy;
+   
    float d_rad = 0.0;
 
-   Ma dR_r = Ma ({{0.0},
-                  {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
    float dx_r = 0.0;
    float dy_r = 0.0;
 
-   Ma dR = Ma ({{0.0},
-                {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
    float dx = 0.0;
    float dy = 0.0;
    float d_yaw = 0.0;
@@ -95,12 +91,17 @@ private:
    float point_Px = 0.0; 
    float point_Py = 0.0; 
 
-   float yaw_ = 0.0;
+   float yaw = 0.0;
    
    bool topic_received = false;
 
-   //Matrix
-   
+   //Matrix(mat.h)
+   Ma V_ = Ma ({{0.0},
+                {0.0}}); //ロボットを原点とした基準での直交座標系の速度ベクトル
+   Ma dR_r = Ma ({{0.0},
+                  {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
+   Ma dR = Ma ({{0.0},
+                {0.0}}); //ロボットを原点とした基準での直交座標系の変位ベクトル
 
    uint8_t rx_device_id_;
    uint8_t device_id_;
