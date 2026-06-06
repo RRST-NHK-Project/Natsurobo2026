@@ -452,7 +452,7 @@ void Zakicar::Shivangelion()
 {
     if (!shivangelion_activated.load())
     {
-        const char *msg = " Shivangelion!!! Activatation!!!";
+        const char *msg = " Shivangelion Mark3!!! Activatation!!!";
         std::string fig_msg = "figlet " + std::string(msg);
         int result = std::system(fig_msg.c_str());
 
