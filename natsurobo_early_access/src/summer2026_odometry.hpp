@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <utility>
+#include <mutex>
 
 //ROS
 #include "rclcpp/rclcpp.hpp"
@@ -46,6 +47,8 @@ public:
 private:
    void publisher_position_callback();
    void sensor_callback_2(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
+
+   std::mutex read_only; 
 
    // オドメトリ設定(値をまだ変更してなくてデタラメになってる)
     static constexpr double ODOM_WHEEL_DIAMETER = 0.05;//あってる

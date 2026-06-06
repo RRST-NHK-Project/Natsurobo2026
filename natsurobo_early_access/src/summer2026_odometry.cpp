@@ -45,7 +45,7 @@ Shivalian_control::sensor_callback_2(
     }
 
     if(!topic_received){
-        
+        {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
         point_Px = 0.0;//ノード起動時の座標を原点とする
         point_Py = 0.0;
         dx = 0.0;
@@ -55,11 +55,13 @@ Shivalian_control::sensor_callback_2(
         d_rad = 0.0;
         yaw = 0.0;
         last =this->now();
-        topic_received = true;
+        topic_received = true;}
         return;
     }
 
-    dt = (current - last).seconds();
+    {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
+
+    dt = (current - last).seconds();}
 
     // 以降、受信データを使った処理を記述
 
@@ -96,6 +98,10 @@ Shivalian_control::sensor_callback_2(
     dR_r = matrix ({{dx_r},
                     {dy_r},
                     {d_rad*dt}}); //ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
+
+    R = matrix({{cos(yaw), -sin(yaw),0},
+                {sin(yaw), cos(yaw) ,0},
+                { 0,        0,       1}}); // 3×3のyaw回転行列
     
     dR = R * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
     
@@ -103,16 +109,19 @@ Shivalian_control::sensor_callback_2(
     dy = dR.operator()(1,0);
     d_yaw = dR.operator()(2,0);
 
+    {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
+
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;
-
-    q_z = sin(yaw/2.0);
-    q_w = cos(yaw/2.0);
 
     yaw += d_yaw;
     yaw = atan2(sin(yaw), cos(yaw));//atan2を通すことでyaw_の増長を防ぐ
 
+    q_z = sin(yaw/2.0);
+    q_w = cos(yaw/2.0);
+
     last = current;
+}
 
     // 受信データ処理ここまで
 }
@@ -121,6 +130,8 @@ Shivalian_control::sensor_callback_2(
 void Shivalian_control::publisher_position_callback()
 {
     nav_msgs::msg::Odometry odom_msg;
+
+    std::lock_guard<std::mutex> lock(read_only);
 
     //sensor_callback_2で計算した位置と速度をodom_msgにセットしてpublishする
 
