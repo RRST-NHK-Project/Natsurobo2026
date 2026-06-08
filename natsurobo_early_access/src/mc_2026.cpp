@@ -334,7 +334,7 @@ private:
 
     
         // =================================================================
-        // CIRCLE: 足回りで使用×
+        // CIRCLE: 昇降機構で使用×
         // =================================================================
  
 
@@ -416,7 +416,7 @@ private:
     //         return;
     //     }
 
-    // int16_t ENC1 = msg->data[1];
+    // int16_t ENC1 = msg->data[1];//ENC1~3はsummer2026_odometry.cppで貰い受けた。
     // int16_t ENC2 = msg->data[2];
     // int16_t ENC3 = msg->data[3];
     // int16_t ENC4 = msg->data[4];

@@ -73,8 +73,6 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
 
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
-    RCLCPP_INFO(get_logger(),
-                "serial_rx_%d started.", rx_device_id_); // tx =rxではないので
 }
 
 void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)

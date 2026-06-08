@@ -119,7 +119,7 @@ private:
 
    matrix R = matrix({{cos(yaw), -sin(yaw),0},
                       {sin(yaw), cos(yaw) ,0},
-                      { 0,        0,       1}}); // 3×3のyaw回転行列
+                      { 0,        0,       1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
 
    matrix FK = matrix ({{cos(-0*opPI/3), sin(-0*opPI/3), ODOM_LR_DISTANCE},//マイナスは単に車輪番号を時計回りに振ったせい
                         {cos(-2*opPI/3), sin(-2*opPI/3), ODOM_LR_DISTANCE},

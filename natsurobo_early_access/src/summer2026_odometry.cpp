@@ -3,13 +3,13 @@
 
 
 /*
-hardware_control_2を起動するとオドメトリの自己位置を計算し、tfも送信する（但し現状では無意味）。
+switch_input_3を起動するとオドメトリの自己位置を計算し、tfも送信する（但し現状では無意味）。
 mc_2026.cppが死ぬとこいつも共倒れする
 3輪オドメトリの回転をエンコーダから受け取って位置を計算する
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control(uint8_t rx_device_id)
-    : Node("hardware_control_"+std::to_string(OUTPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
+    : Node("switch_input_"+std::to_string(INPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
 {
 
     sensor_sub_2 = this->create_subscription<std_msgs::msg::Int16MultiArray>(
@@ -45,7 +45,8 @@ Shivalian_control::sensor_callback_2(
     }
 
     if(!topic_received){
-        {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
+    {
+        std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
         point_Px = 0.0;//ノード起動時の座標を原点とする
         point_Py = 0.0;
         dx = 0.0;
@@ -55,11 +56,13 @@ Shivalian_control::sensor_callback_2(
         d_rad = 0.0;
         yaw = 0.0;
         last =this->now();
-        topic_received = true;}
+        topic_received = true;
+    }
         return;
     }
 
-    {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
+{
+    std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
 
     dt = (current - last).seconds();}
 
@@ -75,10 +78,10 @@ Shivalian_control::sensor_callback_2(
 
     for(int i=0; i<3; i++){
         diff[i] = enc[i] - last_enc[i];
-        rps[i] = -diff[i] / (dt*cpr);
+        rps[i] = -diff[i] / (dt*cpr);//Mark Ⅱが-diff[i]だっただけでMark Ⅲがどうなるかは不明。
         last_enc[i] = enc[i];
         v[i] = ODOM_WHEEL_CIRC * rps[i];//各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
-    }
+}
     
     V_wheel = matrix ({{v[0]},
                        {v[1]},
@@ -88,7 +91,7 @@ Shivalian_control::sensor_callback_2(
 
     V_r = FK_inv * V_wheel; //タイヤの速度ベクトルから、ロボットを原点とした基準での直交座標系の速度ベクトルへ
 
-    vx_r = V_r.operator()(0,0);
+    vx_r = V_r.operator()(0,0);//(i-1,j-1にあたる成分を取り出す)
     vy_r = V_r.operator()(1,0);
     d_rad = V_r.operator()(2,0);
     
@@ -101,7 +104,7 @@ Shivalian_control::sensor_callback_2(
 
     R = matrix({{cos(yaw), -sin(yaw),0},
                 {sin(yaw), cos(yaw) ,0},
-                { 0,        0,       1}}); // 3×3のyaw回転行列
+                { 0,        0,       1}}); // 3×3のyaw回転行列(動力学で出てくる運動座標系A-ξηから固定座標系O-xyへの変換行列)
     
     dR = R * dR_r; //ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
     
@@ -109,7 +112,8 @@ Shivalian_control::sensor_callback_2(
     dy = dR.operator()(1,0);
     d_yaw = dR.operator()(2,0);
 
-    {std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
+{
+    std::lock_guard<std::mutex> lock(read_only); //他の関数からの書き換えを防止するためのロック。
 
     point_Px += dx;//ロボットが起動した位置を原点とした現在位置
     point_Py += dy;
@@ -152,7 +156,7 @@ void Shivalian_control::publisher_position_callback()
     odom_msg.twist.twist.linear.z = 0.0;//z軸での計算は(ry
     odom_msg.twist.twist.angular.x = 0.0;//(Roll)=0  z=0ならこの2つは0
     odom_msg.twist.twist.angular.y = 0.0;//(Pitch)=0
-    odom_msg.twist.twist.angular.z = d_rad;//(Yaw)まだ計算していない
+    odom_msg.twist.twist.angular.z = d_rad;//(Yaw)
     
     odom_pub_->publish(odom_msg);
 
