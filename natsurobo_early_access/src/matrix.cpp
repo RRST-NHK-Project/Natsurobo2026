@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
-#include "natsurobo_early_access/mat.h"
+#include "natsurobo_early_access/matrix.h"
 using namespace std;
 
 double matrix::pow(double x, int n){

@@ -171,14 +171,16 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         
             static int count = 0;
             if(count % 3 == 0){
-                //data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
+                data_[22] = 1; //data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
                 //data_[17]~data_[24]までのどっか(後輪) = 1;
                 count++;
             }else if(count % 3 == 1){
-                //data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
+                data_[23] = 1;
+                data_[22] = 0; //data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
                 count++;
             }else{
                 //data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
+                data_[23] = 0;
                 count++;
             }
         

@@ -21,7 +21,7 @@ add_executable(omni_drive
 add_executable(hardware_control_2
   src/mc_2026.cpp
   src/summer2026_odometry.cpp
-  src/mat.cpp
+  src/matrix.cpp
 )
 
 target_include_directories(omni_drive PUBLIC

@@ -21,7 +21,7 @@
 #include "tf2_ros/transform_broadcaster.h"
 
 // 自作
-#include "natsurobo_early_access/mat.h"
+#include "natsurobo_early_access/matrix.h"
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 送信先マイコンのID
@@ -60,7 +60,7 @@ private:
     static constexpr double ODOM_F_OFFSET = 0.335;
 
     static constexpr double ODOM_X_SCALE = 1.0;
-    static constexpr double ODOM_Y_SCALE = 1.0;
+    static constexpr double ODOM_Y_SCALE = 1.0;//ここらへんは宣言はしてあるけど全く使ってない
     static constexpr double ODOM_YAW_SCALE = 1.0;
 
    //命名規則:小文字は変数、大文字は行列、ii、jj、kkは単位はそれぞれx、y、z方向の単位ベクトルを表す行列、dの接頭辞が付くと変化量、r、Rは位置、_rはロボットを基準とした直行座標系
