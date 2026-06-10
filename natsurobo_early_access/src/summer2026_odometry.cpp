@@ -3,13 +3,13 @@
 
 
 /*
-switch_input_3を起動するとオドメトリの自己位置を計算し、tfも送信する（但し現状では無意味）。
-mc_2026.cppが死ぬとこいつも共倒れする
-3輪オドメトリの回転をエンコーダから受け取って位置を計算する
+hardware_control_2を起動するとついでに動く
+mc_2026.cppが死ぬとこいつも共倒れする一蓮托生システム
+3輪オドメトリの回転をエンコーダから受け取ってオドメトリの自己位置を計算し、odomとtfを送信する（但し現状では無意味）。
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control(uint8_t rx_device_id)
-    : Node("switch_input_"+std::to_string(INPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
+    : Node("Shivalian_control_"+std::to_string(INPUT_DEVICE_ID)), rx_device_id_(rx_device_id)
 {
 
     sensor_sub_2 = this->create_subscription<std_msgs::msg::Int16MultiArray>(
