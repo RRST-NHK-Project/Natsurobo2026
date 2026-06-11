@@ -172,8 +172,7 @@ void Shivalian_control::publisher_position_callback()
         tf.transform.rotation.z = q_z;
         tf.transform.rotation.w = q_w;
         tf_broadcaster_->sendTransform(tf);
-
-        RCLCPP_INFO(this->get_logger(), "Position: (%.2f, %.2f)(m), Yaw: %.2f(rad), vx_r,vy_r: (%.2f, %.2f)(m/s), d_rad: %.2f, dt: %.4f, Encoders: (%d, %d, %d), Wheel Velocities: (%.2f, %.2f, %.2f)(m/s), q_z: %.2f(rad), q_w: %.2f(rad)",
+        RCLCPP_INFO(this->get_logger(), "Position: (%.2f, %.2f)(m), Yaw: %.2f(rad), vx_r,vy_r: (%.2f, %.2f)(m/s), d_rad: %.2f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.2f, %.2f, %.2f)(m/s), q_z: %.2f(rad), q_w: %.2f(rad)",
                     point_Px, point_Py, yaw, vx_r, vy_r, d_rad, dt, ENC1, ENC2, ENC3, v[0], v[1], v[2], q_z, q_w);
 }
 
