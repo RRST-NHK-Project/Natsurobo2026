@@ -2,11 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>cage_detection</name>
-  <version>1.0.0</version>
+  <version>3.0.0</version>
   <description>
-    Cage detection node for RRST 夏ロボ 2026.
-    Detects 7 cages (2 green, 5 blue) using D456 depth camera + VL53L1X ToF.
-    Publishes 3D positions and priority scores for shooting control.
+    Cage detection node for RRST 夏ロボ 2026 (v3 固定座標版).
+    Publishes cage 3D positions from fixed field coordinates + wall_detection pose estimation.
   </description>
   <maintainer email="rrst@example.com">RRST NHK Project</maintainer>
   <license>MIT</license>
@@ -15,15 +14,10 @@
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>image_transport</depend>
-  <depend>libopencv-dev</depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
-
   <exec_depend>rosidl_default_runtime</exec_depend>
 
   <export>
