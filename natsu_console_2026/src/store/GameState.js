@@ -37,7 +37,7 @@ export class GameState {
 
     // V-Goal条件
     this.bigUnagiCaptured = false;
-    this.isOnIshikura = false;
+    this.isOnishigura = false;
 
     // 小うなぎ情報
     this.ammoRemaining = 20;
@@ -47,7 +47,7 @@ export class GameState {
     this.currentTargetId = null;
 
     // Fallback関連
-    this.hasReachedIshikura = false; // 一度でも石倉に到達した記録
+    this.hasReachedishigura = false; // 一度でも石倉に到達した記録
   }
 
   /**
@@ -58,7 +58,7 @@ export class GameState {
       this.elapsedSeconds += 1;
 
       // Phase 3（時間 35-60秒）を過ぎて、Fallback未設定の場合、自動的にFallbackに切り替え
-      if (!this.fallbackMode && this.elapsedSeconds >= 60 && !this.hasReachedIshikura) {
+      if (!this.fallbackMode && this.elapsedSeconds >= 60 && !this.hasReachedishigura) {
         this.setFallbackMode(true);
       }
 
@@ -131,7 +131,7 @@ export class GameState {
     this.updateBasketOccupancy();
     return (
       this.bigUnagiCaptured &&
-      this.isOnIshikura &&
+      this.isOnishigura &&
       this.getOccupiedBasketsCount() >= 5
     );
   }
@@ -142,7 +142,7 @@ export class GameState {
   setFallbackMode(enabled) {
     this.fallbackMode = enabled;
     if (enabled) {
-      this.hasReachedIshikura = false;
+      this.hasReachedishigura = false;
     }
     this.notifyListeners();
   }
@@ -150,10 +150,10 @@ export class GameState {
   /**
    * 石倉到達フラグを設定
    */
-  setOnIshikura(onIshikura) {
-    this.isOnIshikura = onIshikura;
-    if (onIshikura) {
-      this.hasReachedIshikura = true;
+  setOnishigura(onishigura) {
+    this.isOnishigura = onishigura;
+    if (onishigura) {
+      this.hasReachedishigura = true;
     }
     this.notifyListeners();
   }
@@ -214,7 +214,7 @@ export class GameState {
     }
 
     // 石倉上に到達した実績: +5点
-    if (this.hasReachedIshikura) {
+    if (this.hasReachedishigura) {
       score += 5;
     }
 
@@ -287,7 +287,7 @@ export class GameState {
         is_occupied: b.is_occupied
       })),
       big_unagi_captured: this.bigUnagiCaptured,
-      is_on_ishikura: this.isOnIshikura,
+      is_on_ishigura: this.isOnishigura,
       ammo_remaining: this.ammoRemaining,
       ammo_deployed: this.ammoDeployed,
       score: this.calculateScore(),

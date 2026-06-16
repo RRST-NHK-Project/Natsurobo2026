@@ -32,13 +32,13 @@ export const VGoalChecker = ({ gameState }) => {
 
       {/* 石倉条件 */}
       <div
-        className={`condition-card ${gameState.isOnIshikura ? "checked" : ""}`}
-        onClick={() => gameState.setOnIshikura(!gameState.isOnIshikura)}
+        className={`condition-card ${gameState.isOnishigura ? "checked" : ""}`}
+        onClick={() => gameState.setOnishigura(!gameState.isOnishigura)}
       >
         <div className="condition-card-row">
           <span className="condition-label">石倉登坂</span>
-          <div className={`check-circle ${gameState.isOnIshikura ? "checked" : ""}`}>
-            {gameState.isOnIshikura ? "✓" : ""}
+          <div className={`check-circle ${gameState.isOnishigura ? "checked" : ""}`}>
+            {gameState.isOnishigura ? "✓" : ""}
           </div>
         </div>
       </div>

@@ -23,7 +23,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 
 // 自作
 #include "summer2026_odometry.hpp"
-#include "natsurobo_early_access/mat.h"
+#include "natsurobo_early_access/matrix.h"
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 出力マイコン（モーター制御）のID

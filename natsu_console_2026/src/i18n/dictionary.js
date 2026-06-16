@@ -74,9 +74,9 @@ export const DICTIONARY = {
     ja: "占有カゴ数",
     en: "Occupied Baskets"
   },
-  isOnIshikura: {
+  isOnishigura: {
     ja: "石倉上に登坂",
-    en: "On Ishikura"
+    en: "On ishigura"
   },
   readyToVGoal: {
     ja: "大漁合図可能",

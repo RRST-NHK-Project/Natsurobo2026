@@ -1,0 +1,149 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /LaserScan1
+        - /MarkerArray1
+        - /TF1
+        - /Odometry1
+      Splitter Ratio: 0.5
+    Tree Height: 700
+  - Class: rviz_common/Views
+    Name: Views
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    # ── グリッド ─────────────────────────────────────
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Color: 160; 160; 164
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+
+    # ── TF ───────────────────────────────────────────
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+      Marker Scale: 0.5
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Value: true
+
+    # ── LiDAR スキャン ───────────────────────────────
+    - Class: rviz_default_plugins/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Value: /scan
+        Depth: 10
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Color Transformer: Intensity
+      Size (m): 0.04
+      Style: Squares
+      Value: true
+
+    # ── 壁検出 + IMU マーカー ──────────────────────
+    - Class: rviz_default_plugins/MarkerArray
+      Name: MarkerArray
+      Enabled: true
+      Namespaces:
+        wall: true
+        wall_label: true
+        imu: true
+      Topic:
+        Value: /sensor_viz/markers
+        Depth: 10
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+
+    # ── オドメトリ（位置 + 速度ベクトル） ──────────
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Enabled: true
+      Topic:
+        Value: /odom
+        Depth: 10
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Color: 255; 25; 0
+      Shape:
+        Alpha: 1
+        Axes Length: 0.3
+        Axes Radius: 0.02
+        Color: 255; 25; 0
+        Head Length: 0.07
+        Head Radius: 0.03
+        Shaft Length: 0.23
+        Shaft Radius: 0.01
+        Value: Arrow
+      Keep: 50
+      Value: true
+
+    # ── IMU 生データ（Imu プラグインがある場合） ──
+    # プラグインが入っていない場合はここをコメントアウト
+    - Class: rviz_default_plugins/Axes
+      Name: IMU Axes (imu_link)
+      Enabled: true
+      Frame: imu_link
+      Length: 0.3
+      Radius: 0.02
+      Value: true
+
+    # ── base_link 姿勢軸 ─────────────────────────
+    - Class: rviz_default_plugins/Axes
+      Name: Robot Axes (base_link)
+      Enabled: true
+      Frame: base_link
+      Length: 0.4
+      Radius: 0.025
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 40; 40; 40
+    Fixed Frame: odom
+    Frame Rate: 30
+
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Near Clip Distance: 0.01
+      Scale: 100
+      Target Frame: base_link
+      Value: TopDownOrtho (rviz)
+      X: 0
+      Y: 0
+    Saved: ~
+
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Width: 1400
+  X: 0
+  Y: 0
