@@ -1,12 +1,11 @@
 #include "zakiomni.hpp"
 
-
 Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     : Node("omni_drive"), tx_device_id_(tx_device_id), rx_device_id_(rx_device_id)
 {
     //: Node("hardware_control_" + std::to_string(tx_device_id)),
 
-    //時刻の初期化
+    // 時刻の初期化
     current = this->now();
     last = this->now();
     last_joy_time = this->now();
@@ -139,18 +138,18 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
         radian = opPI / 2.0;
         target_v[0] = max_target_move_cps * R2_DIGITAL * std::cos((3.0 / 4.0 * opPI) - radian);
-        target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian);
+        target_v[1] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian);
         target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI / 4.0));
-        target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian);
+        target_v[3] = max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian);
     }
 
     // 移動モード(R2を押し込みながら)
     if (LS_X || LS_Y)
     {
         target_v[0] += max_target_move_cps * R2_DIGITAL * std::cos((3.0 / 4.0 * opPI) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-        target_v[1] += max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian);
+        target_v[1] += max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian);
         target_v[2] += max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI / 4.0));
-        target_v[3] += max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian);
+        target_v[3] += max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian);
     }
 
     // 旋回モード
@@ -166,25 +165,31 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
         last_target_v[l] = target_v[l];
     }
-    if(CIRCLE && !last_CIRCLE){ // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
-        //自動化出来るか分からんから一応完全マニュアル操作を想定
-        
-            static int count = 0;
-            if(count % 3 == 0){
-                data_[22] = 1; //data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
-                //data_[17]~data_[24]までのどっか(後輪) = 1;
-                count++;
-            }else if(count % 3 == 1){
-                data_[23] = 1;
-                data_[22] = 0; //data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
-                count++;
-            }else{
-                //data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
-                data_[23] = 0;
-                count++;
-            }
-        
-    }//夏ロボ機体は後退（下降）のネジを外してる
+    if (CIRCLE && !last_CIRCLE)
+    {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
+        // 自動化出来るか分からんから一応完全マニュアル操作を想定
+
+        static int count = 0;
+        if (count % 3 == 0)
+        {
+            data_[22] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
+            // data_[17]~data_[24]までのどっか(後輪) = 1;
+            count++;
+        }
+        else if (count % 3 == 1)
+        {
+            data_[23] = 1;
+            data_[22] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
+            count++;
+        }
+        else
+        {
+            // data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
+            data_[23] = 0;
+            count++;
+        }
+
+    } // 夏ロボ機体は後退（下降）のネジを外してる
     last_CIRCLE = CIRCLE;
     // 配列操作ここまで
 
@@ -192,13 +197,12 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     last_joy_time = this->now();
 }
 
-
 void Zakicar::publisher_timer_callback()
 {
 
     Timeout_check(); // joyとencの両方のタイムアウトをチェック
 
-        about_PID(); // 一定周期でtimerが呼び出されるときに連動してActivate!
+    about_PID(); // 一定周期でtimerが呼び出されるときに連動してActivate!
 
     if (!shivangelion_activated.load() && joy_received.load() && enc_received.load()) // デバッグ用（必要なノードを全て起動したときにこれが出る）
         Shivangelion();
@@ -210,13 +214,14 @@ void Zakicar::publisher_timer_callback()
 
 void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
 {
-    //最低限、サイズチェック
-    if (msg->data.size() < RX16NUM) {
-            RCLCPP_WARN(get_logger(),
-                        "serial_rx_%d: data too short (%zu)",
-                        device_id_, msg->data.size());
-            return;
-        }
+    // 最低限、サイズチェック
+    if (msg->data.size() < RX16NUM)
+    {
+        RCLCPP_WARN(get_logger(),
+                    "serial_rx_%d: data too short (%zu)",
+                    device_id_, msg->data.size());
+        return;
+    }
     current = this->now();
     dt = (current - last_enc_time).seconds();
 
@@ -272,7 +277,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
         count_false = 0;
     }
 
-    diff[0] = ENC1 - last_enc[0];//int32_tとか使ってたけど現状は速度制御だけだからint16_tどうしの引き算で十分そう（32のつく変数はオミットされました）
+    diff[0] = ENC1 - last_enc[0]; // int32_tとか使ってたけど現状は速度制御だけだからint16_tどうしの引き算で十分そう（32のつく変数はオミットされました）
     diff[1] = ENC2 - last_enc[1];
     diff[2] = ENC3 - last_enc[2];
     diff[3] = ENC4 - last_enc[3];
@@ -301,7 +306,6 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
     last_enc_time = current;
 
     // 受信データ処理ここまで
-    
 }
 void Zakicar::Timeout_check()
 {
@@ -351,11 +355,12 @@ void Zakicar::about_PID()
         {
             target_v[i] = 0.0;
             data_[i + 1] = 0; // joyが来なかったら出力0(さらなるセーフティロック)
-            err_sum[i] = 0.0; 
+            err_sum[i] = 0.0;
         }
         return;
     }
-    if(dt >= 0.005){//然るべきdtのときのみPIDを更新する
+    if (dt >= 0.005)
+    { // 然るべきdtのときのみPIDを更新する
 
         for (int k = 0; k < 4; k++)
         {
@@ -400,7 +405,6 @@ void Zakicar::about_PID()
 
         last_data_[n] = data_[n + 1];
     }
-    
 
     // for(int u = 0;u<4;u++){
     //     data_[u+1] = 0;//モーターとエンコーダの対応確認用（デバックメッセージ）
