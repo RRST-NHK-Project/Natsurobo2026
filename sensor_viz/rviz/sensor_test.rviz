@@ -45,7 +45,7 @@ Visualization Manager:
       Topic:
         Value: /scan
         Depth: 10
-        Reliability Policy: Best Effort
+        Reliability Policy: Reliable
         Durability Policy: Volatile
         History Policy: Keep Last
       Color Transformer: Intensity

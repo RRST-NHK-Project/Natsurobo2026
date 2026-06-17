@@ -18,6 +18,7 @@ sensor_test.launch.py
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node, ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
@@ -36,8 +37,11 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument(
-            'imu_port', default_value='/dev/ttyUSB0',
+            'imu_port', default_value='/dev/ttyUSB1',
             description='WT901C のシリアルポート'),
+        DeclareLaunchArgument(
+            'use_imu', default_value='false',
+            description='WT901C IMU を起動するか'),
 
         # ── LiDAR（LD19）─ ldlidar_component をコンテナで直接起動 ────
         ComposableNodeContainer(
@@ -94,6 +98,7 @@ def generate_launch_description():
             name='wt901_node',
             output='screen',
             parameters=[{'port': imu_port}],
+            condition=IfCondition(LaunchConfiguration('use_imu')),
         ),
 
         # ── 静的 TF ─────────────────────────────────────────
