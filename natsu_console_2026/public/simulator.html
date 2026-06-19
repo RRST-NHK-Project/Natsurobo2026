@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>関西夏ロボコン2026「うなぎ祭り」動作シミュレーション</title>
+<style>
+  :root{
+    --bg:#14181f; --panel:#1d232d; --panel2:#262e3a; --text:#e8ecf2; --sub:#9aa7b8;
+    --blue:#3b9dff; --red:#ff5d5d; --green:#35c764; --accent:#ffc34d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Yu Gothic UI","Hiragino Sans",sans-serif;font-size:14px}
+  header{display:flex;align-items:center;gap:18px;padding:8px 16px;background:var(--panel);border-bottom:1px solid #000}
+  header h1{font-size:15px;margin:0;font-weight:600;color:var(--sub)}
+  #clock{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;min-width:110px}
+  .scorebox{display:flex;gap:10px;align-items:baseline}
+  .scorebox .b{color:var(--blue);font-size:22px;font-weight:700}
+  .scorebox .r{color:var(--red);font-size:22px;font-weight:700}
+  #phaseLabel{color:var(--accent);font-weight:600}
+  main{display:flex;gap:12px;padding:12px;align-items:flex-start;flex-wrap:wrap}
+  #fieldWrap{position:relative}
+  canvas{background:#0d3a19;border-radius:6px;display:block}
+  #banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none}
+  #banner .inner{background:rgba(10,14,20,.88);border:2px solid var(--accent);border-radius:12px;padding:22px 36px;text-align:center;font-size:22px;font-weight:700}
+  #banner .sub{font-size:14px;font-weight:400;color:var(--sub);margin-top:8px}
+  aside{width:360px;display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--panel);border-radius:8px;padding:10px 12px}
+  .card h2{font-size:13px;margin:0 0 8px;color:var(--sub);font-weight:600;letter-spacing:.05em}
+  .row{display:flex;align-items:center;gap:8px;margin:4px 0}
+  button{background:var(--panel2);color:var(--text);border:1px solid #3a4452;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:#2f5e2f;border-color:var(--green)}
+  button.active{background:#3d4a5e;border-color:var(--accent);color:var(--accent)}
+  label.slider{display:block;margin:7px 0}
+  label.slider .name{display:flex;justify-content:space-between;color:var(--sub);font-size:12px;margin-bottom:2px}
+  label.slider .val{color:var(--text);font-weight:600}
+  input[type=range]{width:100%}
+  input[type=checkbox]{accent-color:var(--accent)}
+  #vlist{list-style:none;margin:0;padding:0;font-size:13px}
+  #vlist li{margin:3px 0}
+  #vlist .ok{color:var(--green)} #vlist .ng{color:var(--sub)}
+  #log{height:170px;overflow-y:auto;font-size:12px;line-height:1.55;font-variant-numeric:tabular-nums}
+  #log .t{color:var(--sub)} #log .B{color:var(--blue)} #log .R{color:var(--red)} #log .S{color:var(--accent)}
+  .keys{font-size:12px;color:var(--sub);line-height:1.7}
+  .keys b{color:var(--text);background:var(--panel2);border-radius:4px;padding:0 6px;border:1px solid #3a4452}
+  .note{font-size:11px;color:var(--sub);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>うなぎ祭り 2026<br>動作シミュレーション</h1>
+  <div id="clock">0:00.0</div>
+  <div class="scorebox"><span class="b" id="scB">0</span><span style="color:var(--sub)">−</span><span class="r" id="scR">0</span></div>
+  <div id="phaseLabel">待機中</div>
+</header>
+<main>
+  <div id="fieldWrap">
+    <canvas id="cv" width="720" height="720"></canvas>
+    <div id="banner"><div class="inner"><div id="bannerMain"></div><div class="sub" id="bannerSub"></div></div></div>
+  </div>
+  <aside>
+    <div class="card">
+      <h2>再生コントロール</h2>
+      <div class="row">
+        <button id="btnPlay" class="primary">▶ 開始</button>
+        <button id="btnReset">↺ リセット</button>
+        <span style="color:var(--sub);font-size:12px;margin-left:4px">速度:</span>
+        <button class="spd active" data-s="1">×1</button>
+        <button class="spd" data-s="2">×2</button>
+        <button class="spd" data-s="4">×4</button>
+        <button class="spd" data-s="8">×8</button>
+      </div>
+      <div class="row">
+        <span style="color:var(--sub);font-size:12px">モード:</span>
+        <button id="modeAuto" class="active">自動再生</button>
+        <button id="modeManual">手動操縦（青）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Vゴール条件（青チーム）</h2>
+      <ul id="vlist">
+        <li id="v1" class="ng">○ ① 大うなぎを捕獲</li>
+        <li id="v2" class="ng">○ ② 占有カゴ 5つ以上（現在 0）</li>
+        <li id="v3" class="ng">○ ③ 石倉上で捕獲準備</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>青チーム 戦略パラメータ</h2>
+      <label class="slider"><span class="name">Phase1 スタート→大うなぎ <span class="val" id="vP1">10s</span></span>
+        <input type="range" id="sP1" min="5" max="20" step="1" value="10"></label>
+      <label class="slider"><span class="name">Phase2 把持→緑カゴ投入 <span class="val" id="vP2">25s</span></span>
+        <input type="range" id="sP2" min="15" max="40" step="1" value="25"></label>
+      <label class="slider"><span class="name">Phase3 移動・石倉登坂 <span class="val" id="vP3">25s</span></span>
+        <input type="range" id="sP3" min="15" max="35" step="1" value="25"></label>
+      <label class="slider"><span class="name">小うなぎ投入間隔 <span class="val" id="vInt">5.5s/本</span></span>
+        <input type="range" id="sInt" min="3" max="10" step="0.5" value="5.5"></label>
+      <label class="slider"><span class="name">各カゴ目標本数 <span class="val" id="vPer">2本</span></span>
+        <input type="range" id="sPer" min="1" max="4" step="1" value="2"></label>
+      <div class="note">分岐ルール: 1:10までに石倉未到達の場合、各カゴ1本の最低ラインに自動切替</div>
+    </div>
+
+    <div class="card">
+      <h2>相手チーム（赤・簡易AI）</h2>
+      <div class="row"><input type="checkbox" id="cOpp" checked><label for="cOpp">相手ロボットを有効化</label></div>
+      <label class="slider"><span class="name">スタート遅延 <span class="val" id="vDly">5s</span></span>
+        <input type="range" id="sDly" min="0" max="30" step="1" value="5"></label>
+      <label class="slider"><span class="name">投入間隔 <span class="val" id="vOInt">7s/本</span></span>
+        <input type="range" id="sOInt" min="3" max="12" step="0.5" value="7"></label>
+      <label class="slider"><span class="name">各カゴ目標本数 <span class="val" id="vOPer">2本</span></span>
+        <input type="range" id="sOPer" min="1" max="4" step="1" value="2"></label>
+      <div class="row" style="margin-top:6px"><input type="checkbox" id="cBothD" checked>
+        <label for="cBothD">D点（+10）を両方の緑カゴに適用</label></div>
+      <div class="note">※ルール3.6のD「自チームの緑カゴ」の解釈。OFFで自チーム緑のみD加算。パラメータ変更はリセット時に反映。</div>
+    </div>
+
+    <div class="card" id="keyCard" style="display:none">
+      <h2>手動操縦キー</h2>
+      <div class="keys">
+        <b>WASD/矢印</b> 走行　<b>C</b> 石倉 登坂/降坂<br>
+        <b>G</b> 把持/小うなぎ装填(3本)　<b>T</b> 投入/投擲<br>
+        <b>Tab</b> 目標カゴ切替　<b>V</b> Vゴール合図　<b>Space</b> 一時停止
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>イベントログ</h2>
+      <div id="log"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+/* ================================================================
+   関西夏ロボコン2026「うなぎ祭り」 動作シミュレーション
+   ルールブック v1.0.1 準拠（寸法は図4・図5・図6より、単位mm）
+   ================================================================ */
+
+/* ---------- フィールド定数 (mm) ---------- */
+const F = 10800;            // フィールド一辺
+const RING = 1800;          // 外周リング幅 (38+1724+38)
+const A2 = {x0:RING, y0:RING, x1:F-RING, y1:F-RING}; // エリア2(ブルーシート)
+const ROBOT_W = 1000;       // ロボット footprint
+const LANE = 900;           // 外周リング走行レーン中心オフセット
+
+const sym = p => ({x: F - p.x, y: F - p.y});  // 点対称(赤コート変換)
+
+/* 青チーム基準のゾーン定義（赤は点対称） */
+const ZONES_BLUE = {
+  start:   {x0:38,   y0:38,  x1:1038,  y1:1038},   // スタートゾーン 1000x1000
+  bigEel:  {x0:1038, y0:38,  x1:2238,  y1:1038},   // 大うなぎゾーン 1200x1000
+  corner:  {x0:9038, y0:38,  x1:10762, y1:1762},   // エリア3コーナー区画 1724x1724
+  stone:   {x0:9038, y0:450, x1:9938,  y1:1350},   // 石倉 900x900 (高さ101mm, 図5)
+  eelStrip:{x0:9038, y0:38,  x1:10762, y1:450},    // 小うなぎゾーン(石倉周囲412幅, 北側に staging)
+};
+function mirrorRect(r){ return {x0:F-r.x1, y0:F-r.y1, x1:F-r.x0, y1:F-r.y0}; }
+const ZONES = {
+  blue: ZONES_BLUE,
+  red: Object.fromEntries(Object.entries(ZONES_BLUE).map(([k,v])=>[k,mirrorRect(v)])),
+};
+
+/* カゴ7個（図6の配置・点対称） */
+const KAGO_W = 533, KAGO_H = 366;
+const KAGOS = [
+  {id:'TLblue', x:3050, y:2980, color:'blue',  name:'青カゴ(左上)'},
+  {id:'TRgreen',x:8550, y:2100, color:'green', name:'緑カゴ(右上)'},
+  {id:'MLblue', x:3050, y:5400, color:'blue',  name:'青カゴ(中左)'},
+  {id:'MCblue', x:5400, y:5400, color:'blue',  name:'青カゴ(中央)'},
+  {id:'MRblue', x:7750, y:5400, color:'blue',  name:'青カゴ(中右)'},
+  {id:'BLgreen',x:2250, y:8700, color:'green', name:'緑カゴ(左下)'},
+  {id:'BRblue', x:7750, y:7820, color:'blue',  name:'青カゴ(右下)'},
+];
+const K = Object.fromEntries(KAGOS.map(k=>[k.id,k]));
+/* チーム別: 自チーム緑 / 対角(E判定)青カゴ / 投入優先順位
+   ※自チーム緑＝自陣エリア1沿いのコーナー緑（青→左下、赤→右上） */
+const TEAMDEF = {
+  blue: {own:'blue', opp:'red',  green:'BLgreen', diag:'BRblue',
+         priority:['BRblue','BLgreen','TRgreen','MRblue','MCblue']},
+  red:  {own:'red',  opp:'blue', green:'TRgreen', diag:'TLblue',
+         priority:['TLblue','TRgreen','BLgreen','MLblue','MCblue']},
+};
+
+/* 得点 (ルール3.6) C/D/Eは重複加算 */
+const PTS = {A:5, B:20, C:10, D:10, E:15};
+const MATCH_TIME = 180;
+const FALLBACK_T = 70;     // 1:10 までに石倉未到達なら最低ライン切替
+const EEL_SUPPLY = 20;     // 小うなぎ 20本/チーム
+
+/* ---------- 状態 ---------- */
+let state = null;
+let speed = 1, mode = 'auto';
+const keys = {};
+
+function readParams(){
+  return {
+    blue:{delay:0,
+      p1:+sP1.value, p2:+sP2.value, p3:+sP3.value,
+      interval:+sInt.value, per:+sPer.value},
+    red:{enabled:cOpp.checked, delay:+sDly.value,
+      p1:10, p2:25, p3:25,
+      interval:+sOInt.value, per:+sOPer.value},
+    bothGreenD: cBothD.checked,
+  };
+}
+
+/* 自動動作スクリプト（青基準座標を点対称変換） */
+function buildScript(team, P){
+  const M = team==='blue' ? (x,y)=>({x,y}) : (x,y)=>({x:F-x, y:F-y});
+  const s = [];
+  if(P.delay>0) s.push({t:'wait', dur:P.delay, label:'スタート待機'});
+  s.push({t:'move', ...M(1638, LANE), dur:P.p1, label:'Phase1 大うなぎゾーンへ'});
+  s.push({t:'wait', dur:1.5, label:'Phase2 大うなぎ把持'});
+  s.push({t:'grabBig'});
+  s.push({t:'move', ...M(1200, 8700), dur:Math.max(4, P.p2-3.5), label:'Phase2 自チーム緑カゴへ運搬'});
+  s.push({t:'wait', dur:2, label:'Phase2 緑カゴへ投入'});
+  s.push({t:'depositBig'});
+  s.push({t:'move', ...M(LANE, LANE), dur:P.p3*0.42, label:'Phase3 対角移動(外周)'});
+  s.push({t:'move', ...M(8800, LANE), dur:P.p3*0.42, label:'Phase3 対角移動(外周)'});
+  s.push({t:'climb', ...M(9488, LANE), dur:P.p3*0.16, label:'Phase3 石倉登坂'});
+  s.push({t:'throwLoop', label:'Phase4 小うなぎ投入'});
+  return s;
+}
+
+function makeRobot(team, P, manual){
+  const start = ZONES[team].start;
+  return {
+    team, manual,
+    x:(start.x0+start.x1)/2, y:(start.y0+start.y1)/2,
+    climbed:false, climbFrac:0, prep:false, scoredA:false,
+    holdBig:false, mag:0, supply:EEL_SUPPLY,
+    fallback:false, queue:null, nextThrow:0, signalAt:null,
+    script: manual ? [] : buildScript(team, P),
+    idx:0, at:0, sx:0, sy:0, segInit:false,
+    targetSel:0, trace:[], traceT:0,
+    violation:false, violLogged:false,
+  };
+}
+
+function reset(){
+  const P = readParams();
+  state = {
+    t:0, running:false, ended:false, endReason:'',
+    P, score:{blue:0, red:0},
+    kagos: KAGOS.map(k=>({...k, counts:{blue:0, red:0}})),
+    bigEels:{
+      blue:{x:1638, y:538, held:false, captured:false},
+      red:{...sym({x:1638, y:538}), held:false, captured:false},
+    },
+    flights:[],
+    robots:{
+      blue: makeRobot('blue', P.blue, mode==='manual'),
+      red:  P.red.enabled ? makeRobot('red', P.red, false) : null,
+    },
+  };
+  logEl.innerHTML = '';
+  banner.style.display = 'none';
+  btnPlay.textContent = '▶ 開始';
+  addLog(0, 'S', `リセット完了（${mode==='auto'?'自動再生':'手動操縦'}モード）`);
+  render();
+  updateHUD();
+}
+
+/* ---------- ルールエンジン ---------- */
+function kagoOf(st, id){ return st.kagos.find(k=>k.id===id); }
+function occupiedCount(st, team){
+  const opp = TEAMDEF[team].opp;
+  return st.kagos.filter(k=>k.counts[team]>k.counts[opp]).length;
+}
+function vCond(st, team){
+  const r = st.robots[team];
+  return st.bigEels[team].captured && occupiedCount(st,team)>=5 && !!r && r.prep;
+}
+function achievePrep(r){
+  r.prep = true;
+  if(!r.scoredA){
+    r.scoredA = true;
+    state.score[r.team] += PTS.A;
+    addLog(state.t, r.team, `捕獲準備（石倉上に完全接地） +${PTS.A}点`);
+  }
+}
+function captureBig(team){
+  const st = state, g = kagoOf(st, TEAMDEF[team].green);
+  st.bigEels[team].held = false;
+  st.bigEels[team].captured = true;
+  st.bigEels[team].x = g.x; st.bigEels[team].y = g.y;
+  st.score[team] += PTS.B;
+  addLog(st.t, team, `大うなぎを${g.name}に捕獲 +${PTS.B}点`);
+}
+function applyEelScore(team, kago){
+  kago.counts[team]++;
+  let pts = PTS.C, tags = ['C'];
+  if(kago.color==='green' && (state.P.bothGreenD || kago.id===TEAMDEF[team].green)){
+    pts += PTS.D; tags.push('D');
+  }
+  if(kago.id===TEAMDEF[team].diag){ pts += PTS.E; tags.push('E'); }
+  state.score[team] += pts;
+  addLog(state.t, team, `小うなぎ→${kago.name} +${pts}点(${tags.join('+')})`);
+}
+function endMatch(reason, sub){
+  state.ended = true; state.running = false;
+  state.endReason = reason;
+  bannerMain.textContent = reason;
+  bannerSub.textContent = sub || '';
+  banner.style.display = 'flex';
+  btnPlay.textContent = '▶ 開始';
+  addLog(state.t, 'S', `試合終了：${reason}`);
+}
+function trySignal(team){
+  if(vCond(state, team)){
+    endMatch(`🎉 大漁！ ${team==='blue'?'青':'赤'}チーム Vゴール`,
+      `達成時刻 ${fmtT(state.t)}　得点 青${state.score.blue} − 赤${state.score.red}`);
+    return true;
+  }
+  return false;
+}
+
+/* ---------- 自動動作 ---------- */
+function nextTarget(r){
+  const st = state, def = TEAMDEF[r.team];
+  if(!r.queue){ // 初回: 優先順位×目標本数のキューを構築
+    const per = r.fallback ? 1 : st.P[r.team].per;
+    r.queue = [];
+    for(let i=0;i<per;i++) for(const id of def.priority) r.queue.push(id);
+    // 優先カゴを先に埋める順（カゴごとにまとめて投入）
+    r.queue = [];
+    for(const id of def.priority) for(let i=0;i<per;i++) r.queue.push(id);
+  }
+  if(r.queue.length>0) return kagoOf(st, r.queue.shift());
+  // 追い投入: 占有が取れていない自ターゲットへ（Vゴール未達のときのみ）
+  if(vCond(st, r.team)) return null;
+  if(occupiedCount(st, r.team)>=5) return null;
+  const cands = def.priority.map(id=>kagoOf(st,id))
+    .filter(k=>k.counts[r.team]<=k.counts[def.opp]);
+  if(cands.length===0) return null;
+  cands.sort((a,b)=>(a.counts[def.opp]-a.counts[r.team])-(b.counts[def.opp]-b.counts[r.team]));
+  return cands[0];
+}
+function throwTo(r, kago){
+  state.flights.push({x0:r.x, y0:r.y, x1:kago.x, y1:kago.y,
+    start:state.t, dur:0.7, team:r.team, kid:kago.id});
+  r.supply--;
+}
+function throwLogic(r, P){
+  const st = state;
+  if(r.signalAt!==null){
+    if(st.t >= r.signalAt){
+      if(!trySignal(r.team)){
+        r.signalAt = null;
+        addLog(st.t, r.team, '合図中断（占有条件が崩れたため投入を再開）');
+      }
+    }
+    return;
+  }
+  // 条件成立かつキュー消化済みなら静止→合図へ
+  if((!r.queue || r.queue.length===0) && vCond(st, r.team)){
+    r.signalAt = st.t + 2;
+    addLog(st.t, r.team, '静止・Vゴール合図準備（2秒）');
+    return;
+  }
+  if(st.t < r.nextThrow) return;
+  if(r.supply<=0) return;
+  const kago = nextTarget(r);
+  if(kago===null){
+    if(vCond(st, r.team)){ r.signalAt = st.t + 2; addLog(st.t, r.team, '静止・Vゴール合図準備（2秒）'); }
+    return;
+  }
+  throwTo(r, kago);
+  r.nextThrow = st.t + P.interval;
+}
+function scriptUpdate(r, dt){
+  const st = state, P = st.P[r.team];
+  const a = r.script[r.idx];
+  if(!a) return;
+  if(!r.segInit){ r.sx=r.x; r.sy=r.y; r.at=0; r.segInit=true; }
+  r.at += dt;
+  switch(a.t){
+    case 'wait':
+      if(r.at>=a.dur){ r.idx++; r.segInit=false; }
+      break;
+    case 'move': {
+      const f = Math.min(1, r.at/a.dur);
+      r.x = r.sx + (a.x-r.sx)*f;
+      r.y = r.sy + (a.y-r.sy)*f;
+      if(f>=1){ r.idx++; r.segInit=false; }
+      break;
+    }
+    case 'grabBig':
+      st.bigEels[r.team].held = true; r.holdBig = true;
+      addLog(st.t, r.team, '大うなぎを把持');
+      r.idx++; r.segInit=false;
+      break;
+    case 'depositBig':
+      r.holdBig = false; captureBig(r.team);
+      r.idx++; r.segInit=false;
+      break;
+    case 'climb': {
+      const f = Math.min(1, r.at/a.dur);
+      r.x = r.sx + (a.x-r.sx)*f;
+      r.y = r.sy + (a.y-r.sy)*f;
+      r.climbFrac = f;
+      if(f>=1){
+        r.climbed = true;
+        achievePrep(r);
+        if(st.t > FALLBACK_T && !r.fallback){
+          r.fallback = true;
+          addLog(st.t, r.team, `⚠ 石倉到達が${fmtT(FALLBACK_T)}超過 → 最低ライン投入(各1本)へ切替`);
+        }
+        r.nextThrow = st.t + 1;
+        r.idx++; r.segInit=false;
+      }
+      break;
+    }
+    case 'throwLoop':
+      throwLogic(r, P);
+      break;
+  }
+}
+
+/* ---------- 手動操縦 ---------- */
+function manualUpdate(r, dt){
+  const st = state, z = ZONES[r.team];
+  const sp = 1200; // mm/s
+  let dx=0, dy=0;
+  if(keys['ArrowLeft']||keys['a']) dx-=1;
+  if(keys['ArrowRight']||keys['d']) dx+=1;
+  if(keys['ArrowUp']||keys['w']) dy-=1;
+  if(keys['ArrowDown']||keys['s']) dy+=1;
+  if(r.climbing){ // 登坂アニメ中は移動不可
+    r.climbT -= dt;
+    r.climbFrac = r.climbUp ? 1-(r.climbT/2) : (r.climbT/2);
+    if(r.climbT<=0){
+      r.climbing = false;
+      r.climbed = r.climbUp;
+      r.climbFrac = r.climbUp?1:0;
+      if(r.climbUp){ achievePrep(r); addLog(st.t, r.team, '石倉に登坂完了'); }
+      else { r.prep=false; addLog(st.t, r.team, '石倉から降坂'); }
+    }
+    return;
+  }
+  if(dx||dy){
+    const n = Math.hypot(dx,dy);
+    r.x += dx/n*sp*dt; r.y += dy/n*sp*dt;
+    const h = ROBOT_W/2;
+    r.x = Math.max(h, Math.min(F-h, r.x));
+    r.y = Math.max(h, Math.min(F-h, r.y));
+    if(r.climbed){ // 石倉上では石倉から落ちない範囲にクランプ
+      const s = z.stone;
+      r.x = Math.max(s.x0+200, Math.min(s.x1-200, r.x));
+      r.y = Math.max(s.y0+200, Math.min(s.y1-200, r.y));
+    }
+  }
+  // 捕獲準備の維持判定
+  if(r.climbed){
+    const s = z.stone;
+    const onStone = r.x>s.x0 && r.x<s.x1 && r.y>s.y0 && r.y<s.y1;
+    if(r.prep!==onStone){ r.prep=onStone; }
+  }
+  // エリア2完全進入の違反判定
+  const h = ROBOT_W/2;
+  const fullyIn = r.x-h>A2.x0 && r.x+h<A2.x1 && r.y-h>A2.y0 && r.y+h<A2.y1;
+  r.violation = fullyIn;
+  if(fullyIn && !r.violLogged){
+    r.violLogged = true;
+    addLog(st.t, r.team, '⚠ 違反：エリア2に完全進入（ルール1. / 5.→ 強制リトライ相当）');
+  }
+  if(!fullyIn) r.violLogged = false;
+}
+function manualKey(key){
+  const st = state; if(!st || st.ended || !st.running) return;
+  const r = st.robots.blue; if(!r || !r.manual) return;
+  const z = ZONES.blue, def = TEAMDEF.blue;
+  if(key==='c'){
+    const s = z.stone, cx=(s.x0+s.x1)/2, cy=(s.y0+s.y1)/2;
+    if(!r.climbed && !r.climbing && Math.hypot(r.x-cx, r.y-cy)<1500){
+      r.climbing=true; r.climbUp=true; r.climbT=2;
+      r.x=cx; r.y=cy;
+      addLog(st.t,'blue','石倉登坂開始（2秒）');
+    } else if(r.climbed && !r.climbing){
+      r.climbing=true; r.climbUp=false; r.climbT=2;
+      addLog(st.t,'blue','降坂開始');
+    }
+  }
+  if(key==='g'){
+    const be = st.bigEels.blue;
+    if(!be.captured && !be.held && Math.hypot(r.x-be.x, r.y-be.y)<1200){
+      be.held=true; r.holdBig=true; addLog(st.t,'blue','大うなぎを把持');
+    } else if(r.prep && r.mag<3 && r.supply>0){
+      const n = Math.min(3-r.mag, r.supply);
+      r.mag += n;
+      addLog(st.t,'blue',`小うなぎを${n}本装填（残弾${r.mag} / ゾーン残${r.supply-n}…装填済含む）`);
+    } else if(!r.prep && r.supply>0 && r.mag<3){
+      addLog(st.t,'blue','小うなぎ回収は捕獲準備（石倉上）が必要です（ルール1.）');
+    }
+  }
+  if(key==='t'){
+    const g = kagoOf(st, def.green);
+    if(r.holdBig && Math.hypot(r.x-g.x, r.y-g.y)<1700){
+      r.holdBig=false; captureBig('blue');
+    } else if(r.holdBig){
+      addLog(st.t,'blue','自チーム緑カゴの近くで投入してください');
+    } else if(r.mag>0){
+      const kago = st.kagos[r.targetSel];
+      state.flights.push({x0:r.x,y0:r.y,x1:kago.x,y1:kago.y,start:st.t,dur:0.7,team:'blue',kid:kago.id});
+      r.mag--;
+    }
+  }
+  if(key==='v'){
+    if(!trySignal('blue')) addLog(st.t,'blue','合図したがVゴール条件未達（チェックリスト参照）');
+  }
+  if(key==='Tab'){
+    r.targetSel = (r.targetSel+1) % st.kagos.length;
+  }
+}
+
+/* ---------- メインループ ---------- */
+let lastTs = null;
+function tick(ts){
+  requestAnimationFrame(tick);
+  if(lastTs===null){ lastTs = ts; return; }
+  let dt = Math.min(0.05, (ts-lastTs)/1000);
+  lastTs = ts;
+  if(state.running && !state.ended){
+    dt *= speed;
+    step(dt);
+  }
+  render();
+  updateHUD();
+}
+function step(dt){
+  const st = state;
+  st.t += dt;
+  for(const team of ['blue','red']){
+    const r = st.robots[team];
+    if(!r) continue;
+    if(r.manual) manualUpdate(r, dt);
+    else scriptUpdate(r, dt);
+    // 把持中の大うなぎ追従
+    if(r.holdBig){ st.bigEels[team].x=r.x; st.bigEels[team].y=r.y; }
+    // 軌跡
+    r.traceT += dt;
+    if(r.traceT>0.25){ r.traceT=0; r.trace.push({x:r.x,y:r.y}); if(r.trace.length>500) r.trace.shift(); }
+  }
+  // 飛翔中の小うなぎ
+  for(let i=st.flights.length-1; i>=0; i--){
+    const fl = st.flights[i];
+    if(st.t - fl.start >= fl.dur){
+      st.flights.splice(i,1);
+      applyEelScore(fl.team, kagoOf(st, fl.kid));
+      if(st.ended) return;
+    }
+  }
+  if(st.t >= MATCH_TIME && !st.ended){
+    st.t = MATCH_TIME;
+    const b=st.score.blue, r=st.score.red;
+    let w = b>r?'青チーム勝利':(r>b?'赤チーム勝利':null);
+    if(!w){
+      const ob=occupiedCount(st,'blue'), or_=occupiedCount(st,'red');
+      w = ob>or_?'青チーム勝利(占有数)':(or_>ob?'赤チーム勝利(占有数)':'引き分け（審判判定）');
+    }
+    endMatch(`⏱ 時間切れ — ${w}`, `最終得点 青${b} − 赤${r}`);
+  }
+}
+
+/* ---------- 描画 ---------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const PX = 720;
+const dpr = window.devicePixelRatio || 1;
+cv.width = PX*dpr; cv.height = PX*dpr;
+cv.style.width = PX+'px'; cv.style.height = PX+'px';
+const SC = PX*dpr/F;
+
+function rect(r, fill, stroke, lw){
+  if(fill){ ctx.fillStyle=fill; ctx.fillRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); }
+  if(stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=lw||40; ctx.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); }
+}
+function label(txt, x, y, size, color, align){
+  ctx.fillStyle = color||'rgba(255,255,255,.75)';
+  ctx.font = `${size||260}px "Segoe UI","Yu Gothic UI",sans-serif`;
+  ctx.textAlign = align||'center'; ctx.textBaseline='middle';
+  ctx.fillText(txt, x, y);
+}
+function render(){
+  const st = state;
+  ctx.setTransform(SC,0,0,SC,0,0);
+  // 外周リング(ロンリウム=緑)
+  ctx.fillStyle = '#1f7a33';
+  ctx.fillRect(0,0,F,F);
+  // エリア2(ブルーシート)
+  ctx.fillStyle = '#1c56b8';
+  ctx.fillRect(A2.x0, A2.y0, A2.x1-A2.x0, A2.y1-A2.y0);
+  // 白線(50mm)
+  ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 50;
+  ctx.strokeRect(A2.x0, A2.y0, A2.x1-A2.x0, A2.y1-A2.y0);
+  ctx.strokeRect(25,25,F-50,F-50);
+
+  for(const team of ['blue','red']){
+    const z = ZONES[team];
+    const c = team==='blue' ? '#6fc2ff' : '#ff9090';
+    rect(z.start, team==='blue'?'rgba(60,140,255,.25)':'rgba(255,80,80,.25)', c, 50);
+    rect(z.bigEel, 'rgba(160,90,255,.18)', '#b48aff', 40);
+    rect(z.corner, 'rgba(120,200,255,.10)', c, 30);   // 小うなぎゾーン(石倉周囲)
+    // 石倉 900x900 (高さ101mm)
+    rect(z.stone, '#b08a5a', '#7a5c38', 60);
+    label('石倉', (z.stone.x0+z.stone.x1)/2, (z.stone.y0+z.stone.y1)/2, 260, 'rgba(60,40,20,.8)');
+    label(team==='blue'?'青スタート':'赤スタート', (z.start.x0+z.start.x1)/2, (z.start.y0+z.start.y1)/2, 220, c);
+    label('大うなぎ', (z.bigEel.x0+z.bigEel.x1)/2, z.bigEel.y0+250, 200, '#cdb0ff');
+  }
+  label('エリア2（ロボット完全進入禁止）', F/2, A2.y0+330, 250, 'rgba(255,255,255,.4)');
+
+  // 小うなぎ(残数分を描画)
+  for(const team of ['blue','red']){
+    const r = st.robots[team];
+    const supply = r ? r.supply : EEL_SUPPLY;
+    const strip = ZONES[team].eelStrip;
+    const col = team==='blue' ? '#5fb8ff' : '#ff7a7a';
+    ctx.strokeStyle = col; ctx.lineWidth = 60;
+    for(let i=0;i<supply;i++){
+      const x = strip.x0 + 120 + i*((strip.x1-strip.x0-240)/(EEL_SUPPLY-1));
+      ctx.beginPath();
+      ctx.moveTo(x, strip.y0+40); ctx.lineTo(x, strip.y1-40);
+      ctx.stroke();
+    }
+  }
+
+  // カゴ
+  for(const k of st.kagos){
+    const fill = k.color==='green' ? '#2ecc71' : '#3498db';
+    ctx.fillStyle = fill;
+    ctx.fillRect(k.x-KAGO_W/2, k.y-KAGO_H/2, KAGO_W, KAGO_H);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 30;
+    ctx.strokeRect(k.x-KAGO_W/2, k.y-KAGO_H/2, KAGO_W, KAGO_H);
+    // 占有表示
+    const occ = k.counts.blue>k.counts.red ? 'blue' : (k.counts.red>k.counts.blue ? 'red' : null);
+    if(occ){
+      ctx.strokeStyle = occ==='blue' ? '#4db1ff' : '#ff5d5d';
+      ctx.lineWidth = 90;
+      ctx.strokeRect(k.x-KAGO_W/2-90, k.y-KAGO_H/2-90, KAGO_W+180, KAGO_H+180);
+    }
+    // 本数バッジ
+    label(`${k.counts.blue}`, k.x-130, k.y-KAGO_H/2-220, 280, '#7ec8ff');
+    label('|', k.x, k.y-KAGO_H/2-220, 280, 'rgba(255,255,255,.5)');
+    label(`${k.counts.red}`, k.x+130, k.y-KAGO_H/2-220, 280, '#ff8c8c');
+  }
+  // 手動モードの目標カゴ
+  const rb = st.robots.blue;
+  if(rb && rb.manual){
+    const k = st.kagos[rb.targetSel];
+    ctx.strokeStyle = '#ffc34d'; ctx.lineWidth = 60;
+    ctx.setLineDash([200,140]);
+    ctx.strokeRect(k.x-KAGO_W/2-180, k.y-KAGO_H/2-180, KAGO_W+360, KAGO_H+360);
+    ctx.setLineDash([]);
+  }
+
+  // 大うなぎ
+  for(const team of ['blue','red']){
+    const be = st.bigEels[team];
+    ctx.strokeStyle = team==='blue' ? '#9fd8ff' : '#ffb0b0';
+    ctx.lineWidth = 90;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if(be.captured){ ctx.moveTo(be.x-420, be.y+120); ctx.lineTo(be.x+420, be.y-120); }
+    else { ctx.moveTo(be.x-500, be.y); ctx.lineTo(be.x+500, be.y); }
+    ctx.stroke();
+  }
+
+  // 軌跡
+  for(const team of ['blue','red']){
+    const r = st.robots[team]; if(!r || r.trace.length<2) continue;
+    ctx.strokeStyle = team==='blue' ? 'rgba(110,190,255,.4)' : 'rgba(255,120,120,.4)';
+    ctx.lineWidth = 50;
+    ctx.beginPath();
+    ctx.moveTo(r.trace[0].x, r.trace[0].y);
+    for(const p of r.trace) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+
+  // ロボット
+  for(const team of ['blue','red']){
+    const r = st.robots[team]; if(!r) continue;
+    const lift = (r.climbFrac||0) * 60;
+    const col = team==='blue' ? '#2f8fe0' : '#e04848';
+    if(r.climbFrac>0){ // 石倉上の影
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.fillRect(r.x-ROBOT_W/2+60, r.y-ROBOT_W/2+60, ROBOT_W, ROBOT_W);
+    }
+    ctx.fillStyle = col;
+    ctx.fillRect(r.x-ROBOT_W/2, r.y-ROBOT_W/2-lift, ROBOT_W, ROBOT_W);
+    ctx.strokeStyle = r.violation ? '#ffc34d' : '#fff';
+    ctx.lineWidth = r.violation ? 90 : 40;
+    ctx.strokeRect(r.x-ROBOT_W/2, r.y-ROBOT_W/2-lift, ROBOT_W, ROBOT_W);
+    if(r.prep){
+      ctx.strokeStyle = '#ffe46e'; ctx.lineWidth = 60;
+      ctx.strokeRect(r.x-ROBOT_W/2-110, r.y-ROBOT_W/2-lift-110, ROBOT_W+220, ROBOT_W+220);
+    }
+    label(team==='blue'?'青':'赤', r.x, r.y-lift, 420, '#fff');
+    if(r.mag>0) label('●'.repeat(r.mag), r.x, r.y-lift+320, 200, '#ffe46e');
+    if(r.holdBig) label('大', r.x, r.y-lift-330, 240, '#dcb0ff');
+  }
+
+  // 飛翔中の小うなぎ（放物線風）
+  for(const fl of st.flights){
+    const f = Math.min(1, (st.t-fl.start)/fl.dur);
+    const x = fl.x0+(fl.x1-fl.x0)*f;
+    const y = fl.y0+(fl.y1-fl.y0)*f - Math.sin(f*Math.PI)*900;
+    ctx.strokeStyle = fl.team==='blue' ? '#bfe6ff' : '#ffc9c9';
+    ctx.lineWidth = 70; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x-170, y); ctx.lineTo(x+170, y); ctx.stroke();
+  }
+}
+
+/* ---------- HUD・ログ ---------- */
+const logEl = document.getElementById('log');
+function fmtT(t){
+  const m = Math.floor(t/60), s = t-m*60;
+  return `${m}:${s<10?'0':''}${s.toFixed(1)}`;
+}
+function addLog(t, who, msg){
+  const cls = who==='blue'?'B':(who==='red'?'R':'S');
+  const name = who==='blue'?'青':(who==='red'?'赤':'■');
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="t">${fmtT(t)}</span> <span class="${cls}">${name}</span> ${msg}`;
+  logEl.prepend(div);
+}
+function updateHUD(){
+  const st = state;
+  document.getElementById('clock').textContent = fmtT(st.t);
+  document.getElementById('scB').textContent = st.score.blue;
+  document.getElementById('scR').textContent = st.score.red;
+  const r = st.robots.blue;
+  let ph = '—';
+  if(st.ended) ph = '試合終了';
+  else if(r){
+    if(r.manual) ph = '手動操縦中';
+    else {
+      const a = r.script[r.idx];
+      ph = a ? (a.label || (r.signalAt!==null?'Phase5 合図':'Phase4 小うなぎ投入')) : '完了';
+      if(a && a.t==='throwLoop' && r.signalAt!==null) ph = 'Phase5 静止・合図';
+    }
+  }
+  document.getElementById('phaseLabel').textContent = ph;
+  const oc = occupiedCount(st, 'blue');
+  setV('v1', st.bigEels.blue.captured, '① 大うなぎを捕獲');
+  setV('v2', oc>=5, `② 占有カゴ 5つ以上（現在 ${oc}）`);
+  setV('v3', !!r && r.prep, '③ 石倉上で捕獲準備');
+}
+function setV(id, ok, txt){
+  const el = document.getElementById(id);
+  el.className = ok ? 'ok' : 'ng';
+  el.textContent = (ok?'✔ ':'○ ') + txt;
+}
+
+/* ---------- UI バインド ---------- */
+const $ = id => document.getElementById(id);
+const sP1=$('sP1'), sP2=$('sP2'), sP3=$('sP3'), sInt=$('sInt'), sPer=$('sPer');
+const sDly=$('sDly'), sOInt=$('sOInt'), sOPer=$('sOPer'), cOpp=$('cOpp'), cBothD=$('cBothD');
+const btnPlay=$('btnPlay'), btnReset=$('btnReset');
+const banner=$('banner'), bannerMain=$('bannerMain'), bannerSub=$('bannerSub');
+
+const sliderDefs = [
+  [sP1,'vP1', v=>`${v}s`], [sP2,'vP2', v=>`${v}s`], [sP3,'vP3', v=>`${v}s`],
+  [sInt,'vInt', v=>`${v}s/本`], [sPer,'vPer', v=>`${v}本`],
+  [sDly,'vDly', v=>`${v}s`], [sOInt,'vOInt', v=>`${v}s/本`], [sOPer,'vOPer', v=>`${v}本`],
+];
+for(const [sl, vid, fmt] of sliderDefs){
+  const upd = ()=>{ $(vid).textContent = fmt(sl.value);
+    if(state && state.t===0 && !state.running) reset(); };
+  sl.addEventListener('input', upd);
+}
+cOpp.addEventListener('change', ()=>{ if(state && state.t===0 && !state.running) reset(); });
+cBothD.addEventListener('change', ()=>{ if(state && state.t===0 && !state.running) reset(); });
+
+btnPlay.addEventListener('click', ()=>{
+  if(state.ended) reset();
+  state.running = !state.running;
+  btnPlay.textContent = state.running ? '⏸ 一時停止' : '▶ 再開';
+});
+btnReset.addEventListener('click', reset);
+document.querySelectorAll('.spd').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    speed = +b.dataset.s;
+    document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('active', x===b));
+  });
+});
+$('modeAuto').addEventListener('click', ()=>setMode('auto'));
+$('modeManual').addEventListener('click', ()=>setMode('manual'));
+function setMode(m){
+  mode = m;
+  $('modeAuto').classList.toggle('active', m==='auto');
+  $('modeManual').classList.toggle('active', m==='manual');
+  $('keyCard').style.display = m==='manual' ? '' : 'none';
+  reset();
+}
+
+window.addEventListener('keydown', e=>{
+  if(e.key===' '){ e.preventDefault(); btnPlay.click(); return; }
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab'].includes(e.key)) e.preventDefault();
+  const k = e.key.length===1 ? e.key.toLowerCase() : e.key;
+  if(!keys[k] && mode==='manual') manualKey(k);
+  keys[k] = true;
+});
+window.addEventListener('keyup', e=>{
+  const k = e.key.length===1 ? e.key.toLowerCase() : e.key;
+  keys[k] = false;
+});
+
+/* ---------- 起動 ---------- */
+reset();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
