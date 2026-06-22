@@ -21,10 +21,6 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-// 自作
-#include "summer2026_odometry.hpp"
-#include "natsurobo_early_access/matrix.h"
-
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 出力マイコン（モーター制御）のID
 #define INPUT_DEVICE_ID 3  // 入力マイコン（マイクロスイッチやエンコーダ）のID
@@ -317,59 +313,55 @@ private:
 
         // =================================================================
         // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
-            static int cross_state = 0; 
-            
-        if (CROSS && cross_state == 0){
-        
-        }
-        else if (!CROSS && cross_state == 1){
+        static int cross_state = 0;
 
+        if (CROSS && cross_state == 0)
+        {
         }
-        
-        if (CROSS) {
+        else if (!CROSS && cross_state == 1)
+        {
+        }
+
+        if (CROSS)
+        {
             cross_state = 1;
         }
 
         // =================================================================
 
-    
         // =================================================================
         // CIRCLE: 昇降機構で使用×
         // =================================================================
- 
 
         // =================================================================
         // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-            if (TRIANGLE){
-                data_[1] = 50; // 射出部分　出力は一旦50にしておく　要調整
-            }
+        if (TRIANGLE)
+        {
+            data_[1] = 50; // 射出部分　出力は一旦50にしておく　要調整
+        }
         // =================================================================
-
 
         // =================================================================
         // SQUARE:　「ハンド回転」
-            static int square_state = 0;
-            if (SQUARE && square_state == 0){
-                data_[9] = 0; // 角度は要調整
-            }
-            else if (!SQUARE && square_state == 1){
-                data_[9] = 90; // 角度は要調整
-            }
-             square_state = SQUARE;
+        static int square_state = 0;
+        if (SQUARE && square_state == 0)
+        {
+            data_[9] = 0; // 角度は要調整
+        }
+        else if (!SQUARE && square_state == 1)
+        {
+            data_[9] = 90; // 角度は要調整
+        }
+        square_state = SQUARE;
         // =================================================================
-
 
         // =================================================================
         // UP,DOWN:「昇降機構」
         // =================================================================
 
-
         // =================================================================
         // LEFT,RIGHT:
         // =================================================================
-
-
-
 
         // 配列操作ここまで
     }
@@ -484,10 +476,6 @@ int main(int argc, char *argv[])
     // ID=3: マイクロスイッチ＆エンコーダ入力ノード
     auto switch_input = std::make_shared<SwitchInput>();
     exec.add_node(switch_input);
-
-    //オドメトリノード
-    auto odometry = std::make_shared<Shivalian_control>(INPUT_DEVICE_ID);
-    exec.add_node(odometry);
 
     exec.spin();
 

@@ -16,7 +16,7 @@ find_package(tf2_ros REQUIRED)
 
 # Add executable
 add_executable(guess_position_26
-  src/summer2026_odometry.cpp
+  src/natsu2026_odometry.cpp
   src/matrix.cpp
 )
 
