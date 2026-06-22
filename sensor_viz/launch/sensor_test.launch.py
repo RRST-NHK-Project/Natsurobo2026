@@ -37,7 +37,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument(
-            'imu_port', default_value='/dev/ttyUSB1',
+            'imu_port', default_value='/dev/wt901',
             description='WT901C のシリアルポート'),
         DeclareLaunchArgument(
             'use_imu', default_value='false',
