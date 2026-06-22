@@ -21,7 +21,7 @@
 #include "tf2_ros/transform_broadcaster.h"
 
 // 自作
-#include "natsurobo_early_access/matrix.h"
+#include "natsu_metry26/matrix.h"
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 送信先マイコンのID
