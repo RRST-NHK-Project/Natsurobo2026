@@ -6,6 +6,7 @@ import { LANGUAGE_OPTIONS } from "./i18n";
 import appPackage from "../package.json";
 import { CageViz } from "./components/CageViz";
 import { GamePanel } from "./components/GamePanel";
+import { OdomMap } from "./components/OdomMap";
 
 const GUI_VERSION = process.env.REACT_APP_UI_VERSION || appPackage.version || "0.0.0";
 
@@ -467,6 +468,14 @@ function App() {
   const traceImportInputRef = useRef(null);
   const plannerConfigImportInputRef = useRef(null);
   const tracePoseRef = useRef({ x: 0, y: 0, yaw: 0 });
+  // ── 実機オドメトリ(/odom)マップ用 ──
+  const odomPoseRef = useRef({ x: 0, y: 0, yaw: 0 }); // LiDAR累積で参照する最新姿勢
+  const odomIposeRef = useRef(null);                  // 初回姿勢(ipose)=原点正規化の基準
+  const odomPathRef = useRef([]);                     // 軌跡
+  const odomMapGridRef = useRef(new Map());           // ボクセル格子(代表点) = pcmap
+  const odomNavSubRef = useRef(null);
+  const locPathRef = useRef([]);                      // ICP補正後の軌跡
+  const locPoseSubRef = useRef(null);                 // /localization/pose 購読
   const traceLanguageRef = useRef("ja");
   const defaultRosHost = window.location.hostname || "localhost";
   const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -498,7 +507,7 @@ function App() {
     "motion-sim",
     "controller",
     "pose",
-    "planner",
+    "localization",
     "wall-angle",
     "actuator",
     "actuator-monitor",
@@ -596,6 +605,12 @@ function App() {
   const [traceReplayLoop, setTraceReplayLoop] = useState(false);
   const [traceReplayAutoPublish, setTraceReplayAutoPublish] = useState(true);
   const [traceInfo, setTraceInfo] = useState("未開始");
+  const [odomPose, setOdomPose] = useState({ x: 0, y: 0, yaw: 0 });
+  const [odomPath, setOdomPath] = useState([]);
+  const [odomMapPoints, setOdomMapPoints] = useState([]);
+  const [odomMapLidarEnabled, setOdomMapLidarEnabled] = useState(true);
+  const [locPose, setLocPose] = useState(null);   // ICP補正後の絶対姿勢(/localization/pose)
+  const [locPath, setLocPath] = useState([]);
   const [autoDriveCmdInfo, setAutoDriveCmdInfo] = useState("未送信");
   const [rotateOnlyMode, setRotateOnlyMode] = useState(false);
   const [topicList, setTopicList] = useState([]);
@@ -883,7 +898,7 @@ function App() {
     if (page === "controller") return tr("コントローラ操作", "Controller");
     if (page === "sequence") return tr("シーケンス操作", "Sequence");
     if (page === "pose") return tr("座標・姿勢管理", "Pose");
-    if (page === "planner") return tr("プランナー", "Planner");
+    if (page === "localization") return tr("自己位置マップ", "Localization");
     if (page === "wall-angle") return tr("壁面推定", "Wall Surface Estimation");
     if (page === "waypoint") return tr("ウェイポイント", "Waypoints");
     if (page === "teaching") return tr("ティーチング", "Teaching");
@@ -920,6 +935,19 @@ function App() {
     setPoseX(0);
     setPoseY(0);
     setPoseYaw(0);
+  };
+
+  const resetOdomMap = () => {
+    odomIposeRef.current = null;
+    odomPathRef.current = [];
+    odomMapGridRef.current = new Map();
+    odomPoseRef.current = { x: 0, y: 0, yaw: 0 };
+    locPathRef.current = [];
+    setOdomPath([]);
+    setOdomMapPoints([]);
+    setOdomPose({ x: 0, y: 0, yaw: 0 });
+    setLocPath([]);
+    setLocPose(null);
   };
 
   const nudgeVirtualOdomPose = (dx = 0, dy = 0, dyawDeg = 0) => {
@@ -3959,6 +3987,28 @@ function App() {
     virtualOdomEnabledRef.current = virtualOdomEnabled;
   }, [virtualOdomEnabled]);
 
+  // LittleSLAM mapByOdometry 相当: LiDAR点を現在姿勢でグローバル系へ変換し累積(補正なし)
+  useEffect(() => {
+    if (!odomMapLidarEnabled) return;
+    if (!wallFilteredPoints || wallFilteredPoints.length === 0) return;
+    const p = odomPoseRef.current;
+    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const grid = odomMapGridRef.current;
+    const CELL = 0.05; // 5cm 代表点(makeGlobalMap のセル縮約相当)
+    for (const pt of wallFilteredPoints) {
+      const gx = p.x + pt.x * c - pt.y * s; // globalPoint: R(yaw)·lp + t
+      const gy = p.y + pt.x * s + pt.y * c;
+      const key = `${Math.round(gx / CELL)},${Math.round(gy / CELL)}`;
+      if (!grid.has(key)) grid.set(key, { x: gx, y: gy });
+    }
+    const MAX = 6000; // 上限(古い代表点から破棄)
+    if (grid.size > MAX) {
+      const it = grid.keys();
+      for (let i = grid.size - MAX; i > 0; i--) grid.delete(it.next().value);
+    }
+    setOdomMapPoints(Array.from(grid.values()));
+  }, [wallFilteredPoints, odomMapLidarEnabled]);
+
   useEffect(() => {
     operationArmedRef.current = operationArmed;
   }, [operationArmed]);
@@ -4067,6 +4117,66 @@ function App() {
       setPoseX(Number(msg.data[0]) || 0);
       setPoseY(Number(msg.data[1]) || 0);
       setPoseYaw(Number(msg.data[2]) || 0);
+    });
+
+    // 実機オドメトリ(summer2026_odometry)を購読し、軌跡＋自己位置マップを構築
+    odomNavSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "odom",
+      messageType: "nav_msgs/msg/Odometry",
+    });
+    odomNavSubRef.current.subscribe((msg) => {
+      const px = msg?.pose?.pose?.position?.x ?? 0;
+      const py = msg?.pose?.pose?.position?.y ?? 0;
+      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
+      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
+      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz); // z,wのみ→yaw
+
+      // LittleSLAM calRelativePose 相当: 初回姿勢(ipose)を原点に正規化
+      if (!odomIposeRef.current) odomIposeRef.current = { x: px, y: py, yaw };
+      const ip = odomIposeRef.current;
+      const dx = px - ip.x, dy = py - ip.y;
+      const c0 = Math.cos(-ip.yaw), s0 = Math.sin(-ip.yaw);
+      const pose = {
+        x: dx * c0 - dy * s0,
+        y: dx * s0 + dy * c0,
+        yaw: Math.atan2(Math.sin(yaw - ip.yaw), Math.cos(yaw - ip.yaw)),
+      };
+      odomPoseRef.current = pose;
+      setOdomPose(pose);
+
+      // 軌跡(2cm間隔で間引き, 上限2000点)
+      const path = odomPathRef.current;
+      const last = path[path.length - 1];
+      if (!last || Math.hypot(pose.x - last.x, pose.y - last.y) > 0.02) {
+        path.push({ x: pose.x, y: pose.y });
+        if (path.length > 2000) path.shift();
+        setOdomPath([...path]);
+      }
+    });
+
+    // ICP補正後の絶対自己位置(natsu_localization)を購読
+    locPoseSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/localization/pose",
+      messageType: "geometry_msgs/msg/PoseWithCovarianceStamped",
+    });
+    locPoseSubRef.current.subscribe((msg) => {
+      const px = msg?.pose?.pose?.position?.x ?? 0;
+      const py = msg?.pose?.pose?.position?.y ?? 0;
+      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
+      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
+      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz);
+      const cpose = { x: px, y: py, yaw };
+      setLocPose(cpose);
+
+      const path = locPathRef.current;
+      const last = path[path.length - 1];
+      if (!last || Math.hypot(px - last.x, py - last.y) > 0.02) {
+        path.push({ x: px, y: py });
+        if (path.length > 2000) path.shift();
+        setLocPath([...path]);
+      }
     });
 
     driveModeRef.current = new ROSLIB.Topic({
@@ -4533,6 +4643,22 @@ function App() {
         } catch (error) {
           console.warn("Error unsubscribing odom topic:", error);
         }
+      }
+      if (odomNavSubRef.current) {
+        try {
+          odomNavSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing odom(nav) topic:", error);
+        }
+        odomNavSubRef.current = null;
+      }
+      if (locPoseSubRef.current) {
+        try {
+          locPoseSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing localization pose topic:", error);
+        }
+        locPoseSubRef.current = null;
       }
       if (driveModeRef.current) {
         try {
@@ -5534,6 +5660,64 @@ function App() {
                   </div>
                 </div>
               )}
+            </section>
+          )}
+
+          {isPageActive("localization") && (
+            <section className="pose-panel">
+              <h2 className="serial-packet-title">{tr("自己位置マップ", "Localization Map")}</h2>
+              <p className="serial-packet-hint">
+                {tr(
+                  "summer2026_odometry の /odom と natsu_localization の /localization/pose を地図上に重畳表示します。両者のズレがオドメトリのドリフト量です。",
+                  "Overlays /odom (summer2026_odometry) and /localization/pose (natsu_localization, known-wall ICP) on the field map. The gap between them is the odometry drift."
+                )}
+              </p>
+
+              <section className="pose-graph-card" style={{ marginTop: 12 }}>
+                <div className="pose-graph-title-row">
+                  <h3 className="pose-graph-title">{tr("自己位置マップ", "Odometry Map")}</h3>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <label className="serial-packet-label" style={{ margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={odomMapLidarEnabled}
+                        onChange={(e) => setOdomMapLidarEnabled(e.target.checked)}
+                      />
+                      {tr("LiDAR点群", "LiDAR map")}
+                    </label>
+                    <button className="serial-clear-button" onClick={resetOdomMap}>
+                      {tr("マップリセット", "Reset map")}
+                    </button>
+                  </div>
+                </div>
+                <OdomMap
+                  pose={odomPose}
+                  path={odomPath}
+                  mapPoints={odomMapLidarEnabled ? odomMapPoints : []}
+                  corrected={locPose}
+                  correctedPath={locPath}
+                />
+                <div className="pose-graph-legend">
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#f0883e" }} />
+                    {tr("生odom (補正なし)", "Raw odom")}
+                  </span>
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#39c5cf" }} />
+                    {tr("ICP補正 (絶対位置)", "ICP corrected")}
+                  </span>
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#58a6ff" }} />
+                    {tr("LiDAR点群", "LiDAR map")}
+                  </span>
+                </div>
+                <p className="pose-graph-interaction-hint">
+                  {tr(
+                    "橙=summer2026_odometry の /odom (補正なし)、シアン=natsu_localization の /localization/pose (既知壁ICPの絶対位置)。",
+                    "Orange = raw /odom (drifts). Cyan = /localization/pose from natsu_localization (absolute, known-wall ICP)."
+                  )}
+                </p>
+              </section>
             </section>
           )}
 

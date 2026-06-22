@@ -4,16 +4,16 @@
 			"path": "."
 		},
 		{
-			"path": "../rrst-ros2-ws"
-		},
-		{
-			"path": "../rrst-ros2-ws-nr26"
+			"path": "../LeetCode_arai60"
 		},
 		{
 			"path": "../serial_can_bridge"
 		},
 		{
-			"path": "../LeetCode_arai60"
+			"path": "../rrst-ros2-ws-nr26"
+		},
+		{
+			"path": "../rrst-console"
 		}
 	],
 	"settings": {}

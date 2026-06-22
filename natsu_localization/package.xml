@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>natsu_localization</name>
+  <version>0.1.0</version>
+  <description>
+    Scan-to-known-map ICP localizer for RRST 夏ロボ 2026.
+    LD19 360 deg LiDAR (/scan) を既知フィールド壁線分にマッチングし、
+    summer2026_odometry の /odom を初期値にして絶対自己位置を推定する。
+    アルゴリズムは LittleSLAM (MPL-2.0) の Pose2D / PoseEstimatorICP /
+    CostFunctionPD / PoseOptimizerGN を、地図構築なし(既知線分)版に移植したもの。
+  </description>
+  <maintainer email="riko26maeda@gmail.com">RRST NHK Project</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>eigen</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
