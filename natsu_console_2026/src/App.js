@@ -5052,7 +5052,8 @@ function App() {
             : tr("単一タブモードでは常に1タブのみ表示します", "Single-tab mode always shows one tab")}
         </p>
 
-        <section className="page-switch-row">
+        <div className="page-layout">
+          <section className="page-switch-row">
           {pageOrder.filter((page) => isPageVisible(page)).map((page) => (
             <button
               key={`page-tab-${page}`}
@@ -5070,14 +5071,9 @@ function App() {
               {getPageLabel(page)}
             </button>
           ))}
-        </section>
-        <p className="connection-hint page-switch-hint">
-          {multiTabMode
-            ? tr("同時に表示できるタブは最大2つです", "You can show up to 2 tabs at the same time")
-            : tr("単一タブモードでは複数同時表示はできません", "In single-tab mode, multiple tabs cannot be shown")}
-        </p>
+          </section>
 
-        <section className="active-pages-grid">
+          <section className="active-pages-grid">
 
           {isPageActive("game") && (
             <section className="game-page-wrap">
@@ -7986,7 +7982,8 @@ function App() {
               </div>
             </section>
           )}
-        </section>
+          </section>
+        </div>
       </main>
     </div>
   );

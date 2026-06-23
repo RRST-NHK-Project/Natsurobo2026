@@ -68,7 +68,7 @@
 .console-card {
   position: relative;
   z-index: 1;
-  width: min(1420px, 98vw);
+  width: min(1720px, 99vw);
   padding: 18px;
   border-radius: 18px;
   background: var(--panel);
@@ -584,15 +584,28 @@
   background: rgba(248, 81, 73, 0.10);
 }
 
-.page-switch-row {
+.page-layout {
   margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.page-switch-row {
+  flex: 0 0 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .active-pages-grid {
-  margin-top: 10px;
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
   gap: 10px;
@@ -1805,7 +1818,9 @@
   color: var(--text-main);
   font-size: 0.9rem;
   font-weight: 600;
-  padding: 10px 12px;
+  padding: 9px 12px;
+  text-align: left;
+  width: 100%;
   cursor: pointer;
   user-select: none;
   transition: transform 0.12s ease, box-shadow 0.2s ease;
@@ -1949,9 +1964,17 @@
     align-items: flex-start;
   }
 
+  .page-layout {
+    flex-direction: column;
+  }
+
   .page-switch-row {
-    display: flex;
+    flex: 1 1 auto;
+    flex-direction: row;
+    position: static;
+    max-height: none;
     overflow-x: auto;
+    overflow-y: visible;
     gap: 8px;
     padding-bottom: 4px;
     scrollbar-width: thin;
@@ -1959,6 +1982,7 @@
 
   .page-switch-button {
     flex: 0 0 auto;
+    width: auto;
     min-width: 130px;
     white-space: nowrap;
   }

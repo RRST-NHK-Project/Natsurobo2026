@@ -20,7 +20,10 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "std_msgs/msg/float64.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 // ──────────────────────────────────────────────
@@ -65,6 +68,11 @@ public:
             "/wall_detection/angle",10);
         distance_pub_ = create_publisher<std_msgs::msg::Float64>(
             "/wall_detection/distance",10);
+        // GUI(点群パネル / 自己位置マップ重畳) と RViz 用
+        filtered_points_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+            "/wall_detection/filtered_points",10);
+        ransac_params_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
+            "/wall_detection/ransac_params",10);
 
         //Subscriber
         scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
@@ -109,6 +117,9 @@ private:
         const double active_fov = aiming_mode_ ? aiming_fov_half_rad_ : fov_half_rad_;
         auto pts = filter_points(*scan, active_fov);
 
+        // フィルタ後の点群を常時 publish（壁が見つからなくても点は出す）
+        publish_filtered_points(pts, scan->header);
+
         if (static_cast<int>(pts.size()) < ransac_min_inliers_) {
             RCLCPP_DEBUG(get_logger(), "Not enough points in FOV: %zu", pts.size());
             return;
@@ -127,8 +138,41 @@ private:
         }
         if (!result) return;
 
+        // RANSAC直線パラメータを publish ([a, b, c, inliers, total])
+        {
+            std_msgs::msg::Float64MultiArray rp;
+            rp.data = {result->a, result->b, result->c,
+                       static_cast<double>(result->inliers),
+                       static_cast<double>(pts.size())};
+            ransac_params_pub_->publish(rp);
+        }
+
         // 3. LPF（修正版） + publish
         smooth_and_publish(*result);
+    }
+
+    // フィルタ後点群を PointCloud2(x,y,z=0, LiDARフレーム) として publish
+    void publish_filtered_points(const std::vector<Point2D>& pts,
+                                 const std_msgs::msg::Header& header)
+    {
+        sensor_msgs::msg::PointCloud2 cloud;
+        cloud.header = header;          // frame_id=ldlidar_link, stamp はスキャン由来
+        cloud.height = 1;
+        cloud.width  = static_cast<uint32_t>(pts.size());
+        cloud.is_dense = true;
+        sensor_msgs::PointCloud2Modifier mod(cloud);
+        mod.setPointCloud2FieldsByString(1, "xyz");
+        mod.resize(pts.size());
+        sensor_msgs::PointCloud2Iterator<float> ix(cloud, "x");
+        sensor_msgs::PointCloud2Iterator<float> iy(cloud, "y");
+        sensor_msgs::PointCloud2Iterator<float> iz(cloud, "z");
+        for (const auto& p : pts) {
+            *ix = static_cast<float>(p.x);
+            *iy = static_cast<float>(p.y);
+            *iz = 0.0f;
+            ++ix; ++iy; ++iz;
+        }
+        filtered_points_pub_->publish(cloud);
     }
 
     // ── FOVフィルタ + 距離ゲート ────────────────
@@ -343,6 +387,8 @@ private:
     // ROS
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr   angle_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr   distance_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        filtered_points_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr     ransac_params_pub_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr         aiming_sub_;
 

@@ -68,9 +68,26 @@ def generate_launch_description():
                         'lidar.range_max': 15.0,
                         'lidar.enable_angle_crop': False,
                     }],
-                    remappings=[('~/scan', '/scan')],
+                    # remap しない: ldlidar_component は count_subscribers("~/scan") が
+                    # >0 の時だけ publish する(lazy publishing)。~/scan→/scan に remap すると
+                    # count_subscribers が remap を無視するため(rclcpp#1174)常に0になり
+                    # publish されない。native の /ld19_lidar/scan のまま出し、下の relay で /scan へ中継する。
                 ),
             ],
+            output='screen',
+        ),
+
+        # ── /ld19_lidar/scan → /scan へ中継 ──────────────────
+        # relay が /ld19_lidar/scan を購読することで lazy-publish の購読者数を立て、
+        # 同時に /scan へ中継する（wall_detection等の消費者は /scan のまま無改造でOK）。
+        Node(
+            package='topic_tools',
+            executable='relay',
+            name='scan_relay',
+            parameters=[{
+                'input_topic': '/ld19_lidar/scan',
+                'output_topic': '/scan',
+            }],
             output='screen',
         ),
 
