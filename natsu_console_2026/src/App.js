@@ -476,6 +476,8 @@ function App() {
   const odomNavSubRef = useRef(null);
   const locPathRef = useRef([]);                      // ICP補正後の軌跡
   const locPoseSubRef = useRef(null);                 // /localization/pose 購読
+  const imuSubRef = useRef(null);                     // /imu/data 購読
+  const imuYaw0Ref = useRef(null);                    // 初回IMU yaw(起動時を方位の基準に)
   const traceLanguageRef = useRef("ja");
   const defaultRosHost = window.location.hostname || "localhost";
   const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -611,6 +613,8 @@ function App() {
   const [odomMapLidarEnabled, setOdomMapLidarEnabled] = useState(true);
   const [locPose, setLocPose] = useState(null);   // ICP補正後の絶対姿勢(/localization/pose)
   const [locPath, setLocPath] = useState([]);
+  const [imuRpy, setImuRpy] = useState(null);     // IMU姿勢 {roll,pitch,yaw}[rad] (yawは起動時基準)
+  const [bodyFootprintM, setBodyFootprintM] = useState(0.9);  // 機体フットプリント1辺[m] (足回り900mm)
   const [autoDriveCmdInfo, setAutoDriveCmdInfo] = useState("未送信");
   const [rotateOnlyMode, setRotateOnlyMode] = useState(false);
   const [topicList, setTopicList] = useState([]);
@@ -948,6 +952,7 @@ function App() {
     setOdomPose({ x: 0, y: 0, yaw: 0 });
     setLocPath([]);
     setLocPose(null);
+    imuYaw0Ref.current = null;   // IMU方位の基準を取り直す(スタート再配置時)
   };
 
   const nudgeVirtualOdomPose = (dx = 0, dy = 0, dyawDeg = 0) => {
@@ -4179,6 +4184,26 @@ function App() {
       }
     });
 
+    // IMU(WT901C)を購読し、機体の方位(yaw)と傾き(roll/pitch)を取得
+    imuSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/imu/data",
+      messageType: "sensor_msgs/msg/Imu",
+    });
+    imuSubRef.current.subscribe((msg) => {
+      const q = msg?.orientation;
+      if (!q) return;
+      const x = q.x ?? 0, y = q.y ?? 0, z = q.z ?? 0, w = q.w ?? 1;
+      // クォータニオン → ZYX オイラー角 (sensor_visualizer.py と同一規約)
+      const roll = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
+      const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x))));
+      const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+      // 起動時の yaw を 0 に正規化(フィールドのスタート向き=+xに合わせる)
+      if (imuYaw0Ref.current === null) imuYaw0Ref.current = yaw;
+      const relYaw = Math.atan2(Math.sin(yaw - imuYaw0Ref.current), Math.cos(yaw - imuYaw0Ref.current));
+      setImuRpy({ roll, pitch, yaw: relYaw });
+    });
+
     driveModeRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
       name: "r2_drive_mode",
@@ -4659,6 +4684,14 @@ function App() {
           console.warn("Error unsubscribing localization pose topic:", error);
         }
         locPoseSubRef.current = null;
+      }
+      if (imuSubRef.current) {
+        try {
+          imuSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing imu topic:", error);
+        }
+        imuSubRef.current = null;
       }
       if (driveModeRef.current) {
         try {
@@ -5681,6 +5714,18 @@ function App() {
                       />
                       {tr("LiDAR点群", "LiDAR map")}
                     </label>
+                    <label className="serial-packet-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                      {tr("機体[m]", "Body[m]")}
+                      <input
+                        className="connection-input"
+                        type="number"
+                        step="0.05"
+                        min="0.1"
+                        style={{ width: 64 }}
+                        value={bodyFootprintM}
+                        onChange={(e) => setBodyFootprintM(Math.max(0.1, parseFloat(e.target.value) || 0.9))}
+                      />
+                    </label>
                     <button className="serial-clear-button" onClick={resetOdomMap}>
                       {tr("マップリセット", "Reset map")}
                     </button>
@@ -5692,6 +5737,13 @@ function App() {
                   mapPoints={odomMapLidarEnabled ? odomMapPoints : []}
                   corrected={locPose}
                   correctedPath={locPath}
+                  body={{
+                    x: (locPose || odomPose).x,
+                    y: (locPose || odomPose).y,
+                    yaw: imuRpy ? imuRpy.yaw : (locPose || odomPose).yaw,
+                  }}
+                  tilt={imuRpy ? { roll: imuRpy.roll, pitch: imuRpy.pitch } : null}
+                  bodySize={bodyFootprintM}
                 />
                 <div className="pose-graph-legend">
                   <span className="pose-legend-item">

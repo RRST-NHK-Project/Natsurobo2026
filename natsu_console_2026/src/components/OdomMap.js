@@ -16,6 +16,9 @@ import React, { useEffect, useRef } from "react";
     mapPoints     : [{ x, y }, ...]    累積点群マップ(odom フレーム, 任意)
     corrected     : { x, y, yaw }|null ICP補正後の絶対姿勢(/localization/pose, 任意)
     correctedPath : [{ x, y }, ...]    補正後の軌跡(任意)
+    body          : { x, y, yaw }|null 機体現在姿勢(位置=最良自己位置, yaw=IMU方位, 任意)
+    tilt          : { roll, pitch }|null IMUの傾き[rad](任意, 石倉登坂の可視化用)
+    bodySize      : number             機体フットプリント1辺[m](既定0.9)
 
   とても読みにくいと思いますが、描画ロジックは単純で、Canvas API の基本的な使い方を踏襲。
 */
@@ -23,7 +26,7 @@ import React, { useEffect, useRef } from "react";
 const DEFAULT_HALF = 1.0;   // データが無いときの初期表示範囲 ±1m
 const MARGIN = 0.5;         // フィット時の余白[m]
 
-export function OdomMap({ pose, path, mapPoints, corrected, correctedPath }) {
+export function OdomMap({ pose, path, mapPoints, corrected, correctedPath, body, tilt, bodySize = 0.9 }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export function OdomMap({ pose, path, mapPoints, corrected, correctedPath }) {
     for (const q of pts) acc(q.x, q.y);
     for (const q of cTrail) acc(q.x, q.y);
     if (corrected) acc(corrected.x, corrected.y);
+    if (body) acc(body.x, body.y);
     acc(0, 0); // 原点(スタート)も常に含める
 
     let cx0 = (minX + maxX) / 2, cy0 = (minY + maxY) / 2;
@@ -116,6 +120,27 @@ export function OdomMap({ pose, path, mapPoints, corrected, correctedPath }) {
       ctx.stroke();
     }
 
+    // ── 機体フットプリント(bodySize角・IMU方位・傾きで色分け) ──
+    const tiltDeg = tilt
+      ? Math.max(Math.abs(tilt.roll), Math.abs(tilt.pitch)) * 180 / Math.PI : 0;
+    const tiltCol = tiltDeg < 2 ? "#3fb950" : tiltDeg < 5 ? "#d29922" : "#f85149";
+    if (body) {
+      const bh = (bodySize || 0.9) / 2;
+      const bc = Math.cos(body.yaw), bsn = Math.sin(body.yaw);
+      // 機体座標(x前/y左)の四隅: 前左, 前右, 後右, 後左
+      const corners = [[bh, bh], [bh, -bh], [-bh, -bh], [-bh, bh]];
+      const cp = corners.map(([bx, by]) =>
+        toC(body.x + bx * bc - by * bsn, body.y + bx * bsn + by * bc));
+      ctx.beginPath();
+      cp.forEach((q, i) => { if (i === 0) ctx.moveTo(q.cx, q.cy); else ctx.lineTo(q.cx, q.cy); });
+      ctx.closePath();
+      ctx.fillStyle = tiltCol + "22"; ctx.strokeStyle = tiltCol; ctx.lineWidth = 2;
+      ctx.fill(); ctx.stroke();
+      // 前面(前左→前右)を白の太線で示す
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cp[0].cx, cp[0].cy); ctx.lineTo(cp[1].cx, cp[1].cy); ctx.stroke();
+    }
+
     // ── 現在ロボット: 生odom(橙) ──
     const r = toC(p.x, p.y);
     const head = toC(p.x + 0.4 * Math.cos(p.yaw), p.y + 0.4 * Math.sin(p.yaw));
@@ -150,7 +175,30 @@ export function OdomMap({ pose, path, mapPoints, corrected, correctedPath }) {
     }
     ctx.fillStyle = "#8b949e";
     ctx.fillText(`trail=${trail.length}  map=${pts.length}  ${(2 * half).toFixed(1)}m幅`, 8, 42);
-  }, [pose, path, mapPoints, corrected, correctedPath]);
+
+    // ── IMU 姿勢: 右上にバブルレベル + roll/pitch ──
+    if (tilt) {
+      const bx = W - 34, by = 34, R = 24;
+      ctx.strokeStyle = "#30363d"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(bx, by, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx - R, by); ctx.lineTo(bx + R, by);
+      ctx.moveTo(bx, by - R); ctx.lineTo(bx, by + R); ctx.stroke();
+      // バブル(roll→左右, pitch→上下)。±15°で円周。
+      const sc = R / (15 * Math.PI / 180);
+      const dx = Math.max(-R, Math.min(R, tilt.roll * sc));
+      const dy = Math.max(-R, Math.min(R, -tilt.pitch * sc));
+      ctx.fillStyle = tiltCol;
+      ctx.beginPath(); ctx.arc(bx + dx, by + dy, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#6e7681"; ctx.font = "8px monospace"; ctx.textAlign = "center";
+      ctx.fillText("傾き", bx, by + R + 9);
+      ctx.fillStyle = tiltCol; ctx.font = "10px monospace"; ctx.textAlign = "left";
+      ctx.fillText(
+        `IMU  r=${(tilt.roll * 180 / Math.PI).toFixed(0)}° p=${(tilt.pitch * 180 / Math.PI).toFixed(0)}°`,
+        8, 56
+      );
+    }
+  }, [pose, path, mapPoints, corrected, correctedPath, body, tilt, bodySize]);
 
   return (
     <canvas ref={canvasRef} width={460} height={340} className="cage-canvas" />
