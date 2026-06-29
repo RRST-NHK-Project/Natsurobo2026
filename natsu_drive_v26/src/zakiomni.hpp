@@ -107,7 +107,7 @@ private:
    int8_t doubt_enc_num = 0;                                      // 疑わしきエンコーダの番号を特定するための変数
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
    int16_t diff[4] = {0, 0, 0, 0};
-   uint16_t last_enc[4] = {0, 0, 0, 0};
+   int16_t last_enc[4] = {0, 0, 0, 0};
    bool last_CIRCLE = false;
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨
