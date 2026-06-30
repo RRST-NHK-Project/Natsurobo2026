@@ -435,7 +435,7 @@ void Zakicar::about_PID()
 
                     ,
                     dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],
-                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3],
+                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3]
                     /*,D[0],D[1],D[2],D[3],Kff*/);
     }
     else if (count_true > count_false)
