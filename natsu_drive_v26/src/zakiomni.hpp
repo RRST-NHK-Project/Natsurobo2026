@@ -32,14 +32,14 @@
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
 #define cpr 8000               // 1回転あたり8000カウントと仮定
-const float enc_max = 32767.0; // エンコーダーの最大値
+const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
 const float max_target_yaw_cps = 15.0;  // 1秒あたりの最大回転数(回転方向)
 const float Kff = 0.0;                  // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
-const float Kp = 6.5;                   // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
-const float Ki = 2.5;                   // I制御
+const float Kp = 3.5;                   // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
+const float Ki = 0.0;                   // I制御
 const float Kd = 0.0;                   // D制御(ただしめっちゃ振動するから封印中)
 const float filter = 0.2;               // フィルタ係数（小さいほどスムーズらしい）
 const float Imax = 30.0;                // I制御の蓄積の上限（必要に応じて調整）
@@ -107,7 +107,7 @@ private:
    int8_t doubt_enc_num = 0;                                      // 疑わしきエンコーダの番号を特定するための変数
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
    int16_t diff[4] = {0, 0, 0, 0};
-   int16_t last_enc[4] = {0, 0, 0, 0};
+   uint16_t last_enc[4] = {0, 0, 0, 0};
    bool last_CIRCLE = false;
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨

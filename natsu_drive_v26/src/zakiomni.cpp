@@ -277,13 +277,27 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
         count_false = 0;
     }
 
-    diff[0] = ENC1 - last_enc[0]; // int32_tとか使ってたけど現状は速度制御だけだからint16_tどうしの引き算で十分そう（32のつく変数はオミットされました）
-    diff[1] = ENC2 - last_enc[1];
-    diff[2] = ENC3 - last_enc[2];
-    diff[3] = ENC4 - last_enc[3];
+    diff[0] = static_cast<int16_t>(static_cast<uint16_t>(ENC1) - static_cast<uint16_t>(last_enc[0])); // int32_tとか使ってたけど現状は速度制御だけだからint16_tどうしの引き算で十分そう（32のつく変数はオミットされました）
+    diff[1] = static_cast<int16_t>(static_cast<uint16_t>(ENC2) - static_cast<uint16_t>(last_enc[1]));
+    diff[2] = static_cast<int16_t>(static_cast<uint16_t>(ENC3) - static_cast<uint16_t>(last_enc[2]));
+    diff[3] = static_cast<int16_t>(static_cast<uint16_t>(ENC4) - static_cast<uint16_t>(last_enc[3]));
+
+    for(int i = 0; i < 4; i++)
+    {
+        if (diff[i] > enc_max / 2)
+        { // オーバーフローの補正
+            diff[i] -= enc_max;
+        }
+        else if (diff[i] < -enc_max / 2)
+        {
+            diff[i] += enc_max;
+        }
+       
+    }
+
     for (int i = 0; i < 4; i++)
     {
-        rps[i] = -diff[i] / (dt * cpr); // 回転数を計算(-は回転方向の調整)
+        rps[i] = diff[i] / (dt * cpr); // 回転数を計算
         if (rps[i])
         {
             rps_count[i].store(true); // エンコーダが回転してるか判定する
@@ -295,6 +309,7 @@ void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr ms
             count_false++;
         }
     }
+
     rps_num_count = rps_count[0].load() + rps_count[1].load() + rps_count[2].load() + rps_count[3].load(); // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
 
     last_enc[0] = ENC1;
@@ -420,7 +435,8 @@ void Zakicar::about_PID()
 
                     ,
                     dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],
-                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3] /*,D[0],D[1],D[2],D[3],Kff*/);
+                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3],
+                    /*,D[0],D[1],D[2],D[3],Kff*/);
     }
     else if (count_true > count_false)
     { // 回転しているエンコーダの数が3のときは空転している可能性が高いからログを出す

@@ -5,11 +5,13 @@
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 Shivalian_control::Shivalian_control(uint8_t rx_device_id)
-    : Node("guess_position_26")
+    : Node("guess_position_26"),rx_device_id_(rx_device_id)
 {
 
+    RCLCPP_INFO(this->get_logger(), "Waiting for receiving serial_rx_%d.", rx_device_id_);
+
     sensor_sub_2 = this->create_subscription<std_msgs::msg::Int16MultiArray>(
-        "serial_rx_" + std::to_string(INPUT_DEVICE_ID),
+        "serial_rx_" + std::to_string(rx_device_id_),
         10,
         std::bind(&Shivalian_control::sensor_callback_2,
                   this,
@@ -36,7 +38,7 @@ void Shivalian_control::sensor_callback_2(
     {
         RCLCPP_WARN(this->get_logger(),
                     "serial_rx_%d: data too short (%zu)",
-                    device_id_, msg->data.size());
+                    rx_device_id_, msg->data.size());
         return;
     }
 
@@ -102,8 +104,8 @@ void Shivalian_control::sensor_callback_2(
                    {d_rad * dt}}); // ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
 
     R = matrix({{cos(yaw), -sin(yaw), 0},
-                {sin(yaw), cos(yaw), 0},
-                {0, 0, 1}}); // 3×3のyaw回転行列(動力学で出てくる運動座標系A-ξηから固定座標系O-xyへの変換行列)
+                {sin(yaw), cos(yaw) , 0},
+                {0       ,0         , 1}}); // 3×3のyaw回転行列(動力学で出てくる運動座標系A-ξηから固定座標系O-xyへの変換行列)
 
     dR = R * dR_r; // ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
 
