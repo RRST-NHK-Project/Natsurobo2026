@@ -21,7 +21,6 @@ setup(
     maintainer_email="you@example.com",
     description="ODrive v3.6 (fw 0.5.6) USB control node for Natsurobo2026",
     license="MIT",
-    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             # ros2 run natsu_odrive odrive_node
