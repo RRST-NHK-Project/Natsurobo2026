@@ -32,7 +32,7 @@
 
 #define PUBLISH_RATE_MS 20     // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 #define cpr 8000               // 1回転あたり8000カウントと仮定
-const float enc_max = 32767.0; // エンコーダーの最大値
+const float enc_max = 32768.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
 const double odom_1_2_angle = 120; // オドメトリ1と2の角度差(度)

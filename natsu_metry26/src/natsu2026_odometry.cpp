@@ -79,6 +79,14 @@ void Shivalian_control::sensor_callback_2(
     for (int i = 0; i < 3; i++)
     {
         diff[i] = enc[i] - last_enc[i];
+        if(diff[i] > enc_max/2){//オーバーフローの補正
+            diff[i] -= enc_max;
+        }else if(diff[i] < -enc_max/2){
+            diff[i] += enc_max;
+        }
+    }
+
+    for (int i = 0; i < 3; i++){
         rps[i] = -diff[i] / (dt * cpr); // Mark Ⅱが-diff[i]だっただけでMark Ⅲがどうなるかは不明。
         last_enc[i] = enc[i];
         v[i] = ODOM_WHEEL_CIRC * rps[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
