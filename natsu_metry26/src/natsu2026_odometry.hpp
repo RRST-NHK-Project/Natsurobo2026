@@ -29,7 +29,7 @@
 #if defined(SHIVANGELION)
 static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 #elif defined(MINI_AT)
-static constexpr double ODOM_LR_DISTANCE = 0.0; // ミニ自動機用寸法
+static constexpr double ODOM_LR_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
 #endif
 
 #if (defined(SHIVANGELION) + defined(MINI_AT)) !=1
