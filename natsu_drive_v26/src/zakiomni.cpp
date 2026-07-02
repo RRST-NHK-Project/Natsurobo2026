@@ -393,7 +393,7 @@ void Zakicar::about_PID()
         I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
         D[l] = Kd * err_diff[l];
 
-        if (fabs(target_v[l]) <= 5.0)
+        if (fabs(target_v[l]) <= 0.8)
         { // 低速ではPのみで十分かなって
             I[l] = 0.0;
             err_sum[l] = 0.0; // Iの蓄積もリセット(今までこれをど忘れしてた)
@@ -499,6 +499,11 @@ void Zakicar::Shivangelion()
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
+
+    const char *msg = "SHIVANGELION MARK 3 !!!";
+    std::string fig_msg = "figlet " + std::string(msg);
+    int result = std::system(fig_msg.c_str());
+
 
     rclcpp::executors::MultiThreadedExecutor exec;
 
