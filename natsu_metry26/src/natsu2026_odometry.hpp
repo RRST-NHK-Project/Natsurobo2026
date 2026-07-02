@@ -23,6 +23,20 @@
 // 自作
 #include "natsu_metry26/matrix.h"
 
+#define SHIVANGELION // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
+//#define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
+
+#if defined(SHIVANGELION)
+static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
+#elif defined(MINI_AT)
+static constexpr double ODOM_LR_DISTANCE = 0.0; // ミニ自動機用寸法
+#endif
+
+#if (defined(SHIVANGELION) + defined(MINI_AT)) !=1
+#error "Please define only one of SHIVANGELION or MINI_AT."
+#endif
+
+
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 送信先マイコンのID
 #define INPUT_DEVICE_ID 2  // 受信先マイコンのID
@@ -62,7 +76,7 @@ private:
    static constexpr double ODOM_WHEEL_CIRC = opPI * ODOM_WHEEL_DIAMETER;  // 自動的に(ry
    static constexpr double ENCODER_RESOLUTION = 1024.0;
    static constexpr double ENC_TO_M = ODOM_WHEEL_CIRC / ENCODER_RESOLUTION;
-   static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
+   //static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
    static constexpr double ODOM_F_OFFSET = 0.335;
 
    static constexpr double ODOM_X_SCALE = 1.0;
