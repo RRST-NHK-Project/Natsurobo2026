@@ -25,7 +25,7 @@
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 2 // 送信先マイコンのID
-#define INPUT_DEVICE_ID 3  // 受信先マイコンのID
+#define INPUT_DEVICE_ID 2  // 受信先マイコンのID
 
 #define TX16NUM 24 // 送信データ数
 #define RX16NUM 17 // 受信データ数
@@ -103,7 +103,7 @@ private:
 
    float yaw = 0.0;
 
-   bool topic_received = false;
+   bool topic_received = false;//ノード止めたときにUSB抜き差ししたらリセットされる
 
    // Matrix(mat.hで定義した行列)
 
