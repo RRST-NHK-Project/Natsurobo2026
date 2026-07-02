@@ -4,7 +4,7 @@ from launch_ros.actions import Node
 # 2台の ODrive (= 4モータ) を一括起動する。
 # ★ serial_number は odrivetool や configure_odrive.py の出力で確認して置き換える。
 BOARD_A_SERIAL = "336C355A3033"          # 確認済み
-BOARD_B_SERIAL = "REPLACE_WITH_SERIAL_B"  # ★2台目が分かったら書き換える
+BOARD_B_SERIAL = "345F36533334"          # 確認済み
 
 COMMON = {
     "vel_limit": 20.0,
