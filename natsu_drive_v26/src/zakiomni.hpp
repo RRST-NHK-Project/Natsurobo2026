@@ -12,7 +12,6 @@
 
 //ROS
 #include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/imu.hpp" //変な挙動したら削除して下さい。imuによる制御補助用。
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
@@ -38,7 +37,6 @@ const float enc_max = 32768.0; // エンコーダーの最大値
 // 　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
 const float max_target_yaw_cps = 15.0;  // 1秒あたりの最大回転数(回転方向)
-const float Kp_yaw = 4.0;               // ヘディングロック P ゲイン [rps/rad] (要調整)
 const float Kff = 0.0;                  // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
 const float Kp = 7.0;                   // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
 const float Ki = 1.35;                   // I制御
@@ -61,7 +59,6 @@ public:
 private:
    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
-   void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
    void publisher_timer_callback();
    void about_PID();
    void Timeout_check();
@@ -74,13 +71,7 @@ private:
    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
-   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
-
-   // IMU ヘディングロック
-   double imu_yaw_{0.0};
-   double target_yaw_{0.0};
-   bool have_imu_{false};
 
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};

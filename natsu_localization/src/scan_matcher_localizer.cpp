@@ -29,7 +29,6 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
-#include "sensor_msgs/msg/imu.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
@@ -120,7 +119,6 @@ public:
     declare_parameter<double>("lidar_yaw", 0.0);
     declare_parameter<std::string>("scan_topic", "/scan");
     declare_parameter<std::string>("odom_topic", "odom");
-    declare_parameter<std::string>("imu_topic", "/imu");
     declare_parameter<std::string>("pose_topic", "/localization/pose");
     declare_parameter<bool>("publish_tf", true);
     declare_parameter<std::string>("map_frame", "map");
@@ -143,9 +141,6 @@ public:
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
         odom_topic_, rclcpp::SensorDataQoS(),
         std::bind(&ScanMatcherLocalizer::odom_cb, this, std::placeholders::_1));
-    imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-        imu_topic_, rclcpp::SensorDataQoS(),
-        std::bind(&ScanMatcherLocalizer::imu_cb, this, std::placeholders::_1));
     scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
         scan_topic_, rclcpp::SensorDataQoS(),
         std::bind(&ScanMatcherLocalizer::scan_cb, this, std::placeholders::_1));
@@ -169,7 +164,6 @@ private:
     lidar_yaw_ = get_parameter("lidar_yaw").as_double();
     scan_topic_ = get_parameter("scan_topic").as_string();
     odom_topic_ = get_parameter("odom_topic").as_string();
-    imu_topic_  = get_parameter("imu_topic").as_string();
     pose_topic_ = get_parameter("pose_topic").as_string();
     publish_tf_ = get_parameter("publish_tf").as_bool();
     map_frame_ = get_parameter("map_frame").as_string();
@@ -208,14 +202,6 @@ private:
     have_odom_ = true;
   }
 
-  // ── IMU: ヨー角のみ保持 (yaw は積分のみなので delta で使う) ──
-  void imu_cb(const sensor_msgs::msg::Imu::SharedPtr msg) {
-    const double qx = msg->orientation.x, qy = msg->orientation.y;
-    const double qz = msg->orientation.z, qw = msg->orientation.w;
-    imu_yaw_  = std::atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz));
-    have_imu_ = true;
-  }
-
   // ── スキャン→base_link座標の点群に変換(LiDAR取付オフセット適用) ──
   std::vector<std::pair<double, double>> scanToBasePoints(const sensor_msgs::msg::LaserScan &scan) {
     std::vector<std::pair<double, double>> pts;
@@ -243,15 +229,6 @@ private:
     Pose2D pred = est_;
     if (have_odom_ && have_last_odom_) {
       Pose2D motion = relative(cur_odom_, last_odom_);   // 直前→現在の移動量
-
-      // IMUヨーが利用可能なら、エンコーダ由来のΔthをIMUのΔthで上書き
-      // (ジャイロ積分はエンコーダより回転精度が高い)
-      if (have_imu_ && have_last_imu_yaw_) {
-        double dth = imu_yaw_ - last_imu_yaw_;
-        dth = std::atan2(std::sin(dth), std::cos(dth));  // ±π に正規化
-        motion.th = dth;
-      }
-
       pred = compose(est_, motion);
     }
 
@@ -323,10 +300,6 @@ private:
     est_ = estPose;
     last_odom_ = cur_odom_;
     have_last_odom_ = have_odom_;
-    if (have_imu_) {
-      last_imu_yaw_     = imu_yaw_;
-      have_last_imu_yaw_ = true;
-    }
 
     publish(estPose, scan->header.stamp, ok, meanErr);
   }
@@ -366,18 +339,14 @@ private:
   Pose2D start_pose_, est_, cur_odom_, last_odom_;
   bool have_odom_{false}, have_last_odom_{false};
 
-  double imu_yaw_{0.0}, last_imu_yaw_{0.0};
-  bool have_imu_{false}, have_last_imu_yaw_{false};
-
   double lidar_x_, lidar_y_, lidar_yaw_;
-  std::string scan_topic_, odom_topic_, imu_topic_, pose_topic_, map_frame_, odom_frame_;
+  std::string scan_topic_, odom_topic_, pose_topic_, map_frame_, odom_frame_;
   bool publish_tf_;
   double range_min_, range_max_;
   int point_skip_, icp_max_iter_, gn_max_iter_, min_match_points_;
   double icp_dthre_, icp_dthre_end_, converge_delta_, min_match_ratio_, max_mean_error_;
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr   imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;

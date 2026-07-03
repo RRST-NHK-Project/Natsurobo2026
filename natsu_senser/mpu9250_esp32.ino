@@ -39,7 +39,7 @@ typedef union {
 
 // ---- グローバル変数 ----
 VEC3 accRaw, accRawLPF, gyroRaw;
-VEC3 Vg;   // 重力ベクトル
+VEC3 Vg;   // 重力ベクトル (姿勢の核心)
 
 int32_t accCal[3]  = {};
 int32_t gyroCal[3] = {};
