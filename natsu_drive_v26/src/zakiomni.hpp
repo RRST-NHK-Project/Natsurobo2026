@@ -12,7 +12,7 @@
 
 //ROS
 #include "rclcpp/rclcpp.hpp"
-// #include "sensor_msgs/msg/imu.hpp"
+#include "sensor_msgs/msg/imu.hpp" //変な挙動したら削除して下さい。imuによる制御補助用。
 #include "sensor_msgs/msg/joy.hpp"
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
