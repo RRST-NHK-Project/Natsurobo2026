@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>natsu_senser</name>
+  <version>0.1.0</version>
+  <description>
+    MPU9250/ESP32 IMU serial_bridge_node
+    ESP32からの ASCII "IMU:roll,pitch,yaw,step" をパースし、
+    sensor_msgs/Imu として /imu に publish する。
+  </description>
+  <maintainer email="riko26maeda@gmail.com">RRST NHK Project</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

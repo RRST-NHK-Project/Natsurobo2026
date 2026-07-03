@@ -70,6 +70,11 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
                   this,
                   std::placeholders::_1));
 
+    // // IMU (ヘディングロック用)
+    // imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+    //     "/imu", 10,
+    //     std::bind(&Zakicar::imu_callback, this, std::placeholders::_1));
+
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
 }
@@ -152,13 +157,24 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         target_v[3] += max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian);
     }
 
-    // 旋回モード
+    // 旋回モード / ヘディングロック
     if (RS_X)
     {
         for (int i = 0; i < 4; i++)
         {
             target_v[i] = -max_target_yaw_cps * RS_X;
         }
+        // 旋回中は現在の向きを都度記録し、スティックを戻したときにその向きをキープ
+        if (have_imu_) target_yaw_ = imu_yaw_;
+    }
+    else if (have_imu_)
+    {
+        // ヘディングロック: 目標方位と現在方位の偏差に P 制御で微小補正
+        double yaw_err = target_yaw_ - imu_yaw_;
+        yaw_err = std::atan2(std::sin(yaw_err), std::cos(yaw_err));  // ±π に正規化
+        float corr = std::clamp(Kp_yaw * static_cast<float>(yaw_err),
+                                -max_target_yaw_cps * 0.3f, max_target_yaw_cps * 0.3f);
+        for (int i = 0; i < 4; i++) target_v[i] += corr;
     }
     for (int l = 0; l < 4; l++)
     {
@@ -210,6 +226,17 @@ void Zakicar::publisher_timer_callback()
     std_msgs::msg::Int16MultiArray msg;
     msg.data = data_;
     publisher_->publish(msg); // 送信
+}
+
+void Zakicar::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
+{
+    const double qx = msg->orientation.x, qy = msg->orientation.y;
+    const double qz = msg->orientation.z, qw = msg->orientation.w;
+    imu_yaw_ = std::atan2(2.0*(qw*qz + qx*qy), 1.0 - 2.0*(qy*qy + qz*qz));
+    if (!have_imu_) {
+        target_yaw_ = imu_yaw_;  // 初回受信時: 現在の向きをターゲットにセット
+        have_imu_ = true;
+    }
 }
 
 void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
