@@ -195,8 +195,25 @@ void Shivalian_control::publisher_position_callback()
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
+
+    // figletでノード名を表示
+    std::string figletmsg = "Odometry  For Natsurobo2026";
+    std::string figletout = "figlet " + std::string(figletmsg);
+    int result = std::system(figletout.c_str());
+    if (result != 0) {
+        std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                  << std::endl;
+        std::cerr << "Please install 'figlet' with the following command:"
+                  << std::endl;
+        std::cerr << "sudo apt install figlet" << std::endl;
+        std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                  << std::endl;
+    }
+    rclcpp::executors::MultiThreadedExecutor exec;
+
     auto node = std::make_shared<Shivalian_control>(INPUT_DEVICE_ID);
-    rclcpp::spin(node);
+    exec.add_node(node);
+    exec.spin();
     rclcpp::shutdown();
     return 0;
 }
