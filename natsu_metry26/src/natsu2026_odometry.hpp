@@ -29,9 +29,9 @@
 #define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
 
 #if defined(SHIVANGELION_MARK_3)
-static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
+static constexpr double ODOM_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 #elif defined(MINI_AT)
-static constexpr double ODOM_LR_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
+static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
 #endif
 
 #if (defined(SHIVANGELION_MARK_3) + defined(MINI_AT)) !=1
@@ -99,36 +99,36 @@ private:
    // 命名規則:小文字は変数、大文字は行列、ii、jj、kkは単位はそれぞれx、y、z方向の単位ベクトルを表す行列、dの接頭辞が付くと変化量、r、Rは位置、_rはロボットを基準とした直行座標系
    rclcpp::Time current;
    rclcpp::Time last;
-   float dt = 0.0;
+   double dt = 0.0;
    int16_t enc[3] = {0, 0, 0};
    int16_t last_enc[3] = {0, 0, 0};
    int16_t diff[3] = {0, 0, 0};
    int16_t ENC1;
    int16_t ENC2;
    int16_t ENC3;
-   float rps[3] = {0.0, 0.0, 0.0};
-   float v[3] = {0.0, 0.0, 0.0};
-   float v_ = 0.0;
+   double rps[3] = {0.0, 0.0, 0.0};
+   double v[3] = {0.0, 0.0, 0.0};
+   double v_ = 0.0;
 
-   float q_rad = 0.0;
-   float q_z = 0.0;
-   float q_w = 0.0;
+   double q_rad = 0.0;
+   double q_z = 0.0;
+   double q_w = 0.0;
 
-   float vx_r = 0.0;
-   float vy_r = 0.0;
-   float d_rad = 0.0;
+   double vx_r = 0.0;
+   double vy_r = 0.0;
+   double d_rad = 0.0;
 
-   float dx_r = 0.0;
-   float dy_r = 0.0;
+   double dx_r = 0.0;
+   double dy_r = 0.0;
 
-   float dx = 0.0;
-   float dy = 0.0;
-   float d_yaw = 0.0;
+   double dx = 0.0;
+   double dy = 0.0;
+   double d_yaw = 0.0;
 
-   float point_Px = 0.0;
-   float point_Py = 0.0;
+   double point_Px = 0.0;
+   double point_Py = 0.0;
 
-   float yaw = 0.0;
+   double yaw = 0.0;
 
    bool topic_received = false;//ノード止めたときにUSB抜き差ししたらリセットされる
 
@@ -154,9 +154,9 @@ private:
                       {sin(yaw), cos(yaw), 0},
                       {0, 0, 1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
 
-   matrix FK = matrix({{cos(radian1), sin(radian1), ODOM_LR_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
-                       {cos(radian2), sin(radian2), ODOM_LR_DISTANCE},
-                       {cos(radian3), sin(radian3), ODOM_LR_DISTANCE}}); // 逆運動学における変換行列
+   matrix FK = matrix({{cos(radian1), sin(radian1), ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
+                       {cos(radian2), sin(radian2), ODOM_DISTANCE},
+                       {cos(radian3), sin(radian3), ODOM_DISTANCE}}); // 逆運動学における変換行列
 
    matrix FK_inv = FK.inv(); // mat.cppで逆行列へ(順運動学における変換行列)
 
