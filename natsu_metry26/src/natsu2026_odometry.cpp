@@ -197,8 +197,7 @@ int main(int argc, char *argv[])
     rclcpp::init(argc, argv);
 
     // figletでノード名を表示
-    std::string figletmsg = "Odometry  For Natsurobo2026";
-    std::string figletout = "figlet " + std::string(figletmsg);
+    std::string figletout = "figlet Odometry For Natsurobo2026";
     int result = std::system(figletout.c_str());
     if (result != 0) {
         std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"

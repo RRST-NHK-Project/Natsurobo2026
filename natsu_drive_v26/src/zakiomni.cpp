@@ -472,9 +472,8 @@ void Zakicar::Shivangelion()
 {
     if (!shivangelion_activated.load())
     {
-        const char *msg = " Shivangelion Mark3!!! Activatation!!!";
-        std::string fig_msg = "figlet " + std::string(msg);
-        int result = std::system(fig_msg.c_str());
+        std::string figletout = "figlet Shivangelion Mark3!!! Activatation!!!";
+        int result = std::system(figletout.c_str());
 
         if (result != 0)
         {
@@ -500,9 +499,8 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    const char *msg = "SHIVANGELION MARK 3 !!!";
-    std::string fig_msg = "figlet " + std::string(msg);
-    int result = std::system(fig_msg.c_str());
+    std::string figletout = "figlet SHIVANGELION MARK 3 !!!";
+    int result = std::system(figletout.c_str());
 
 
     rclcpp::executors::MultiThreadedExecutor exec;
