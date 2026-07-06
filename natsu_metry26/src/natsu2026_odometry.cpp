@@ -90,8 +90,8 @@ void Shivalian_control::sensor_callback_2(
         #if defined(SHIVANGELION_MARK_3) 
             rps[i] = -diff[i] / (dt * cpr); 
         #elif defined(MINI_AT)
-            rps[0] = diff[0] / (dt * cpr);
-            rps[1] = -diff[1] / (dt * cpr);
+            rps[0] = -diff[0] / (dt * cpr);
+            rps[1] = diff[1] / (dt * cpr);
             rps[2] = -diff[2] / (dt * cpr);
         #endif
         
