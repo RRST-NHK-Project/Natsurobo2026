@@ -25,17 +25,17 @@
 
 //=======動かす機体の設定========================
 
-#define SHIVANGELION // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
-//#define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
+//#define SHIVANGELION_MARK_3 // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
+#define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
 
-#if defined(SHIVANGELION)
+#if defined(SHIVANGELION_MARK_3)
 static constexpr double ODOM_LR_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 #elif defined(MINI_AT)
 static constexpr double ODOM_LR_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
 #endif
 
-#if (defined(SHIVANGELION) + defined(MINI_AT)) !=1
-#error "Please define only one of SHIVANGELION or MINI_AT."
+#if (defined(SHIVANGELION_MARK_3) + defined(MINI_AT)) !=1
+#error "Please define only one of SHIVANGELION_MARK_3 or MINI_AT."
 #endif
 
 //================================================

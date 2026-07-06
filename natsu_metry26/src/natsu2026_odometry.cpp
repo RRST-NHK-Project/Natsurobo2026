@@ -84,10 +84,17 @@ void Shivalian_control::sensor_callback_2(
         }else if(diff[i] < -enc_max/2){
             diff[i] += enc_max;
         }
-    }
-
+    } 
     for (int i = 0; i < 3; i++){
-        rps[i] = -diff[i] / (dt * cpr); // Mark Ⅱが-diff[i]だっただけでMark Ⅲがどうなるかは不明。
+
+        #if defined(SHIVANGELION_MARK_3) 
+            rps[i] = -diff[i] / (dt * cpr); 
+        #elif defined(MINI_AT)
+            rps[0] = diff[0] / (dt * cpr);
+            rps[1] = -diff[1] / (dt * cpr);
+            rps[2] = -diff[2] / (dt * cpr);
+        #endif
+        
         last_enc[i] = enc[i];
         v[i] = ODOM_WHEEL_CIRC * rps[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
     }
