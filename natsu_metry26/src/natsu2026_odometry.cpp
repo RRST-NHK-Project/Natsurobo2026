@@ -88,16 +88,16 @@ void Shivalian_control::sensor_callback_2(
     for (int i = 0; i < 3; i++){
 
         #if defined(SHIVANGELION_MARK_3) 
-            enc_rad[i] = -diff[i] * 2.0 * opPI / ( cpr* dt);// エンコーダの差分をラジアンに変換
+            enc_d_rad[i] = -diff[i] * 2.0 * opPI / (cpr* dt);// エンコーダの差分をラジアンに変換
         #elif defined(MINI_AT)
-            enc_rad[0]= -diff[0]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
-            enc_rad[1]= diff[1]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
-            enc_rad[2]= -diff[2]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
+            enc_d_rad[0]= -diff[0]* 2.0 * opPI / (cpr* dt); //各車輪のエンコーダの取り付け場所が違うせいで符号が違う
+            enc_d_rad[1]= diff[1]* 2.0 * opPI / (cpr* dt); 
+            enc_d_rad[2]= -diff[2]* 2.0 * opPI / (cpr* dt); 
 
         #endif
         
        
-        v[i] = ODOM_WHEEL_RADIUS * enc_rad[i]; // 各車輪のスカラーを算出(向きは半径ODOM_DISTANCEの接線方向)
+        v[i] = ODOM_WHEEL_RADIUS * enc_d_rad[i]; // 各車輪の速度のスカラーを算出(向きは半径ODOM_DISTANCEの接線方向)
          last_enc[i] = enc[i];
     }
 
@@ -109,7 +109,7 @@ void Shivalian_control::sensor_callback_2(
 
     V_r = FK_inv * V_wheel; // タイヤの速度ベクトルから、ロボットを原点とした基準での直交座標系の速度ベクトルへ
 
-    vx_r = V_r.operator()(0, 0); //(i-1,j-1にあたる成分を取り出す)
+    vx_r = V_r.operator()(0, 0); //(i+1,j+1にあたる成分を取り出す)
     vy_r = V_r.operator()(1, 0);
     d_rad = V_r.operator()(2, 0);
 

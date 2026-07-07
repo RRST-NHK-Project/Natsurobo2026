@@ -106,7 +106,7 @@ private:
    int16_t ENC1;
    int16_t ENC2;
    int16_t ENC3;
-   double enc_rad[3] = {0.0, 0.0, 0.0};
+   double enc_d_rad[3] = {0.0, 0.0, 0.0};// エンコーダの差分を角速度に変換した値
    double rps[3] = {0.0, 0.0, 0.0};
    double v[3] = {0.0, 0.0, 0.0};
    double v_ = 0.0;
