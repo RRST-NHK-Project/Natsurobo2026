@@ -54,6 +54,9 @@ void Shivalian_control::sensor_callback_2(
             dy_r = 0.0;
             d_rad = 0.0;
             yaw = 0.0;
+            last_enc[0] = msg->data[1];
+            last_enc[1] = msg->data[2];
+            last_enc[2] = msg->data[3];
             last = this->now();
             topic_received = true;
         }
@@ -105,8 +108,6 @@ void Shivalian_control::sensor_callback_2(
                       {v[1]},
                       {v[2]}}); // 各車輪の速度をベクトル化
 
-    FK_inv = FK.inv();
-
     V_r = FK_inv * V_wheel; // タイヤの速度ベクトルから、ロボットを原点とした基準での直交座標系の速度ベクトルへ
 
     vx_r = V_r.operator()(0, 0); //(i+1,j+1にあたる成分を取り出す)
@@ -119,11 +120,24 @@ void Shivalian_control::sensor_callback_2(
     dR_r = matrix({{dx_r},
                    {dy_r},
                    {d_rad * dt}}); // ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
-
+    /*
     R = matrix({{cos(yaw), -sin(yaw), 0},
                 {sin(yaw), cos(yaw) , 0},
                 {0       ,0         , 1}}); // 3×3のyaw回転行列(動力学で出てくる運動座標系A-ξηから固定座標系O-xyへの変換行列)
+    */
+   
+   //===なぜ値が合わないのか分からないからとりあえずGeminiコードに置換してみる===
 
+   // 角度の変化量(d_yaw)の半分を現在のyawに足した「中点のyaw」を計算
+    double mid_yaw = yaw + (d_yaw / 2.0);
+
+    // 中点のyawを使って回転行列Rを作る
+    R = matrix({{cos(mid_yaw), -sin(mid_yaw), 0},
+                {sin(mid_yaw), cos(mid_yaw) , 0},
+                {0           , 0            , 1}});
+
+    //===========================================================================
+    
     dR = R * dR_r; // ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
 
     dx = dR.operator()(0, 0);
