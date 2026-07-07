@@ -93,8 +93,8 @@ void Shivalian_control::sensor_callback_2(
         #if defined(SHIVANGELION_MARK_3) 
             enc_d_rad[i] = -diff[i] * 2.0 * opPI / (cpr* dt);// エンコーダの差分をラジアンに変換
         #elif defined(MINI_AT)
-            enc_d_rad[0]= -diff[0]* 2.0 * opPI / (cpr* dt); //各車輪のエンコーダの取り付け場所が違うせいで符号が違う
-            enc_d_rad[1]= diff[1]* 2.0 * opPI / (cpr* dt); 
+            enc_d_rad[0]= diff[0]* 2.0 * opPI / (cpr* dt); //各車輪のエンコーダの取り付け場所が違うせいで符号が違う
+            enc_d_rad[1]= -diff[1]* 2.0 * opPI / (cpr* dt); 
             enc_d_rad[2]= -diff[2]* 2.0 * opPI / (cpr* dt); 
 
         #endif

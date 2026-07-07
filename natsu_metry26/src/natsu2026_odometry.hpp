@@ -54,7 +54,7 @@ static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけ
 const float enc_max = 32768.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
-const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
+const double angle1 = -90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
 
 const double odom_1_2_angle = 120; // オドメトリ1と2の角度差(度)
 const double odom_2_3_angle = 120; // オドメトリ2と3の角度差(度)
@@ -155,9 +155,9 @@ private:
                       {sin(yaw), cos(yaw), 0},
                       {0, 0, 1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
 
-   matrix FK = matrix({{cos(radian1), sin(radian1), -ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
-                       {cos(radian2), sin(radian2), -ODOM_DISTANCE},
-                       {cos(radian3), sin(radian3), -ODOM_DISTANCE}}); // 逆運動学における変換行列
+   matrix FK = matrix({{cos(radian1), sin(radian1), ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
+                       {cos(radian2), sin(radian2), ODOM_DISTANCE},
+                       {cos(radian3), sin(radian3), ODOM_DISTANCE}}); // 逆運動学における変換行列
 
    matrix FK_inv = FK.inv(); // mat.cppで逆行列へ(順運動学における変換行列)
 
