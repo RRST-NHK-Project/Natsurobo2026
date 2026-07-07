@@ -88,13 +88,17 @@ void Shivalian_control::sensor_callback_2(
     for (int i = 0; i < 3; i++){
 
         #if defined(SHIVANGELION_MARK_3) 
-            enc_rad[i] = diff[i] * 2.0 * opPI / enc_max; // エンコーダの差分をラジアンに変換
+            enc_rad[i] = -diff[i] * 2.0 * opPI / ( cpr* dt);// エンコーダの差分をラジアンに変換
         #elif defined(MINI_AT)
-            enc_rad[i] = diff[i] * 2.0 * opPI / enc_max; // エンコーダの差分をラジアンに変換
+            enc_rad[0]= -diff[0]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
+            enc_rad[1]= diff[1]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
+            enc_rad[2]= -diff[2]* 2.0 * opPI / (cpr* dt); // エンコーダの差分をラジアンに変換
+
         #endif
         
-        last_enc[i] = enc[i];
-        v[i] = ODOM_WHEEL_RADIUS * enc_rad[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
+       
+        v[i] = ODOM_WHEEL_RADIUS * enc_rad[i]; // 各車輪のスカラーを算出(向きは半径ODOM_DISTANCEの接線方向)
+         last_enc[i] = enc[i];
     }
 
     V_wheel = matrix({{v[0]},
@@ -186,7 +190,7 @@ void Shivalian_control::publisher_position_callback()
     tf.transform.rotation.z = q_z;
     tf.transform.rotation.w = q_w;
     tf_broadcaster_->sendTransform(tf);
-    RCLCPP_INFO(this->get_logger(), "Position: (%.2f, %.2f)(m), Yaw: %.2f(rad), vx_r,vy_r: (%.2f, %.2f)(m/s), d_rad: %.2f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.2f, %.2f, %.2f)(m/s), q_z: %.2f(rad), q_w: %.2f(rad)",
+    RCLCPP_INFO(this->get_logger(), "Position: (%.3f, %.3f)(m), Yaw: %.3f(rad), vx_r,vy_r: (%.3f, %.3f)(m/s), d_rad: %.3f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.3f, %.3f, %.3f)(m/s), q_z: %.3f(rad), q_w: %.3f(rad)",
                 point_Px, point_Py, yaw, vx_r, vy_r, d_rad, dt, ENC1, ENC2, ENC3, v[0], v[1], v[2], q_z, q_w);
 }
 
