@@ -54,7 +54,7 @@ static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけ
 const float enc_max = 32768.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
-const double angle1 = 0.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
+const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
 
 const double odom_1_2_angle = 120; // オドメトリ1と2の角度差(度)
 const double odom_2_3_angle = 120; // オドメトリ2と3の角度差(度)
