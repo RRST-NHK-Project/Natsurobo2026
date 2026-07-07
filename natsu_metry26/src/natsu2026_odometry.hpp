@@ -154,9 +154,9 @@ private:
                       {sin(yaw), cos(yaw), 0},
                       {0, 0, 1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
 
-   matrix FK = matrix({{cos(radian1), sin(radian1), ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
-                       {cos(radian2), sin(radian2), ODOM_DISTANCE},
-                       {cos(radian3), sin(radian3), ODOM_DISTANCE}}); // 逆運動学における変換行列
+   matrix FK = matrix({{cos(radian1), sin(radian1), -ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
+                       {cos(radian2), sin(radian2), -ODOM_DISTANCE},
+                       {cos(radian3), sin(radian3), -ODOM_DISTANCE}}); // 逆運動学における変換行列
 
    matrix FK_inv = FK.inv(); // mat.cppで逆行列へ(順運動学における変換行列)
 
