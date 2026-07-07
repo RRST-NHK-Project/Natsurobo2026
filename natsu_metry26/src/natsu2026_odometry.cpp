@@ -88,15 +88,13 @@ void Shivalian_control::sensor_callback_2(
     for (int i = 0; i < 3; i++){
 
         #if defined(SHIVANGELION_MARK_3) 
-            rps[i] = -diff[i] / (dt * cpr); 
+            enc_rad[i] = diff[i] * 2.0 * opPI / enc_max; // エンコーダの差分をラジアンに変換
         #elif defined(MINI_AT)
-            rps[0] = -diff[0] / (dt * cpr);
-            rps[1] = diff[1] / (dt * cpr);
-            rps[2] = -diff[2] / (dt * cpr);
+            enc_rad[i] = diff[i] * 2.0 * opPI / enc_max; // エンコーダの差分をラジアンに変換
         #endif
         
         last_enc[i] = enc[i];
-        v[i] = ODOM_WHEEL_CIRC * rps[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
+        v[i] = ODOM_WHEEL_RADIUS * enc_rad[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
     }
 
     V_wheel = matrix({{v[0]},

@@ -106,6 +106,7 @@ private:
    int16_t ENC1;
    int16_t ENC2;
    int16_t ENC3;
+   double enc_rad[3] = {0.0, 0.0, 0.0};
    double rps[3] = {0.0, 0.0, 0.0};
    double v[3] = {0.0, 0.0, 0.0};
    double v_ = 0.0;
