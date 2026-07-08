@@ -103,8 +103,8 @@ private:
 
         // bool LEFT = msg->axes[6] == 1.0;
         // bool RIGHT = msg->axes[6] == -1.0;
-        // bool UP = msg->axes[7] == 1.0;
-        // bool DOWN = msg->axes[7] == -1.0;
+        bool UP = msg->axes[7] == 1.0;
+        bool DOWN = msg->axes[7] == -1.0;
 
         // bool L1 = msg->buttons[4];
         // bool R1 = msg->buttons[5];
@@ -158,6 +158,15 @@ private:
             } // 夏ロボ機体は後退（下降）のネジを外してる
         last_CIRCLE = CIRCLE;
 
+        if(UP) {
+            //前進用ホイールのモータの番号data_[1~4] = 15; 
+            //前進用ホイールのモータの番号data_[1~4] = 15; 
+        }
+        if(DOWN) {
+            //前進用ホイールのモータの番号data_[1~4] = -15;
+            //前進用ホイールのモータの番号data_[1~4] = -15;
+        }
+
         // デバッグ用
         // RCLCPP_INFO(
         //     get_logger(),
@@ -175,8 +184,8 @@ private:
         //一応...
         RCLCPP_INFO(
             get_logger(),
-            "data_[22]=%d, data_[23]=%d",
-            data_[22], data_[23]);
+            "data_[22]=%d, data_[23]=%d"//"Front=%d, Back=%d",//確定したら数字を入れる
+            data_[22], data_[23]//data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
