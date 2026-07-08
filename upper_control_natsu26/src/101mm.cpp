@@ -184,8 +184,8 @@ private:
         //一応...
         RCLCPP_INFO(
             get_logger(),
-            "data_[22]=%d, data_[23]=%d"//"Front=%d, Back=%d",//確定したら数字を入れる
-            data_[22], data_[23]//data_[1~4], data_[1~4]);
+            "data_[22]=%d, data_[23]=%d",//"Front=%d, Back=%d",//確定したら数字を入れる
+            data_[22], data_[23]);//data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
@@ -220,10 +220,10 @@ int main(int argc, char *argv[]) {
 
     rclcpp::executors::MultiThreadedExecutor exec;
 
-    auto upper_control = std::make_shared<UpperControlNatsu26>(TX_DEVICE_ID);
+    auto upper_control = std::make_shared<unaginobori2026>(TX_DEVICE_ID);
     exec.add_node(upper_control);
     exec.spin();
 
     rclcpp::shutdown();
     return 0;
-}
+};
