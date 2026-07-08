@@ -28,12 +28,6 @@
 //#define SHIVANGELION_MARK_3 // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
 #define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
 
-#if defined(SHIVANGELION_MARK_3)
-static constexpr double ODOM_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
-#elif defined(MINI_AT)
-static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
-#endif
-
 #if (defined(SHIVANGELION_MARK_3) + defined(MINI_AT)) !=1
 #error "Please define only one of SHIVANGELION_MARK_3 or MINI_AT."
 #endif
@@ -50,14 +44,17 @@ static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけ
 #define RX16NUM 17 // 受信データ数
 
 #define PUBLISH_RATE_MS 20     // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
-#define cpr 8000               // 1回転あたり8000カウントと仮定
 const float enc_max = 32768.0; // エンコーダーの最大値
 #define opPI 3.1415926
 
 #if defined(SHIVANGELION_MARK_3)
+static constexpr double ODOM_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 const double angle1 = -180.0; // 
+#define cpr 8000 //ミニ自動機の事例により仮の値となった    
 #elif defined(MINI_AT)
-const double angle1 = -90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
+static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
+const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
+#define cpr 1000               // 1回転あたり1000カウントと仮定(少なくともミニ自動機はこうなってることを確認済み)
 #endif
 
 const double odom_1_2_angle = 120; // オドメトリ1と2の角度差(度)
@@ -156,8 +153,8 @@ private:
                        {0.0}}); // ロボットを原点とした基準での直交座標系の変位ベクトル
 
    matrix R = matrix({{cos(yaw), -sin(yaw), 0},
-                      {sin(yaw), cos(yaw), 0},
-                      {0, 0, 1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
+                      {sin(yaw), cos(yaw) , 0},
+                      {0       , 0        , 1}}); // 3×3のyaw回転行列(これでロボットを基準とした運動座標系A-ξηから固定座標系O-xyへの変換を行う)
 
    matrix FK = matrix({{cos(radian1), sin(radian1), ODOM_DISTANCE}, // マイナスは単に車輪番号を時計回りに振ったせい
                        {cos(radian2), sin(radian2), ODOM_DISTANCE},

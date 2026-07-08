@@ -112,7 +112,6 @@ private:
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
    int16_t diff[4] = {0, 0, 0, 0};
    uint16_t last_enc[4] = {0, 0, 0, 0};
-   bool last_CIRCLE = false;
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨
    float LS_X;
@@ -120,10 +119,9 @@ private:
    float RS_X;
    // float RS_Y;
    // bool CROSS;
-   bool CIRCLE;
+   // bool CIRCLE;
    // bool TRIANGLE;
-    bool last_SQ = false;
-    bool SQUARE;
+   // bool SQUARE;
 
    // bool LEFT;
    // bool RIGHT;

@@ -84,7 +84,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // RS_Y = msg->axes[4];
 
     // CROSS = msg->buttons[0];
-    CIRCLE = msg->buttons[1];
+    // CIRCLE = msg->buttons[1];
     // TRIANGLE = msg->buttons[2];
     // SQUARE = msg->buttons[3];
 
@@ -165,37 +165,6 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
         last_target_v[l] = target_v[l];
     }
-    if (CIRCLE && !last_CIRCLE)
-    {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
-        // 自動化出来るか分からんから一応完全マニュアル操作を想定
-
-        static int count = 0;
-        if (count % 3 == 0)
-        {
-            data_[22] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
-            // data_[17]~data_[24]までのどっか(後輪) = 1;
-            count++;
-        }
-        else if (count % 3 == 1)
-        {
-            data_[23] = 1;
-            data_[22] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
-            count++;
-        }
-        else
-        {
-            // data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
-            data_[23] = 0;
-            count++;
-        }
-
-    } // 夏ロボ機体は後退（下降）のネジを外してる
-    last_CIRCLE = CIRCLE;
-
-    if(SQUARE && !last_SQ){
-
-    data_[22] =1;}
-    last_SQ = SQUARE;
     // 配列操作ここまで
 
     joy_received.store(true); // joystick受信フラグ
