@@ -416,6 +416,11 @@ void Zakicar::about_PID()
     //     }
 
     // デバッグ用のログ出力
+
+    #if defined(Mode_custom)
+    RCLCPP_INFO(this->get_logger(),"Welcome to hell!!. CUSTOM MODE is activating. Pleade check that you set each wheel's PID yourself !!!")
+    #endif
+
     if (rps_num_count != 1 && rps_num_count != 3)
     { // 回転しているエンコーダの数が0か2か4のときは正常に走行できている可能性が高いからログを出す（1,3輪で動くようなものは実装していない）
 
