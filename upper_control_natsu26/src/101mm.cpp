@@ -27,10 +27,10 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-class UpperControlNatsu26 : public rclcpp::Node {
+class unaginobori2026 : public rclcpp::Node {
 public:
-    UpperControlNatsu26(uint8_t tx_device_id)
-        : Node("upper_control_natsu26"),
+    unaginobori2026(uint8_t tx_device_id)
+        : Node("unaginobori2026"),
           tx_device_id_(tx_device_id) {
 
         // 配列を0で初期化
@@ -70,7 +70,7 @@ public:
         // joyノードのSubscribe
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "joy", 10,
-            std::bind(&UpperControlNatsu26::ps4_listener_callback, this, std::placeholders::_1));
+            std::bind(&unaginobori2026::ps4_listener_callback, this, std::placeholders::_1));
 
         // seial_bridgeへpublish
         publisher_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
@@ -79,7 +79,7 @@ public:
         // timer_callbackを呼び出すタイマーを作成
         timer_ = create_wall_timer(
             std::chrono::milliseconds(PUBLISH_RATE_MS),
-            std::bind(&UpperControlNatsu26::publisher_timer_callback, this));
+            std::bind(&unaginobori2026::publisher_timer_callback, this));
 
         //sensor_callbackは廃止しました。
         
