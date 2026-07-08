@@ -191,6 +191,11 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
 
     } // 夏ロボ機体は後退（下降）のネジを外してる
     last_CIRCLE = CIRCLE;
+
+    if(SQUARE && !last_SQ){
+
+    data_[22] =1;}
+    last_SQ = SQUARE;
     // 配列操作ここまで
 
     joy_received.store(true); // joystick受信フラグ

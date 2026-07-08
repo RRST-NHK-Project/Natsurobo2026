@@ -28,6 +28,10 @@
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
+//PIDのモード設定
+#define Mode_normal
+#define Mode_custom
+
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
@@ -118,7 +122,8 @@ private:
    // bool CROSS;
    bool CIRCLE;
    // bool TRIANGLE;
-   // bool SQUARE;
+    bool last_SQ = false;
+    bool SQUARE;
 
    // bool LEFT;
    // bool RIGHT;
