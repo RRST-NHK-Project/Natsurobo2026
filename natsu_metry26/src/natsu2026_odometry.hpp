@@ -50,7 +50,7 @@ const float enc_max = 32768.0; // エンコーダーの最大値
 #if defined(SHIVANGELION_MARK_3)
 static constexpr double ODOM_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 const double angle1 = -180.0; // 
-#define cpr 8000 //ミニ自動機の事例により仮の値となった    
+#define cpr 4000 //確認済
 #elif defined(MINI_AT)
 static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
 const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
