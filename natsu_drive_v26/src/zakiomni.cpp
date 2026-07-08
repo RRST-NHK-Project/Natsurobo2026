@@ -162,7 +162,14 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     }
     for (int l = 0; l < 4; l++)
     {
+        #if defined(Mode_normal)
         target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
+        #endif
+
+        #if defined(Mode_custom)
+        target_v[l] = filter * target_v[l] + (1.0 - filter_[l]) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
+        #endif
+
         last_target_v[l] = target_v[l];
     }
     // 配列操作ここまで
@@ -361,11 +368,20 @@ void Zakicar::about_PID()
 
     // PI制御の出力を計算
     for (int l = 0; l < 4; l++)
-    {
+    {   
+        #if defined(Mode_normal)
         FF[l] = Kff * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
         P[l] = Kp * err[l];
         I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
         D[l] = Kd * err_diff[l];
+        #endif
+
+        #if defined(Mode_costom)
+        FF[l] = Kff_[l] * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
+        P[l] = Kp_[l] * err[l];
+        I[l] = std::clamp(Ki_[l] * err_sum[l], -Imax_[l], Imax_[l]); // -Imax <= err_sum <= Imaxに制限
+        D[l] = Kd_[l] * err_diff[l];
+        #endif
 
         if (fabs(target_v[l]) <= 0.8)
         { // 低速ではPのみで十分かなって
