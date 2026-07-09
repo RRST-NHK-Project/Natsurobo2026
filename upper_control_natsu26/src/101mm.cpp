@@ -107,7 +107,7 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         // bool L1 = msg->buttons[4];
-        // bool R1 = msg->buttons[5];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -128,6 +128,9 @@ private:
         // static bool last_share = false;
         // static bool share_latch = false;
         bool last_CIRCLE = false;
+        bool last_R1 = false;
+
+        static int count = 0;
 
         // 以降、配列data_を操作する
 
@@ -135,29 +138,46 @@ private:
             {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
             // 自動化出来るか分からんから一応完全マニュアル操作を想定
 
-            static int count = 0;
             if (count % 3 == 0)
             {
-                data_[22] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
+                data_[17] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
                 // data_[17]~data_[24]までのどっか(後輪) = 1;
                 count++;
             }
             else if (count % 3 == 1)
             {
-                data_[23] = 1;
-                data_[22] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
+                data_[18] = 1;
+                data_[17] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
                 count++;
             }
             else
             {
                 // data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
-                data_[23] = 0;
+                data_[18] = 0;
                 count++;
             }
 
-            } // 夏ロボ機体は後退（下降）のネジを外してる
-        last_CIRCLE = CIRCLE;
+            }
 
+        if(R1 && !last_R1){//段差超えの逆操作（一応実装しておく）
+            if(count % 3 == 0){
+                data_[17] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//
+                // data_[17]~data_[24]までのどっか(後輪) = 0;
+                count--;
+            }
+            else if(count % 3 == 1){
+                data_[18] = 0;
+                data_[17] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;
+                count--;
+            }
+            else{
+                // data_[17]~data_[24]までのどっか(後輪) = 1;
+                data_[18] = 1;
+                count--;
+            }
+        }
+        last_CIRCLE = CIRCLE;
+        last_R1 = R1;
         if(UP) {
             //前進用ホイールのモータの番号data_[1~4] = 15; 
             //前進用ホイールのモータの番号data_[1~4] = 15; 
