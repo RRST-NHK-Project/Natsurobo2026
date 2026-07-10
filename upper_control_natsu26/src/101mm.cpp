@@ -27,6 +27,9 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
+#define drive_mode (L1 == 0)   // L1を押していないときはドライブモード
+#define get_eel_mode (L1 == 1) // L1を押しているときは捕獲モード
+
 class unaginobori2026 : public rclcpp::Node {
 public:
     unaginobori2026(uint8_t tx_device_id)
@@ -106,8 +109,8 @@ private:
         bool UP = msg->axes[7] == 1.0;
         bool DOWN = msg->axes[7] == -1.0;
 
-        // bool L1 = msg->buttons[4];
-        bool R1 = msg->buttons[5];
+        bool L1 = msg->buttons[4];
+        // bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -120,7 +123,7 @@ private:
         // bool PS = msg->buttons[10];
 
         // bool L3 = msg->buttons[11];
-        // bool R3 = msg->buttons[12];
+        bool R3 = msg->buttons[12];
 
         // static bool last_option = false;
         // static bool option_latch = false;
@@ -128,11 +131,13 @@ private:
         // static bool last_share = false;
         // static bool share_latch = false;
         bool last_CIRCLE = false;
-        bool last_R1 = false;
+        // bool last_R1 = false;
 
         static int count = 0;
 
         // 以降、配列data_を操作する
+        if(drive_mode) {
+            // ドライブモードの処理
 
         if (CIRCLE && !last_CIRCLE)
             {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
@@ -159,7 +164,7 @@ private:
 
             }
 
-        if(R1 && !last_R1){//段差超えの逆操作（一応実装しておく）
+        /*if(R1 && !last_R1){//段差超えの逆操作（一応実装しておく）
             if(count % 3 == 0){
                 data_[17] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//
                 // data_[17]~data_[24]までのどっか(後輪) = 0;
@@ -175,17 +180,17 @@ private:
                 data_[18] = 1;
                 count--;
             }
-        }
+        }*/
         last_CIRCLE = CIRCLE;
-        last_R1 = R1;
-        if(UP) {
+        //last_R1 = R1;
+        if(R3) {
             //前進用ホイールのモータの番号data_[1~4] = 15; 
             //前進用ホイールのモータの番号data_[1~4] = 15; 
         }
-        if(DOWN) {
+        /*if(DOWN) {
             //前進用ホイールのモータの番号data_[1~4] = -15;
             //前進用ホイールのモータの番号data_[1~4] = -15;
-        }
+        }*/
 
         // デバッグ用
         // RCLCPP_INFO(
@@ -193,6 +198,11 @@ private:
         //     "data_[1-4]=[%d,%d,%d,%d], data_[9-12]=[%d,%d,%d,%d]",
         //     data_[1], data_[2], data_[3], data_[4],
         //     data_[9], data_[10], data_[11], data_[12]);
+        }
+        else if(get_eel_mode) {
+            // 捕獲モードの処理
+
+        }
 
         // 配列操作ここまで
     }
