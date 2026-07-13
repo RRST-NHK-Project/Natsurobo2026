@@ -35,7 +35,7 @@
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
-#define cpr 8000               // 1回転あたり8000カウント（確認済）
+#define cpr 8192;              // 1回転あたり8000カウント（確認済）
 const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
