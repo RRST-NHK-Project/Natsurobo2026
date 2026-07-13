@@ -84,7 +84,6 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
-   rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr joy_mode_pub_;
 
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};
@@ -137,7 +136,7 @@ private:
    // bool UP;
    // bool DOWN;
 
-   bool L1;
+   // bool L1;
    // bool R1;
 
    // float L2_DIGITAL;
