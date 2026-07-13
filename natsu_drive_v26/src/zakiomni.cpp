@@ -70,6 +70,9 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
                   this,
                   std::placeholders::_1));
 
+    joy_mode_pub_ = this->create_publisher<std_msgs::msg::Int16>(
+        "joy_mode", 10);
+
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
 }
@@ -92,7 +95,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // RIGHT = msg->axes[6] == -1.0;
     // UP = msg->axes[7] == 1.0;
     // DOWN = msg->axes[7] == -1.0;
-    // L1 = msg->buttons[4];
+    L1 = msg->buttons[4];
     // R1 = msg->buttons[5];
     // L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
     R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;

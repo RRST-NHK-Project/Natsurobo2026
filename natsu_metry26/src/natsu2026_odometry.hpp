@@ -50,11 +50,11 @@ const float enc_max = 32768.0; // エンコーダーの最大値　　
 #if defined(SHIVANGELION_MARK_3)
 static constexpr double ODOM_DISTANCE = 0.093; // 0.0928がCAD上の値だけど(m)
 const double angle1 = -180.0; // 
-#define cpr 4196; //確認済
+#define cpr 4196 //確認済
 #elif defined(MINI_AT)
 static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
 const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
-#define cpr 1000;               // 1回転あたり1000カウントと仮定(少なくともミニ自動機はこうなってることを確認したけどデータシート見ると1024の可能性もある)
+#define cpr 1000               // 1回転あたり1000カウントと仮定(少なくともミニ自動機はこうなってることを確認したけどデータシート見ると1024の可能性もある)
 #endif
 
 const double odom_1_2_angle = 120; // オドメトリ1と2の角度差(度)

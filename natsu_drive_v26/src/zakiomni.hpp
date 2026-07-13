@@ -35,7 +35,7 @@
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
-#define cpr 8192;              // 1回転あたり8000カウント（確認済）
+#define cpr 8192              // 1回転あたり8000カウント（確認済）
 const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
@@ -84,6 +84,7 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::TimerBase::SharedPtr timer_;
+   rclcpp::Publisher<std_msgs::msg::Int16>::SharedPtr joy_mode_pub_;
 
    std::vector<int16_t> data_;
    std::vector<int16_t> last_data_ = {0, 0, 0, 0};
@@ -136,7 +137,7 @@ private:
    // bool UP;
    // bool DOWN;
 
-   // bool L1;
+   bool L1;
    // bool R1;
 
    // float L2_DIGITAL;
