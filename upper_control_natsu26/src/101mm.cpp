@@ -27,8 +27,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (!(L1 && last_L1))   // L1を押していないときはドライブモード
-#define get_eel_mode (L1 && !last_L1) // L1を押しているときは捕獲モード
+#define drive_mode (count % 2 == 0)   // L1を押していないときはドライブモード
+#define get_eel_mode (count % 2 == 1) // L1を押しているときは捕獲モード
 
 class unaginobori2026 : public rclcpp::Node {
 public:
@@ -137,7 +137,13 @@ private:
         static int count = 0;
 
         // 以降、配列data_を操作する
+
+        if(L1 && !last_L1) {
+            count++;
+        }
         if(drive_mode) {
+             RCLCPP_INFO(this->get_logger(), 
+                                 "Mode:Drive.");
             // ドライブモードの処理
 
         if (CIRCLE && !last_CIRCLE)
@@ -200,6 +206,8 @@ private:
         //     data_[9], data_[10], data_[11], data_[12]);
         }
         else if(get_eel_mode) {
+             RCLCPP_INFO(this->get_logger(), 
+                                 "Mode:Get_eel.");
             // 捕獲モードの処理
             /*e.g.
             if(CIRCLE)

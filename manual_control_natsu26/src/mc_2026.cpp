@@ -33,8 +33,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (!(L1 && !last_L1))   // L1を押していないときはドライブモード
-#define get_eel_mode ((L1 && !last_L1)) // L1を押しているときは捕獲モード
+#define drive_mode (mode_count % 2 == 0)  
+#define get_eel_mode (mode_count % 2 == 1) 
 
 // =================================================================
 // マイクロスイッチの状態（ID=3のESP32から受信、2ノード間で共有）
@@ -299,7 +299,7 @@ private:
 
         // static bool last_option = false;
         // static bool option_latch = false;
-        bool last_L1 = false; // L1の前回状態を保持する変数
+        static bool last_L1 = false; // L1の前回状態を保持する変数
 
         // static bool last_share = false;
         // static bool share_latch = false;
@@ -315,10 +315,16 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if (drive_mode)
+        static int mode_count = 0; // モード切替のカウンター
+        if(L1 && !last_L1) // L1が押された瞬間にモード切替
+        {
+            mode_count++;
+        }
+
+        if(drive_mode)
         { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
             RCLCPP_INFO(this->get_logger(), 
-                                 "Mode:Drive. L1=%d, last_L1=%d", L1, last_L1);
+                                 "Now, you are on Mode:Drive.");
             // =================================================================
             // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
             static int cross_state = 0;
@@ -381,14 +387,13 @@ private:
             // LEFT,RIGHT:
             // =================================================================
         }
-        else if (get_eel_mode)
-        RCLCPP_INFO(this->get_logger(), 
-                                 "Mode:Get_eel. L1=%d, last_L1=%d", L1, last_L1);
-        {
+        else if (get_eel_mode){
+            RCLCPP_INFO(this->get_logger(), 
+                                 "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
         }
-        last_L1 = L1; // L1の状態を更新
-
+    
+    last_L1 = L1; // L1の状態を更新
         // 配列操作ここまで
     }
 
