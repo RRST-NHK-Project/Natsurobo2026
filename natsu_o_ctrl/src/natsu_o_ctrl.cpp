@@ -27,8 +27,8 @@ Copyright (c) 2026 RRST-NHK-Project. All rights reserved.
 // ===== 設定（必要に応じて変更）=====
 #define CMD_TOPIC "/odrv_a/axis0/velocity_cmd" // 送り先（今回は axis0 の1台のみ）
 #define SQUARE_BUTTON 3                         // □ボタンの index（mc_2026.cpp と同じ）
-#define SPEED_1 50.0                            // 1回押しの速度 [turn/s]
-#define SPEED_2 100.0                           // 2回押しの速度 [turn/s]
+#define SPEED_1 10.0                            // 1回押しの速度 [turn/s]
+#define SPEED_2 30.0                           // 2回押しの速度 [turn/s]
 #define PUBLISH_RATE_MS 20                      // 常時再送の周期 [ms]（watchdog対策）
 // ===================================
 

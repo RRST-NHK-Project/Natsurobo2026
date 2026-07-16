@@ -13,7 +13,7 @@ COMMON = {
     "cmd_timeout": 0.5,
     "publish_rate": 20.0,
     "use_axis0": True,
-    "use_axis1": True,
+    "use_axis1": False,
 }
 
 
