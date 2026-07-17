@@ -19,6 +19,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include "sensor_msgs/msg/joy.hpp"
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
+#include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 // 以下マイコンに合わせて設定
@@ -29,12 +30,20 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
+//使用するモーターの選択
+#define MODE_MABUCHI
+//#define MODE_BLDC
+
 // スティックのデッドゾーン
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
 #define drive_mode (mode_count % 2 == 0)  
-#define get_eel_mode (mode_count % 2 == 1) 
+#define get_eel_mode (mode_count % 2 == 1)
+
+#if defined(MODE_BLDC)
+#define CMD_TOPIC "/odrv_a/axis0/velocity_cmd"
+#endif
 
 // =================================================================
 // マイクロスイッチの状態（ID=3のESP32から受信、2ノード間で共有）
@@ -250,6 +259,13 @@ public:
             std::chrono::milliseconds(PUBLISH_RATE_MS),
             std::bind(&HardWareControl::publisher_timer_callback, this));
 
+        #if defined(MODE_BLDC)
+
+        cmd_pub_ = this->create_publisher<std_msgs::msg::Float64>("CMD_TOPIC", 10);
+
+        #elif defined(MODE_MABUCHI)
+        #endif
+
         // sensor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
         //     "serial_rx_" + std::to_string(device_id_),
         //     10,
@@ -338,6 +354,7 @@ private:
 
             if (CROSS)
             {
+
                 cross_state = 1;
             }
 
@@ -426,6 +443,12 @@ private:
         msg.data = data_;
 
         publisher_->publish(msg);
+
+        #if defined(MODE_BLDC)
+        std_msgs::msg::Float64 cmd_msg;
+        cmd_msg.data = target_vel_;
+        cmd_pub_->publish(cmd_msg);
+        #endif
     }
 
     // void
@@ -477,6 +500,11 @@ private:
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 
+    #if defined(MODE_BLDC)
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
+    double target_vel_;// ブラシレスモーターの速度指令値用の変数
+    #endif
+
     std::vector<int16_t> data_;
 };
 
@@ -513,3 +541,6 @@ int main(int argc, char *argv[])
     rclcpp::shutdown();
     return 0;
 }
+#if(defined(MODE_MABUCHI) + defined(MODE_BLDC)) != 1
+#error "Please select ONE motor"
+#endif
