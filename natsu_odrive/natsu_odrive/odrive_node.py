@@ -30,6 +30,7 @@ from odrive.enums import (
     AXIS_STATE_CLOSED_LOOP_CONTROL,
     CONTROL_MODE_VELOCITY_CONTROL,
     INPUT_MODE_VEL_RAMP,
+    INPUT_MODE_PASSTHROUGH,
 )
 from odrive.utils import dump_errors
 
@@ -41,7 +42,12 @@ class OdriveNode(Node):
         self.declare_parameter("serial_number", "")   # 2台使う時は必ず指定
         self.declare_parameter("vel_limit", 20.0)      # [turn/s]
         self.declare_parameter("current_limit", 20.0)  # [A]
-        self.declare_parameter("vel_ramp_rate", 10.0)  # [turn/s^2]
+        self.declare_parameter("vel_ramp_rate", 10.0)  # [turn/s^2] ramp時の傾き
+        # 入力モード: "ramp"（滑らかに追従）/ "passthrough"（即座に目標を与える=キレる）
+        self.declare_parameter("input_mode", "ramp")
+        # 速度PIDゲイン: 0.0 のときはボード保存値をそのまま使う（上書きしない）
+        self.declare_parameter("vel_gain", 0.0)
+        self.declare_parameter("vel_integrator_gain", 0.0)
         self.declare_parameter("cmd_timeout", 0.5)     # [s] 指令途絶で停止
         self.declare_parameter("publish_rate", 20.0)   # [Hz]
         self.declare_parameter("use_axis0", True)
@@ -51,6 +57,9 @@ class OdriveNode(Node):
         self.vel_limit = float(self.get_parameter("vel_limit").value)
         self.current_limit = float(self.get_parameter("current_limit").value)
         self.vel_ramp_rate = float(self.get_parameter("vel_ramp_rate").value)
+        self.input_mode = str(self.get_parameter("input_mode").value).lower()
+        self.vel_gain = float(self.get_parameter("vel_gain").value)
+        self.vel_integrator_gain = float(self.get_parameter("vel_integrator_gain").value)
         self.cmd_timeout = float(self.get_parameter("cmd_timeout").value)
         publish_rate = float(self.get_parameter("publish_rate").value)
         self.use = {
@@ -106,10 +115,24 @@ class OdriveNode(Node):
 
     def _prepare_axis(self, idx, ax):
         ax.controller.config.control_mode = CONTROL_MODE_VELOCITY_CONTROL
-        ax.controller.config.input_mode = INPUT_MODE_VEL_RAMP
-        ax.controller.config.vel_ramp_rate = self.vel_ramp_rate
+
+        # 入力モードの選択
+        if self.input_mode == "passthrough":
+            # ランプ無し。押した瞬間に目標速度を与える（一番キレる）
+            ax.controller.config.input_mode = INPUT_MODE_PASSTHROUGH
+        else:
+            # 目標速度を vel_ramp_rate の傾きで滑らかに動かす
+            ax.controller.config.input_mode = INPUT_MODE_VEL_RAMP
+            ax.controller.config.vel_ramp_rate = self.vel_ramp_rate
+
         ax.controller.config.vel_limit = self.vel_limit
         ax.motor.config.current_lim = self.current_limit
+
+        # 速度PIDゲイン（0より大きいときだけ上書き。追従の“食いつき”を調整）
+        if self.vel_gain > 0.0:
+            ax.controller.config.vel_gain = self.vel_gain
+        if self.vel_integrator_gain > 0.0:
+            ax.controller.config.vel_integrator_gain = self.vel_integrator_gain
 
         # 起動時インデックス探索の完了（エンコーダ準備）を待つ
         t0 = time.time()
