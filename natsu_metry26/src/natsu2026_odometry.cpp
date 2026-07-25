@@ -54,6 +54,9 @@ void Shivalian_control::sensor_callback_2(
             dy_r = 0.0;
             d_rad = 0.0;
             yaw = 0.0;
+            last_enc[0] = msg->data[1];
+            last_enc[1] = msg->data[2];
+            last_enc[2] = msg->data[3];
             last = this->now();
             topic_received = true;
         }
@@ -84,23 +87,30 @@ void Shivalian_control::sensor_callback_2(
         }else if(diff[i] < -enc_max/2){
             diff[i] += enc_max;
         }
-    }
-
+    } 
     for (int i = 0; i < 3; i++){
-        rps[i] = -diff[i] / (dt * cpr); // Mark Ⅱが-diff[i]だっただけでMark Ⅲがどうなるかは不明。
-        last_enc[i] = enc[i];
-        v[i] = ODOM_WHEEL_CIRC * rps[i]; // 各車輪のスカラーを算出(向きは半径ODOM_LR_DISTANCEの接線方向)
+
+        #if defined(SHIVANGELION_MARK_3) 
+            enc_d_rad[i] = -diff[i] * 2.0 * opPI / (cpr* dt);// エンコーダの差分をラジアンに変換
+        #elif defined(MINI_AT)
+            enc_d_rad[0]= diff[0]* 2.0 * opPI / (cpr* dt); //各車輪のエンコーダの取り付け場所が違うせいで符号が違う
+            enc_d_rad[1]= -diff[1]* 2.0 * opPI / (cpr* dt); 
+            enc_d_rad[2]= diff[2]* 2.0 * opPI / (cpr* dt); 
+
+        #endif
+        
+       
+        v[i] = ODOM_WHEEL_RADIUS * enc_d_rad[i]; // 各車輪の速度のスカラーを算出(向きは半径ODOM_DISTANCEの接線方向)
+         last_enc[i] = enc[i];
     }
 
     V_wheel = matrix({{v[0]},
                       {v[1]},
                       {v[2]}}); // 各車輪の速度をベクトル化
 
-    FK_inv = FK.inv();
-
     V_r = FK_inv * V_wheel; // タイヤの速度ベクトルから、ロボットを原点とした基準での直交座標系の速度ベクトルへ
 
-    vx_r = V_r.operator()(0, 0); //(i-1,j-1にあたる成分を取り出す)
+    vx_r = V_r.operator()(0, 0); //(i+1,j+1にあたる成分を取り出す)
     vy_r = V_r.operator()(1, 0);
     d_rad = V_r.operator()(2, 0);
 
@@ -110,11 +120,24 @@ void Shivalian_control::sensor_callback_2(
     dR_r = matrix({{dx_r},
                    {dy_r},
                    {d_rad * dt}}); // ロボットを原点とした基準での直交座標系の変位ベクトル。z成分は角度の変化量d_rad*dt
-
+    /*
     R = matrix({{cos(yaw), -sin(yaw), 0},
                 {sin(yaw), cos(yaw) , 0},
                 {0       ,0         , 1}}); // 3×3のyaw回転行列(動力学で出てくる運動座標系A-ξηから固定座標系O-xyへの変換行列)
+    */
+   
+   //===なぜ値が合わないのか分からないからとりあえずGeminiコードに置換してみる===
 
+   // 角度の変化量(d_yaw)の半分を現在のyawに足した「中点のyaw」を計算
+    double mid_yaw = yaw + (d_yaw / 2.0);
+
+    // 中点のyawを使って回転行列Rを作る
+    R = matrix({{cos(mid_yaw), -sin(mid_yaw), 0},
+                {sin(mid_yaw), cos(mid_yaw) , 0},
+                {0           , 0            , 1}});
+
+    //===========================================================================
+    
     dR = R * dR_r; // ロボットを原点とした基準での直交座標系の変位ベクトルに、現在のロボットの初期方向からの傾き(yaw)をかけることで座標変換
 
     dx = dR.operator()(0, 0);
@@ -181,15 +204,31 @@ void Shivalian_control::publisher_position_callback()
     tf.transform.rotation.z = q_z;
     tf.transform.rotation.w = q_w;
     tf_broadcaster_->sendTransform(tf);
-    RCLCPP_INFO(this->get_logger(), "Position: (%.2f, %.2f)(m), Yaw: %.2f(rad), vx_r,vy_r: (%.2f, %.2f)(m/s), d_rad: %.2f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.2f, %.2f, %.2f)(m/s), q_z: %.2f(rad), q_w: %.2f(rad)",
+    RCLCPP_INFO(this->get_logger(), "Position: (%.3f, %.3f)(m), Yaw: %.3f(rad), vx_r,vy_r: (%.3f, %.3f)(m/s), d_rad: %.3f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.3f, %.3f, %.3f)(m/s), q_z: %.3f(rad), q_w: %.3f(rad)",
                 point_Px, point_Py, yaw, vx_r, vy_r, d_rad, dt, ENC1, ENC2, ENC3, v[0], v[1], v[2], q_z, q_w);
 }
 
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
+
+    // figletでノード名を表示
+    std::string figletout = "figlet Odometry For Natsurobo2026";
+    int result = std::system(figletout.c_str());
+    if (result != 0) {
+        std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                  << std::endl;
+        std::cerr << "Please install 'figlet' with the following command:"
+                  << std::endl;
+        std::cerr << "sudo apt install figlet" << std::endl;
+        std::cerr << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                  << std::endl;
+    }
+    rclcpp::executors::MultiThreadedExecutor exec;
+
     auto node = std::make_shared<Shivalian_control>(INPUT_DEVICE_ID);
-    rclcpp::spin(node);
+    exec.add_node(node);
+    exec.spin();
     rclcpp::shutdown();
     return 0;
 }

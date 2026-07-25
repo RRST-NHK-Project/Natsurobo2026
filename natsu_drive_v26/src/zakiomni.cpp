@@ -89,7 +89,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // RS_Y = msg->axes[4];
 
     // CROSS = msg->buttons[0];
-    CIRCLE = msg->buttons[1];
+    // CIRCLE = msg->buttons[1];
     // TRIANGLE = msg->buttons[2];
     // SQUARE = msg->buttons[3];
 
@@ -178,35 +178,16 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     }
     for (int l = 0; l < 4; l++)
     {
+        #if defined(Mode_normal)
         target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
+        #endif
+
+        #if defined(Mode_custom)
+        target_v[l] = filter * target_v[l] + (1.0 - filter_[l]) * last_target_v[l]; // 低速帯の振動が激しいため、AIに書かせたけど割と優秀
+        #endif
+
         last_target_v[l] = target_v[l];
     }
-    if (CIRCLE && !last_CIRCLE)
-    {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
-        // 自動化出来るか分からんから一応完全マニュアル操作を想定
-
-        static int count = 0;
-        if (count % 3 == 0)
-        {
-            data_[22] = 1; // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
-            // data_[17]~data_[24]までのどっか(後輪) = 1;
-            count++;
-        }
-        else if (count % 3 == 1)
-        {
-            data_[23] = 1;
-            data_[22] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
-            count++;
-        }
-        else
-        {
-            // data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
-            data_[23] = 0;
-            count++;
-        }
-
-    } // 夏ロボ機体は後退（下降）のネジを外してる
-    last_CIRCLE = CIRCLE;
     // 配列操作ここまで
 
     joy_received.store(true); // joystick受信フラグ
@@ -414,11 +395,20 @@ void Zakicar::about_PID()
 
     // PI制御の出力を計算
     for (int l = 0; l < 4; l++)
-    {
+    {   
+        #if defined(Mode_normal)
         FF[l] = Kff * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
         P[l] = Kp * err[l];
         I[l] = std::clamp(Ki * err_sum[l], -Imax, Imax); // -Imax <= err_sum <= Imaxに制限
         D[l] = Kd * err_diff[l];
+        #endif
+
+        #if defined(Mode_costom)
+        FF[l] = Kff_[l] * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
+        P[l] = Kp_[l] * err[l];
+        I[l] = std::clamp(Ki_[l] * err_sum[l], -Imax_[l], Imax_[l]); // -Imax <= err_sum <= Imaxに制限
+        D[l] = Kd_[l] * err_diff[l];
+        #endif
 
         if (fabs(target_v[l]) <= 0.8)
         { // 低速ではPのみで十分かなって
@@ -448,20 +438,28 @@ void Zakicar::about_PID()
         last_data_[n] = data_[n + 1];
     }
 
-    // for(int u = 0;u<4;u++){
-    //     data_[u+1] = 0;//モーターとエンコーダの対応確認用（デバックメッセージ）
-    //     }
+     /*for(int u = 0;u<4;u++){
+         data_[u+1] = 0;//モーターとエンコーダの対応確認用（デバックメッセージ）
+         }
+
+        data_[1] = -25;*/
+        
 
     // デバッグ用のログ出力
+
+    #if defined(Mode_custom)
+    RCLCPP_INFO(this->get_logger(),"Welcome to hell!!. CUSTOM MODE is activating. Pleade check that you set each wheel's PID yourself !!!")
+    #endif
+
     if (rps_num_count != 1 && rps_num_count != 3)
     { // 回転しているエンコーダの数が0か2か4のときは正常に走行できている可能性が高いからログを出す（1,3輪で動くようなものは実装していない）
 
         RCLCPP_INFO(this->get_logger(),
-                    "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,"
+                    "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,ENC[1-4]: %d,%d,%d,%d,"
                     "power[1-4]: %d,%d,%d,%d,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f," /*D[1-4]: %f,%f,%f,%f,KFF: %f*/ // 使ってないからコメントだけ
 
                     ,
-                    dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],
+                    dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],ENC1, ENC2, ENC3, ENC4,
                     data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3]
                     /*,D[0],D[1],D[2],D[3],Kff*/);
     }
@@ -478,6 +476,14 @@ void Zakicar::about_PID()
         RCLCPP_WARN(this->get_logger(),
                     "Encoder%d or Motor%d might not be active correctly. Please check the hardware.",
                     doubt_enc_num, doubt_enc_num);
+                RCLCPP_INFO(this->get_logger(),
+                    "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,ENC[1-4]: %d,%d,%d,%d,"
+                    "power[1-4]: %d,%d,%d,%d,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f," /*D[1-4]: %f,%f,%f,%f,KFF: %f*/ // 使ってないからコメントだけ
+
+                    ,
+                    dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],ENC1, ENC2, ENC3, ENC4,
+                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3]
+                    /*,D[0],D[1],D[2],D[3],Kff*/);
     }
     else
     { // 1つだけ回転している（と思われる）ときの警告
@@ -492,6 +498,14 @@ void Zakicar::about_PID()
         RCLCPP_WARN(this->get_logger(),
                     "Only an encoder%d or motor%d might be active incorrectly. Please check the hardware.",
                     doubt_enc_num, doubt_enc_num);
+                            RCLCPP_INFO(this->get_logger(),
+                    "dt: %f,T_v[1-4]: %f,%f,%f,%f,rps[1-4]: %f,%f,%f,%f,ENC[1-4]: %d,%d,%d,%d,"
+                    "power[1-4]: %d,%d,%d,%d,P[1-4]: %f,%f,%f,%f,I[1-4]: %f,%f,%f,%f," /*D[1-4]: %f,%f,%f,%f,KFF: %f*/ // 使ってないからコメントだけ
+
+                    ,
+                    dt, target_v[0], target_v[1], target_v[2], target_v[3], rps[0], rps[1], rps[2], rps[3],ENC1, ENC2, ENC3, ENC4,
+                    data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3]
+                    /*,D[0],D[1],D[2],D[3],Kff*/);
     }
 }
 
@@ -499,9 +513,8 @@ void Zakicar::Shivangelion()
 {
     if (!shivangelion_activated.load())
     {
-        const char *msg = " Shivangelion Mark3!!! Activatation!!!";
-        std::string fig_msg = "figlet " + std::string(msg);
-        int result = std::system(fig_msg.c_str());
+        std::string figletout = "figlet Shivangelion Mark3!!! Activatation!!!";
+        int result = std::system(figletout.c_str());
 
         if (result != 0)
         {
@@ -527,9 +540,8 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    const char *msg = "SHIVANGELION MARK 3 !!!";
-    std::string fig_msg = "figlet " + std::string(msg);
-    int result = std::system(fig_msg.c_str());
+    std::string figletout = "figlet SHIVANGELION MARK 3 !!!";
+    int result = std::system(figletout.c_str());
 
 
     rclcpp::executors::MultiThreadedExecutor exec;

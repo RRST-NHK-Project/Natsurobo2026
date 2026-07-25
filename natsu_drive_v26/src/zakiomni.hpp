@@ -29,10 +29,14 @@
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
+//PIDのモード設定
+#define Mode_normal
+//#define Mode_custom
+
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
-#define cpr 8000               // 1回転あたり8000カウントと仮定
+#define cpr 8192              // 1回転あたり8000カウント（確認済）
 const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
@@ -47,7 +51,15 @@ const float filter = 0.2;               // フィルタ係数（小さいほど�
 const float Imax = 45.0;                // I制御の蓄積の上限（必要に応じて調整）
 const float motor_limit = 75.0;         // モーターの出力の上限（0~100で）
 const int delta_power_limit = 20;       // 出力変化の上限
-const float timeout = 1.0;              // タイムアウト時間(s)（joyとenc両方に適用）
+const float timeout = 1.0;
+
+//ホイールごとの個別設定（customモード有効時）
+const float Kff_[4] = {0.0,0.0,0.0,0.0};
+const float Kp_[4] = {0.0,0.0,0.0,0.0};
+const float Ki_[4] = {0.0,0.0,0.0,0.0};
+const float Kd_[4] = {0.0,0.0,0.0,0.0};
+const float filter_[4] = {0.0,0.0,0.0,0.0};
+const float Imax_[4] {0.0,0.0,0.0,0.0};
 
 using namespace std::chrono_literals;
 
@@ -117,7 +129,6 @@ private:
    int8_t rps_num_count = 0;                                      // 回転しているエンコーダの数をとる（3なら空転している可能性が高い）
    int16_t diff[4] = {0, 0, 0, 0};
    uint16_t last_enc[4] = {0, 0, 0, 0};
-   bool last_CIRCLE = false;
 
    // コントローラーの入力を取得、使わない入力はコメントアウト推奨
    float LS_X;
@@ -125,7 +136,7 @@ private:
    float RS_X;
    // float RS_Y;
    // bool CROSS;
-   bool CIRCLE;
+   // bool CIRCLE;
    // bool TRIANGLE;
    // bool SQUARE;
 
@@ -174,5 +185,8 @@ private:
    // int16_t SW7 = msg->data[15];
    // int16_t SW8 = msg->data[16];
 };
+#if (defined(Mode_custom) + defined(Mode_normal)) !=1
+#error "Please choose "ONE" mode!!!"
+#endif
 
 #endif

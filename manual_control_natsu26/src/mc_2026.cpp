@@ -19,19 +19,31 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include "sensor_msgs/msg/joy.hpp"
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
+#include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 // 以下マイコンに合わせて設定
-#define OUTPUT_DEVICE_ID 0x01// 出力マイコン（モーター制御）のID
-#define INPUT_DEVICE_ID 0x02// 入力マイコン（マイクロスイッチやエンコーダ）のID
-#define TX16NUM 24         // 送信データ数
-#define RX16NUM 17         // 受信データ数
+#define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
+#define INPUT_DEVICE_ID 0x02  // 入力マイコン（マイクロスイッチやエンコーダ）のID
+#define TX16NUM 24            // 送信データ数
+#define RX16NUM 17            // 受信データ数
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
+
+//使用するモーターの選択
+#define MODE_MABUCHI
+//#define MODE_BLDC
 
 // スティックのデッドゾーン
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
+
+#define drive_mode (mode_count % 2 == 0)  
+#define get_eel_mode (mode_count % 2 == 1)
+
+#if defined(MODE_BLDC)
+#define CMD_TOPIC "/odrv_a/axis0/velocity_cmd"
+#endif
 
 // =================================================================
 // マイクロスイッチの状態（ID=3のESP32から受信、2ノード間で共有）
@@ -247,6 +259,13 @@ public:
             std::chrono::milliseconds(PUBLISH_RATE_MS),
             std::bind(&HardWareControl::publisher_timer_callback, this));
 
+        #if defined(MODE_BLDC)
+
+        cmd_pub_ = this->create_publisher<std_msgs::msg::Float64>("CMD_TOPIC", 10);
+
+        #elif defined(MODE_MABUCHI)
+        #endif
+
         // sensor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
         //     "serial_rx_" + std::to_string(device_id_),
         //     10,
@@ -278,8 +297,8 @@ private:
         bool UP = msg->axes[7] == 1.0;
         bool DOWN = msg->axes[7] == -1.0;
 
-        // bool L1 = msg->buttons[4];
-        // bool R1 = msg->buttons[5];
+        bool L1 = msg->buttons[4];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -296,6 +315,7 @@ private:
 
         // static bool last_option = false;
         // static bool option_latch = false;
+        static bool last_L1 = false; // L1の前回状態を保持する変数
 
         // static bool last_share = false;
         // static bool share_latch = false;
@@ -311,66 +331,97 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        // =================================================================
-        // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
-        static int cross_state = 0;
-
-        if (CROSS && cross_state == 0)
+        if(R1)
         {
+            data[5] = 50; // 押しているときはモーター5を回転させるやつ100は速すぎるので50に変更
         }
-        else if (!CROSS && cross_state == 1)
+        else
         {
+            data[5] = 0; // 押していないときはモーター5を停止させる
         }
-
-        if (CROSS)
+        
+        static int mode_count = 0; // モード切替のカウンター
+        if(L1 && !last_L1) // L1が押された瞬間にモード切替
         {
-            cross_state = 1;
+            mode_count++;
         }
 
-        // =================================================================
+        if(drive_mode)
+        { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
+            RCLCPP_INFO(this->get_logger(), 
+                                 "Now, you are on Mode:Drive.");
+            // =================================================================
+            // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
+            static int cross_state = 0;
 
-        // =================================================================
-        // CIRCLE: 昇降機構で使用×
-        // =================================================================
+            if (CROSS && cross_state == 0)
+            {
+            }
+            else if (!CROSS && cross_state == 1)
+            {
+            }
 
-        // =================================================================
-        // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-               static int injection_speed = 70; // 射出速度
+            if (CROSS)
+            {
 
-            if (TRIANGLE){
-                data_[1] = injection_speed; 
+                cross_state = 1;
+            }
+
+            // =================================================================
+
+            // =================================================================
+            // CIRCLE: 昇降機構で使用×
+            // =================================================================
+
+            // =================================================================
+            // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
+            static int injection_speed = 70; // 射出速度
+
+            if (TRIANGLE)
+            {
+                data_[1] = injection_speed;
                 data_[2] = injection_speed;
                 data_[3] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
-            else{
-                data_[1] = 0; 
+            else
+            {
+                data_[1] = 0;
                 data_[2] = 0;
                 data_[3] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
-        // =================================================================
+            // =================================================================
 
-        // =================================================================
-        // SQUARE:　「ハンド回転」
-        static int square_state = 0;
-        if (SQUARE && square_state == 0)
-        {
-            data_[9] = 0; // 角度は要調整
+            // =================================================================
+            // SQUARE:　「ハンド回転」
+            static int square_state = 0;
+            if (SQUARE && square_state == 0)
+            {
+                data_[9] = 0; // 角度は要調整
+            }
+            else if (!SQUARE && square_state == 1)
+            {
+                data_[9] = 90; // 角度は要調整
+            }
+            square_state = SQUARE;
+            // =================================================================
+
+            // =================================================================
+            // UP,DOWN:「昇降機構」
+            // =================================================================
+
+            // =================================================================
+            // LEFT,RIGHT:
+            // =================================================================
         }
-        else if (!SQUARE && square_state == 1)
-        {
-            data_[9] = 90; // 角度は要調整
+        else if (get_eel_mode){
+            RCLCPP_INFO(this->get_logger(), 
+                                 "Now, you are on Mode:Get_eel.");
+            // 捕獲モードの処理をここに記述
         }
-        square_state = SQUARE;
-        // =================================================================
-
-        // =================================================================
-        // UP,DOWN:「昇降機構」
-        // =================================================================
-
-        // =================================================================
-        // LEFT,RIGHT:
-        // =================================================================
-
+         RCLCPP_INFO(this->get_logger(), 
+        "Now, motor speed is: %d", data_[5]);
+    
+    last_L1 = L1; // L1の状態を更新
         // 配列操作ここまで
     }
 
@@ -403,6 +454,12 @@ private:
         msg.data = data_;
 
         publisher_->publish(msg);
+
+        #if defined(MODE_BLDC)
+        std_msgs::msg::Float64 cmd_msg;
+        cmd_msg.data = target_vel_;
+        cmd_pub_->publish(cmd_msg);
+        #endif
     }
 
     // void
@@ -454,6 +511,11 @@ private:
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 
+    #if defined(MODE_BLDC)
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
+    double target_vel_;// ブラシレスモーターの速度指令値用の変数
+    #endif
+
     std::vector<int16_t> data_;
 };
 
@@ -490,3 +552,6 @@ int main(int argc, char *argv[])
     rclcpp::shutdown();
     return 0;
 }
+#if(defined(MODE_MABUCHI) + defined(MODE_BLDC)) != 1
+#error "Please select ONE motor"
+#endif
