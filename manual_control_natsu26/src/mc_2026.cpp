@@ -298,7 +298,7 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        // bool R1 = msg->buttons[5];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -331,6 +331,15 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
+        if(R1)
+        {
+            data[5] = 50; // 押しているときはモーター5を回転させるやつ100は速すぎるので50に変更
+        }
+        else
+        {
+            data[5] = 0; // 押していないときはモーター5を停止させる
+        }
+        
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
         {
@@ -409,6 +418,8 @@ private:
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
         }
+         RCLCPP_INFO(this->get_logger(), 
+        "Now, motor speed is: %d", data_[5]);
     
     last_L1 = L1; // L1の状態を更新
         // 配列操作ここまで
