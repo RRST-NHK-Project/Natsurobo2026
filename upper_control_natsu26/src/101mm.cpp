@@ -27,8 +27,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (count % 2 == 0)   // L1を押していないときはドライブモード
-#define get_eel_mode (count % 2 == 1) // L1を押しているときは捕獲モード
+#define drive_mode (L1_count % 2 == 0)   // L1を押していないときはドライブモード
+#define get_eel_mode (CIRCLE_count % 2 == 1) // L1を押しているときは捕獲モード
 
 class unaginobori2026 : public rclcpp::Node {
 public:
@@ -130,48 +130,49 @@ private:
 
         // static bool last_share = false;
         // static bool share_latch = false;
-        bool last_CIRCLE = false;
-        bool last_L1 = false;
+        static bool last_CIRCLE = false;
+        static bool last_L1 = false;
         // bool last_R1 = false;
 
-        static int count = 0;
 
         // 以降、配列data_を操作する
 
         if(L1 && !last_L1) {
-            count++;
-        }
+            L1_count++;
+            }
+        
         if(drive_mode) {
-             RCLCPP_INFO(this->get_logger(), 
-                                 "Mode:Drive.");
+             //RCLCPP_INFO(this->get_logger(), 
+             //                    "Mode:Drive.");
             // ドライブモードの処理
 
         if (CIRCLE && !last_CIRCLE)
             {   // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
             // 自動化出来るか分からんから一応完全マニュアル操作を想定
 
-            if (count % 3 == 0)
+            if (CIRCLE_count % 3 == 0)
             {
-                data_[17] = 1;
-                data_[18] = 1; 
-                // data_[17]~data_[24]までのどっか(前輪) = 1;//4輪をエアシリンダで持ち上げる
-                // data_[17]~data_[24]までのどっか(後輪) = 1;
-                count++;
+                //4輪をエアシリンダで上げる処理（段差超え）
+                data_[17] = 1;//前輪
+                data_[18] = 1; //後輪
+                CIRCLE_count++;
             }
-            else if (count % 3 == 1)
+            else if (CIRCLE_count % 3 == 1)
             {
-                data_[18] = 1;
-                data_[17] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//前輪格納（手動で前進してね^^）
-                count++;
+                data_[17] = 0;
+                data_[18] = 1; //前輪格納（手動で前進してね^^）
+                CIRCLE_count++;
             }
-            else
+            else if (CIRCLE_count % 3 == 2)
             {
-                // data_[17]~data_[24]までのどっか(後輪) = 0;//後輪格納;
-                data_[18] = 0;
-                count++;
-            }
+                data_[17] = 0;
+                data_[18] = 0; //後輪格納
+                CIRCLE_count++;
 
             }
+
+        
+        }
 
         /*if(R1 && !last_R1){//段差超えの逆操作（一応実装しておく）
             if(count % 3 == 0){
@@ -208,14 +209,13 @@ private:
         //     data_[9], data_[10], data_[11], data_[12]);
         }
         else if(get_eel_mode) {
-             RCLCPP_INFO(this->get_logger(), 
-                                 "Mode:Get_eel.");
+             //RCLCPP_INFO(this->get_logger(), 
+             //                    "Mode:Get_eel.");
             // 捕獲モードの処理
             /*e.g.
             if(CIRCLE)
             if(CROSS)*/
         
-
         }
 
         last_CIRCLE = CIRCLE;
@@ -230,9 +230,9 @@ private:
 
         //一応...
         RCLCPP_INFO(
-            get_logger(),
-            "data_[22]=%d, data_[23]=%d",//"Front=%d, Back=%d",//確定したら数字を入れる
-            data_[22], data_[23]);//data_[1~4], data_[1~4]);
+            this->get_logger(),
+            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d",//"Front=%d, Back=%d",//確定したら数字を入れる
+        L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) +1, data_[17], data_[18]);//data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
@@ -241,6 +241,8 @@ private:
 
     uint8_t tx_device_id_;
     uint8_t rx_device_id_;
+    int L1_count = 0; 
+    int CIRCLE_count = 0; 
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
