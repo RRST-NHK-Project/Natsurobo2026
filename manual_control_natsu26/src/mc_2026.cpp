@@ -317,6 +317,7 @@ private:
         // static bool option_latch = false;
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_R1 = false; // R1の前回状態を保持する変数
+        static bool isrolling = false; // ローリング中かどうかのフラグ
 
         // static bool last_share = false;
         // static bool share_latch = false;
@@ -332,16 +333,12 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if(R1&& last_R1 == false)
+        if (R1 && !last_R1)
         {
-            data_[5] = 50; // 押しているときはモーター5を回転させるやつ100は速すぎるので50に変更
-            last_R1 = true; // R1の状態を更新
+            isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
-        if(!R1 && last_R1 == true)
-        {
-            data_[5] = 0; // 押していないときはモーター5を停止させる
-            last_R1 = false; // R1の状態を更新
-        }
+        
+        data_[4] = isrolling ? 50 : 0; // 回転/停止を切り替え
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
@@ -422,9 +419,10 @@ private:
             // 捕獲モードの処理をここに記述
         }
          RCLCPP_INFO(this->get_logger(), 
-        "Now, motor speed is: %d", data_[5]);
+        "Now, motor speed is: %d", data_[4]); // モーター5の速度を表示
     
     last_L1 = L1; // L1の状態を更新
+    last_R1 = R1; // R1の状態を更新
         // 配列操作ここまで
     }
 
