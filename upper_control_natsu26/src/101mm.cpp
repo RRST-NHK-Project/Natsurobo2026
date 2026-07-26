@@ -28,7 +28,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_R 0.3
 
 #define drive_mode (L1_count % 2 == 0)       // L1を押していないときはドライブモード
-#define get_eel_mode (CIRCLE_count % 2 == 1) // L1を押しているときは捕獲モード
+#define get_eel_mode (L1_count % 2 == 1) // L1を押しているときは捕獲モード
 
 class unaginobori2026 : public rclcpp::Node
 {
@@ -195,8 +195,8 @@ private:
             // last_R1 = R1;
             if (R3)
             {
-                // 前進用ホイールのモータの番号data_[1~4] = 15;
-                // 前進用ホイールのモータの番号data_[1~4] = 15;
+                data_[1] = 15; // 前進用ホイール
+                data_[2] = 15; // 前進用ホイール
             }
             /*if(DOWN) {
                 //前進用ホイールのモータの番号data_[1~4] = -15;
