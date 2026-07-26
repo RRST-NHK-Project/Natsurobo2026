@@ -316,6 +316,7 @@ private:
         // static bool last_option = false;
         // static bool option_latch = false;
         static bool last_L1 = false; // L1の前回状態を保持する変数
+        static bool last_R1 = false; // R1の前回状態を保持する変数
 
         // static bool last_share = false;
         // static bool share_latch = false;
@@ -331,13 +332,15 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if(R1)
+        if(R1&& last_R1 == false)
         {
-            data[5] = 50; // 押しているときはモーター5を回転させるやつ100は速すぎるので50に変更
+            data_[5] = 50; // 押しているときはモーター5を回転させるやつ100は速すぎるので50に変更
+            last_R1 = true; // R1の状態を更新
         }
-        else
+        if(!R1 && last_R1 == true)
         {
-            data[5] = 0; // 押していないときはモーター5を停止させる
+            data_[5] = 0; // 押していないときはモーター5を停止させる
+            last_R1 = false; // R1の状態を更新
         }
         
         static int mode_count = 0; // モード切替のカウンター
