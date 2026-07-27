@@ -360,7 +360,7 @@ private:
 
             // =================================================================
             // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-            static int injection_speed = 70; // 射出速度
+            static int injection_speed = 75; // 射出速度
 
             if (TRIANGLE)
             {
@@ -428,48 +428,54 @@ private:
 
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
-            static int pitch_state ; // ピッチ軸(縦回転)の角度
+            static int pitch_state= 0 ; // ピッチ軸(縦回転)の角度
             if (UP)
             {
-                data_[10] = pitch_state + 3; 
-            if (data_[8] >90)
+                pitch_state = pitch_state + 3; 
+
+                if (pitch_state >90)
                 {
-                    data_[8] =90; // 上限角度は要調整
+                    pitch_state =90; // 上限角度は要調整
                 }
             }
 
             else if (DOWN)
             {
-                data_[10] = pitch_state - 3; 
-                if (data_[8] < 0)
+                pitch_state = pitch_state - 3;
+
+                if (pitch_state < 0)
                 {
-                    data_[8] = 0; // 下限角度は要調整
+                    pitch_state = 0; // 下限角度は要調整
                 }
             }
+
+            data_[10] = pitch_state;
             // =================================================================
 
             // =================================================================
             // LEFT,RIGHT:「ヨー軸回転」
-            static int yaw_state; // ヨー軸(横回転)の角度
+            static int yaw_state=135; // ヨー軸(横回転)の角度
             if (LEFT)
             {
-                data_[8] = yaw_state + 3; 
+                yaw_state = yaw_state + 3; 
 
-                if (data_[8] >270)
+                if (yaw_state >270)
                 {
-                    data_[8] =270; // 上限角度は要調整
+                    yaw_state =270; // 上限角度は要調整
                 }
             }
 
             else if (RIGHT)
             {
-                data_[8] = yaw_state - 3; 
+                yaw_state = yaw_state - 3; 
 
-                if (data_[8] < 0)
+                if (yaw_state < 0)
                 {
-                    data_[8] = 0; // 下限角度は要調整
+                    yaw_state = 0; // 下限角度は要調整
                 }
             }
+
+            data_[11] = yaw_state; // ヨー軸の角度を配列に格納
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
