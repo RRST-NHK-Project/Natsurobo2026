@@ -288,7 +288,7 @@ private:
         // float RS_Y = msg->axes[4];
 
         bool CROSS = msg->buttons[0];
-        // bool CIRCLE = msg->buttons[1];
+        bool CIRCLE = msg->buttons[1];
         bool TRIANGLE = msg->buttons[2];
         bool SQUARE = msg->buttons[3];
 
@@ -315,10 +315,18 @@ private:
 
         // static bool last_option = false;
         // static bool option_latch = false;
+        static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
+        static int circle_count = 0; // CIRCLEの押下回数をカウントする変数
+
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_R1 = false; // R1の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
 
+        // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
+        // static int d2 = 0; // 小アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
+
+        // data_[9] = d1;  // 大アームのサーボ角度を配列に格納
+        // data_[10] = d2; // 小アームのサーボ角度を配列に格納
         // static bool last_share = false;
         // static bool share_latch = false;
 
@@ -394,6 +402,30 @@ private:
             // 捕獲モードの処理をここに記述
 
             // =================================================================
+            //circle:大小合体アームの「開閉」(サーボ何個使うかわからないので処理未記入)
+
+            
+
+            if (CIRCLE && !last_CIRCLE)
+            {
+                circle_count++; // 押下回数をインクリメント
+                // CIRCLEが押された瞬間の処理
+                if(circle_count % 2 == 1)
+                {
+                    
+                    // 奇数回目の押下時の処理（例: 開く）
+                    data_[9] = 90; // 大アームを開く角度に設定。必要に応じて調整してください
+                    data_[10] = 90; // 小アームを開く角度に設定。必要に応じて調整してください
+                }
+                else if (circle_count % 2 == 0)
+                {
+                    // 偶数回目の押下時の処理（例: 閉じる）
+                    data_[9] = 0; // 大アームを閉じる角度に設定。必要に応じて調整してください
+                    data_[10] = 0; // 小アームを閉じる角度に設定。必要に応じて調整してください
+                }
+                
+            }
+            // =================================================================
             // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
             static int cross_state = 0;
 
@@ -417,11 +449,11 @@ private:
             static int square_state = 0;
             if (SQUARE && square_state == 0)
             {
-                data_[9] = 0; // 角度は要調整
+                data_[11] = 0; // 角度は要調整
             }
             else if (!SQUARE && square_state == 1)
             {
-                data_[9] = 90; // 角度は要調整
+                data_[11] = 90; // 角度は要調整
             }
             square_state = SQUARE;
             // =================================================================
@@ -449,7 +481,7 @@ private:
                 }
             }
 
-            data_[10] = pitch_state;
+            data_[12] = pitch_state;
             // =================================================================
 
             // =================================================================
@@ -476,6 +508,9 @@ private:
             }
 
             data_[11] = yaw_state; // ヨー軸の角度を配列に格納
+
+            RCLCPP_INFO(this->get_logger(), 
+        "Now, servo angle is: %d,%d", data_[9], data_[10]); 
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
@@ -483,6 +518,7 @@ private:
     
     last_L1 = L1; // L1の状態を更新
     last_R1 = R1; // R1の状態を更新
+    last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
         // 配列操作ここまで
     }
 
