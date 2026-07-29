@@ -316,6 +316,8 @@ private:
         // static bool last_option = false;
         // static bool option_latch = false;
         static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
+        //static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
+        //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         static int circle_count = 0; // CIRCLEの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
@@ -402,7 +404,7 @@ private:
             // 捕獲モードの処理をここに記述
 
             // =================================================================
-            //circle:大小合体アームの「開閉」(サーボ何個使うかわからないので処理未記入)
+            //circle:大小合体アームの「開閉」
 
             
 
@@ -425,39 +427,26 @@ private:
                 }
                 
             }
-            // =================================================================
-            // CROSS:「ハンド操作」（サーボ何個使うかわからないので処理未記入）
-            static int cross_state = 0;
-
-            if (CROSS && cross_state == 0)
-            {
-            }
-            else if (!CROSS && cross_state == 1)
-            {
-            }
-
-            if (CROSS)
-            {
-
-                cross_state = 1;
-            }
-
-            // =================================================================
         
             // =================================================================
-            // SQUARE:　「ハンド回転」
-            static int square_state = 0;
-            if (SQUARE && square_state == 0)
+            // SQUARE TRIANGLE:　「ハンドの回転」
+            if (SQUARE)
             {
-                data_[11] = 0; // 角度は要調整
+                data_[11] -=5; // 角度は要調整
             }
-            else if (!SQUARE && square_state == 1)
+            if (TRIANGLE)
             {
-                data_[11] = 90; // 角度は要調整
+                data_[11] +=5; // 角度は要調整
             }
-            square_state = SQUARE;
-            // =================================================================
-
+            
+            if(data_[11] > 270)
+            {
+                data_[11] = 270; // 上限角度は要調整
+            }
+            else if(data_[11] < 0)
+            {
+                data_[11] = 0; // 下限角度は要調整
+            }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
             static int pitch_state= 0 ; // ピッチ軸(縦回転)の角度
@@ -507,10 +496,10 @@ private:
                 }
             }
 
-            data_[11] = yaw_state; // ヨー軸の角度を配列に格納
+            data_[12] = yaw_state; // ヨー軸の角度を配列に格納
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d", data_[9], data_[10]); 
+        "Now, servo angle is: %d,%d and %d", data_[9], data_[10], data_[11]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
@@ -519,6 +508,8 @@ private:
     last_L1 = L1; // L1の状態を更新
     last_R1 = R1; // R1の状態を更新
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
+    //last_SQUARE = SQUARE; // SQUAREの状態を更新
+    //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
     }
 
