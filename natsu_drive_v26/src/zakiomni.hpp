@@ -59,7 +59,7 @@ const float Kp_[4] = {0.0,0.0,0.0,0.0};
 const float Ki_[4] = {0.0,0.0,0.0,0.0};
 const float Kd_[4] = {0.0,0.0,0.0,0.0};
 const float filter_[4] = {0.0,0.0,0.0,0.0};
-const float Imax_[4] {0.0,0.0,0.0,0.0};
+const float Imax_[4] = {0.0,0.0,0.0,0.0};
 
 using namespace std::chrono_literals;
 
