@@ -91,6 +91,9 @@ class OdriveNode(Node):
             self._pub_pos[idx] = self.create_publisher(Float64, f"axis{idx}/position", 10)
             self._last_cmd[idx] = self.get_clock().now()
 
+        # 軸がクローズドループから外れたときの復帰試行の時刻（連続復帰の抑制用）
+        self._last_recover = {idx: self.get_clock().now() for idx in self.axes}
+
         self.pub_vbus = self.create_publisher(Float64, "bus_voltage", 10)
         self.create_timer(1.0 / publish_rate, self._on_timer)
         self.get_logger().info(
@@ -108,10 +111,13 @@ class OdriveNode(Node):
         self.get_logger().info(
             f"Connected. fw={self.odrv.fw_version_major}.{self.odrv.fw_version_minor}"
             f".{self.odrv.fw_version_revision}, Vbus={self.odrv.vbus_voltage:.1f}V")
-        try:
-            self.odrv.clear_errors()
-        except Exception:
-            pass
+        # エラークリアは軸単位（この版の odrive ライブラリには odrv.clear_errors() が無い）
+        for idx, used in self.use.items():
+            if used:
+                try:
+                    getattr(self.odrv, f"axis{idx}").clear_errors()
+                except Exception:
+                    pass
 
     def _prepare_axis(self, idx, ax):
         ax.controller.config.control_mode = CONTROL_MODE_VELOCITY_CONTROL
@@ -169,6 +175,32 @@ class OdriveNode(Node):
             dt = (now - self._last_cmd[idx]).nanoseconds * 1e-9
             if dt > self.cmd_timeout:
                 ax.controller.input_vel = 0.0
+
+            # 軸がクローズドループから外れていないか監視する。
+            # 外れていたら原因（エラー）を表示し、1秒に1回だけ復帰を試みる。
+            try:
+                state = ax.current_state
+                axis_err = ax.error
+            except Exception:
+                state = None
+                axis_err = None
+
+            if state is not None and state != AXIS_STATE_CLOSED_LOOP_CONTROL:
+                since = (now - self._last_recover[idx]).nanoseconds * 1e-9
+                if since > 1.0:
+                    self.get_logger().warn(
+                        f"axis{idx}: クローズドループから外れています "
+                        f"(state={state}, axis.error={axis_err}, "
+                        f"Vbus={self.odrv.vbus_voltage:.1f}V)。原因:")
+                    dump_errors(self.odrv)
+                    try:
+                        ax.clear_errors()
+                        ax.controller.input_vel = 0.0
+                        ax.requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL
+                    except Exception as e:
+                        self.get_logger().error(f"axis{idx}: 復帰失敗 {e}")
+                    self._last_recover[idx] = now
+
             try:
                 self._pub_vel[idx].publish(Float64(data=float(ax.encoder.vel_estimate)))
                 self._pub_pos[idx].publish(Float64(data=float(ax.encoder.pos_estimate)))
