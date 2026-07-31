@@ -142,19 +142,19 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     if (R2_DIGITAL && (LS_X == 0.0 && LS_Y == 0.0))
     {
         radian = opPI / 2.0;
-        target_v[0] = max_target_move_cps * R2_DIGITAL * std::cos((3.0 / 4.0 * opPI) - radian+(opPI / 2.0));
-        target_v[1] = max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian+(opPI / 2.0));
-        target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI / 4.0)+(opPI / 2.0));
-        target_v[3] = max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian+(opPI / 2.0));
+        target_v[0] = max_target_move_cps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+        target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
+        target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
     }
 
     // 移動モード(R2を押し込みながら)
     if (LS_X || LS_Y)
     {
-        target_v[0] += max_target_move_cps * R2_DIGITAL * std::cos((3.0 / 4.0 * opPI) - radian+(opPI / 2.0)); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-        target_v[1] += max_target_move_cps * R2_DIGITAL * -std::cos((opPI / 4.0) - radian+(opPI / 2.0));
-        target_v[2] += max_target_move_cps * R2_DIGITAL * std::cos(radian + (opPI / 4.0)+(opPI / 2.0));
-        target_v[3] += max_target_move_cps * R2_DIGITAL * std::cos((opPI / 4.0) - radian+(opPI / 2.0));
+        target_v[0] = max_target_move_cps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+        target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
+        target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
     }
 
     // 旋回モード / ヘディングロック
@@ -442,7 +442,7 @@ void Zakicar::about_PID()
          data_[u+1] = 0;//モーターとエンコーダの対応確認用（デバックメッセージ）
          }
 
-        data_[1] = -25;*/
+        data_[4] = -25;*/
         
 
     // デバッグ用のログ出力
