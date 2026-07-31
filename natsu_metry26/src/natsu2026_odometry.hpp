@@ -53,7 +53,7 @@ const double angle1 = -180.0; //
 #define cpr 4196 //確認済
 #elif defined(MINI_AT)
 static constexpr double ODOM_DISTANCE = 0.080; // 0.0797がCAD上での値だけど(m)
-const double angle1 = 90.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
+const double angle1 = 0.0;// オドメトリ1の角度(度) <-これがずれるとどえらいことになるので気をつけよう
 #define cpr 1000               // 1回転あたり1000カウントと仮定(少なくともミニ自動機はこうなってることを確認したけどデータシート見ると1024の可能性もある)
 #endif
 
