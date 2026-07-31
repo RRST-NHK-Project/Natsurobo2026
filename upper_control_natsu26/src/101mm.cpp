@@ -109,13 +109,13 @@ private:
 
         // bool LEFT = msg->axes[6] == 1.0;
         // bool RIGHT = msg->axes[6] == -1.0;
-        bool UP = msg->axes[7] == 1.0;
-        bool DOWN = msg->axes[7] == -1.0;
+        // bool UP = msg->axes[7] == 1.0;
+        // bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
         // bool R1 = msg->buttons[5];
 
-        // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
+        float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
         // bool L2 = msg->buttons[6];
@@ -126,7 +126,7 @@ private:
         // bool PS = msg->buttons[10];
 
         // bool L3 = msg->buttons[11];
-        bool R3 = msg->buttons[12];
+        // bool R3 = msg->buttons[12];
 
         // static bool last_option = false;
         // static bool option_latch = false;
@@ -175,6 +175,16 @@ private:
                 }
             }
 
+            if(L2_DIGITAL > 0.1){ 
+                // 前進用ホイールのモータの番号data_[1~2];
+                data_[1] = -95 * L2_DIGITAL; 
+                data_[2] = 95 * L2_DIGITAL;
+            
+            }else {
+                data_[1] = 0;
+                data_[2] = 0;
+
+            }
             /*if(R1 && !last_R1){//段差超えの逆操作（一応実装しておく）
                 if(count % 3 == 0){
                     data_[17] = 0; // data_[17]~data_[24]までのどっか(前輪) = 0;//
@@ -193,11 +203,7 @@ private:
                 }
             }*/
             // last_R1 = R1;
-            if (R3)
-            {
-                data_[1] = 15; // 前進用ホイール
-                data_[2] = 15; // 前進用ホイール
-            }
+
             /*if(DOWN) {
                 //前進用ホイールのモータの番号data_[1~4] = -15;
                 //前進用ホイールのモータの番号data_[1~4] = -15;
@@ -206,9 +212,12 @@ private:
             // デバッグ用
             // RCLCPP_INFO(
             //     get_logger(),
-            //     "data_[1-4]=[%d,%d,%d,%d], data_[9-12]=[%d,%d,%d,%d]",
+            //     "data_[1-4]=[%d,%d,%d,%d], data_[9-12]=[%d,%d,%d,%d]"
             //     data_[1], data_[2], data_[3], data_[4],
             //     data_[9], data_[10], data_[11], data_[12]);
+            last_CIRCLE = CIRCLE;
+            last_L1 = L1;
+
         }
         else if (get_eel_mode)
         {
@@ -220,8 +229,7 @@ private:
             if(CROSS)*/
         }
 
-        last_CIRCLE = CIRCLE;
-        last_L1 = L1;
+        
 
         // 配列操作ここまで
     }
@@ -234,8 +242,8 @@ private:
         // 一応...
         RCLCPP_INFO(
             this->get_logger(),
-            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d",                                         //"Front=%d, Back=%d",//確定したら数字を入れる
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18]); // data_[1~4], data_[1~4]);
+            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                         //"Front=%d, Back=%d",//確定したら数字を入れる
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
@@ -256,6 +264,7 @@ private:
 
 int main(int argc, char *argv[])
 {
+
     rclcpp::init(argc, argv);
 
     // figletでノード名を表示
