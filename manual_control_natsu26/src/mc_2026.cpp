@@ -312,13 +312,12 @@ private:
 
         // bool L3 = msg->buttons[11];
         // bool R3 = msg->buttons[12];
-
         // static bool last_option = false;
         // static bool option_latch = false;
-        static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
+        static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         //static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
         //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
-        static int circle_count = 0; // CIRCLEの押下回数をカウントする変数
+        static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_R1 = false; // R1の前回状態を保持する変数
@@ -405,55 +404,58 @@ private:
 
             // =================================================================
             //circle:大小合体アームの「開閉」
+            //ハンドアームの内、ワークを掴むサーボの開閉。角度は要調整
 
             
 
-            if (CIRCLE && !last_CIRCLE)
+            if (TRIANGLE && !last_TRIANGLE)
             {
-                circle_count++; // 押下回数をインクリメント
-                // CIRCLEが押された瞬間の処理
-                if(circle_count % 2 == 1)
+                triangle_count++; // 押下回数をインクリメント
+                // TRIANGLEが押された瞬間の処理
+                if(triangle_count % 2 == 1)
                 {
                     
                     // 奇数回目の押下時の処理（例: 開く）
-                    data_[9] = 90; // 大アームを開く角度に設定。必要に応じて調整してください
-                    data_[10] = 90; // 小アームを開く角度に設定。必要に応じて調整してください
+                    data_[9] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
+                    data_[10] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
+                    data_[11] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
                 }
 
-                  /*data_[9]、data_[10]は別の人がもう使ってたよね？
-                 他人が書いてた場所を許可なく変更するのはどう考えても良くない。せめて連絡はすべき*/
 
-                else if (circle_count % 2 == 0)
+                else if (triangle_count % 2 == 0)
                 {
                     // 偶数回目の押下時の処理（例: 閉じる）
-                    data_[9] = 0; // 大アームを閉じる角度に設定。必要に応じて調整してください
-                    data_[10] = 0; // 小アームを閉じる角度に設定。必要に応じて調整してください
+                    data_[9] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[10] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[11] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
                 }
                 
             }
         
             // =================================================================
             // SQUARE TRIANGLE:　
-            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？
-              なんでモーターの制御コードがないの？
-              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？
-              機構図面共有したからあのナンバリングで書きな*/
+            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？←そんなことは初耳です。誰から聞いたん？
+              なんでモーターの制御コードがないの？←モーターを使うという説明がなかったからだよ
+              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？←ピッチ、ヨーなんてmashiは１文字も書いていません。
+              機構図面共有したからあのナンバリングで書きな←OK*/
+
+            //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
             if (SQUARE)
             {
-                data_[11] -=5; // 角度は要調整
+                data_[13] -=5; // 角度は要調整
             }
-            if (TRIANGLE)
+            if (CIRCLE)
             {
-                data_[11] +=5; // 角度は要調整
+                data_[13] +=5; // 角度は要調整
             }
             
-            if(data_[11] > 270)
+            if(data_[13] > 270)
             {
-                data_[11] = 270; // 上限角度は要調整
+                data_[13] = 270; // 上限角度は要調整
             }
-            else if(data_[11] < 0)
+            else if(data_[13] < 0)
             {
-                data_[11] = 0; // 下限角度は要調整
+                data_[13] = 0; // 下限角度は要調整
             }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
@@ -507,17 +509,17 @@ private:
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d", data_[9], data_[10], data_[11]); // サーボの角度を表示
+        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[13]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
-        "Now, motor speed is: %d", data_[4]); // モーター5の速度を表示
+        "Speed ​​of the loading mechanism motor: %d", data_[4]); // 装填機構のモーターの速度を表示
          /*デバッグログが死ぬほど分かりにくい。大アーム、小アームとかコメントに書いてあるんだからログにも反映させるべき。
            じゃないとデバックは君がやらなければならなくなるよ*/
     
     last_L1 = L1; // L1の状態を更新
     last_R1 = R1; // R1の状態を更新
-    last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
+    last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     //last_SQUARE = SQUARE; // SQUAREの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
