@@ -3063,6 +3063,13 @@
   justify-content: center;
 }
 
+.ps-rotate-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+
 .dpad-button {
   border: 1px solid #30363d;
   border-radius: 8px;

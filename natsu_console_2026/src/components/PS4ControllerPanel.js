@@ -5,6 +5,7 @@ export function PS4ControllerPanel({
   axes,
   getButtonPressProps,
   getAxisPressProps,
+  getTriggerPressProps,
   controllerEnabled,
   setControllerEnabled,
   onEnterFullscreen,
@@ -22,7 +23,7 @@ export function PS4ControllerPanel({
     <>
       <div className="ps-shoulder-row">
         <div className="ps-shoulder-side">
-          <button className={`ps-button ps-shoulder ${buttons[6] === 1 ? "ps-active" : ""}`} {...getButtonPressProps(6)}>
+          <button className={`ps-button ps-shoulder ${buttons[6] === 1 ? "ps-active" : ""}`} {...getTriggerPressProps(6, 2)}>
             L2
           </button>
           <button className={`ps-button ps-shoulder ${buttons[4] === 1 ? "ps-active" : ""}`} {...getButtonPressProps(4)}>
@@ -33,7 +34,7 @@ export function PS4ControllerPanel({
           <button className={`ps-button ps-shoulder ${buttons[5] === 1 ? "ps-active" : ""}`} {...getButtonPressProps(5)}>
             R1
           </button>
-          <button className={`ps-button ps-shoulder ${buttons[7] === 1 ? "ps-active" : ""}`} {...getButtonPressProps(7)}>
+          <button className={`ps-button ps-shoulder ${buttons[7] === 1 ? "ps-active" : ""}`} {...getTriggerPressProps(7, 5)}>
             R2
           </button>
         </div>
@@ -107,6 +108,35 @@ export function PS4ControllerPanel({
           R3
         </button>
       </div>
+
+      {/* 移動(LS: axes[0]/[1])・旋回(RS: axes[3])。joy_nodeの実機マッピングに合わせ、左・上=+1 */}
+      <div className={fullscreen ? "ps-main-row-fullscreen" : "ps-main-row"}>
+        <div className={fullscreen ? "dpad-grid-fullscreen" : "dpad-grid"}>
+          <button className={`dpad-button ${axes[1] === 1 ? "ps-active" : ""}`} {...getAxisPressProps(1, 1)}>
+            ⬆
+          </button>
+          <button className={`dpad-button ${axes[0] === 1 ? "ps-active" : ""}`} {...getAxisPressProps(0, 1)}>
+            ⬅
+          </button>
+          <button className={`dpad-button ${axes[0] === -1 ? "ps-active" : ""}`} {...getAxisPressProps(0, -1)}>
+            ➡
+          </button>
+          <button className={`dpad-button ${axes[1] === -1 ? "ps-active" : ""}`} {...getAxisPressProps(1, -1)}>
+            ⬇
+          </button>
+        </div>
+        <div className="ps-rotate-column">
+          <button className={`dpad-button ${axes[3] === 1 ? "ps-active" : ""}`} {...getAxisPressProps(3, 1)}>
+            ⟲
+          </button>
+          <button className={`dpad-button ${axes[3] === -1 ? "ps-active" : ""}`} {...getAxisPressProps(3, -1)}>
+            ⟳
+          </button>
+        </div>
+      </div>
+      <p className="connection-hint">
+        {tr("移動・旋回はR2を押しながら（LS/RS相当）", "Hold R2 while moving/rotating (acts as LS/RS)")}
+      </p>
     </>
   );
 

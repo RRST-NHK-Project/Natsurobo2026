@@ -21,6 +21,15 @@ const PACKET_INDEX_LABELS = [
 const DEFAULT_PACKET_COUNT = 24;
 const SERIAL_BRIDGE_MIN_ELEMENTS = 24;
 
+// joy_node(実機PS4)と同じマッピングに合わせる:
+// L2=axes[2], R2=axes[5] は未押下=+1.0, 全押し=-1.0（0のままだと半押し扱いになる）
+const createInitialJoyAxes = () => {
+  const axes = Array(8).fill(0);
+  axes[2] = 1;
+  axes[5] = 1;
+  return axes;
+};
+
 const describeActuatorJa = (label) => {
   if (label === "DEBUG") return "デバッグ (0/1)";
   if (label.startsWith("MD")) return "モータ出力 (-255〜255)";
@@ -486,7 +495,7 @@ function App() {
   const operationArmedRef = useRef(false);
   const controllerEnabledRef = useRef(false);
   const buttonsRef = useRef(Array(14).fill(0));
-  const axesRef = useRef(Array(8).fill(0));
+  const axesRef = useRef(createInitialJoyAxes());
 
   const [status, setStatus] = useState("接続中...");
   const [rosHostInput, setRosHostInput] = useState(defaultRosHost);
@@ -497,7 +506,7 @@ function App() {
   });
   const [commandValue, setCommandValue] = useState(0);
   const [buttons, setButtons] = useState(Array(14).fill(0));
-  const [axes, setAxes] = useState(Array(8).fill(0));
+  const [axes, setAxes] = useState(createInitialJoyAxes());
   const [language, setLanguage] = useState("ja");
   const [operationArmed, setOperationArmed] = useState(false);
   const [frontendForceStopped, setFrontendForceStopped] = useState(false);
@@ -3905,7 +3914,7 @@ function App() {
     updateCommand(0);
 
     const nextButtons = Array(14).fill(0);
-    const nextAxes = Array(8).fill(0);
+    const nextAxes = createInitialJoyAxes();
 
     buttonsRef.current = nextButtons;
     axesRef.current = nextAxes;
@@ -3967,6 +3976,19 @@ function App() {
     getHoldHandlers(
       () => setPsAxis(index, value),
       () => setPsAxis(index, 0)
+    );
+
+  // L2/R2用: ボタンとトリガー軸を同時に更新する（離すと+1.0に戻る）
+  const getTriggerPressProps = (buttonIndex, axisIndex) =>
+    getHoldHandlers(
+      () => {
+        setPsButton(buttonIndex, true);
+        setPsAxis(axisIndex, -1);
+      },
+      () => {
+        setPsButton(buttonIndex, false);
+        setPsAxis(axisIndex, 1);
+      }
     );
 
   useEffect(() => {
@@ -4916,6 +4938,7 @@ function App() {
         axes={axes}
         getButtonPressProps={getButtonPressProps}
         getAxisPressProps={getAxisPressProps}
+        getTriggerPressProps={getTriggerPressProps}
         controllerEnabled={controllerEnabled}
         setControllerEnabled={setControllerEnabled}
         onEnterFullscreen={() => setControllerFullscreen(true)}
@@ -5087,6 +5110,7 @@ function App() {
               axes={axes}
               getButtonPressProps={getButtonPressProps}
               getAxisPressProps={getAxisPressProps}
+              getTriggerPressProps={getTriggerPressProps}
               controllerEnabled={controllerEnabled}
               setControllerEnabled={setControllerEnabled}
               onEnterFullscreen={() => setControllerFullscreen(true)}
