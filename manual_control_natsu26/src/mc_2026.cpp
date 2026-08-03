@@ -507,11 +507,11 @@ private:
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[13]); // サーボの角度を表示
+        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[1]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
-        "Speed ​​of the loading mechanism motor: %d", data_[4]); // 装填機構のモーターの速度を表示
+        "Speed ​​of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
     
     last_L1 = L1; // L1の状態を更新
     last_R1 = R1; // R1の状態を更新
