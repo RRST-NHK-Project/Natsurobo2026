@@ -298,13 +298,13 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        bool R1 = msg->buttons[5];
+        //bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
-        // bool L2 = msg->buttons[6];
-        // bool R2 = msg->buttons[7];
+        bool L2 = msg->buttons[6];
+        //bool R2 = msg->buttons[7];
 
         // bool SHARE = msg->buttons[8];
         // bool OPTION = msg->buttons[9];
@@ -320,7 +320,7 @@ private:
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
-        static bool last_R1 = false; // R1の前回状態を保持する変数
+        static bool last_L2 = false; // L2の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
 
         // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
@@ -342,7 +342,7 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if (R1 && !last_R1)
+        if (L2 && !last_L2)
         {
             isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
@@ -514,7 +514,7 @@ private:
         "Speed ​​of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
     
     last_L1 = L1; // L1の状態を更新
-    last_R1 = R1; // R1の状態を更新
+    last_L2 = L2; // L2の状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     //last_SQUARE = SQUARE; // SQUAREの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
