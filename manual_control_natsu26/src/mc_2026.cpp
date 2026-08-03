@@ -347,7 +347,7 @@ private:
             isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
         
-        data_[4] = isrolling ? 50 : 0; // 回転/停止を切り替え
+        data_[2] = isrolling ? 50 : 0; // 回転/停止を切り替え
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
@@ -373,13 +373,13 @@ private:
 
             if (TRIANGLE)
             {
-                data_[1] = injection_speed;
+                //data_[1] = injection_speed;
                 data_[3] = injection_speed;
                 data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
             {
-                data_[1] = 0;
+                //data_[1] = 0;
                 data_[3] = 0;
                 data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
@@ -440,20 +440,20 @@ private:
             //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
             if (SQUARE)
             {
-                data_[13] -=5; // 角度は要調整
+                data_[1] -=5; // 角度は要調整
             }
             if (CIRCLE)
             {
-                data_[13] +=5; // 角度は要調整
+                data_[1] +=5; // 角度は要調整
             }
             
-            if(data_[13] > 270)
+            if(data_[1] > 270)
             {
-                data_[13] = 270; // 上限角度は要調整
+                data_[1] = 270; // 上限角度は要調整
             }
-            else if(data_[13] < 0)
+            else if(data_[1] < 0)
             {
-                data_[13] = 0; // 下限角度は要調整
+                data_[1] = 0; // 下限角度は要調整
             }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
