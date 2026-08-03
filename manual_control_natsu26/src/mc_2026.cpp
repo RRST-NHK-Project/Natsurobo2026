@@ -347,7 +347,7 @@ private:
             isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
         
-        data_[2] = isrolling ? 50 : 0; // 回転/停止を切り替え
+        data_[2] = isrolling ? 50 : 0; // 回転/停止を切り替えをする
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
