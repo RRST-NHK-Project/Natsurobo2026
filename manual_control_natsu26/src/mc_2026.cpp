@@ -24,7 +24,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
-#define INPUT_DEVICE_ID 0x02  // 入力マイコン（マイクロスイッチやエンコーダ）のID
+#define INPUT_DEVICE_ID 0x01 // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
 
@@ -369,20 +369,22 @@ private:
 
             // =================================================================
             // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-            static int injection_speed = 75; // 射出速度
+            static int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
             if (TRIANGLE)
             {
                 data_[1] = injection_speed;
-                data_[2] = injection_speed;
-                data_[3] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
+                data_[3] = injection_speed;
+                data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
             {
                 data_[1] = 0;
-                data_[2] = 0;
-                data_[3] = 0; // 射出部分　出力は一旦50にしておく　要調整
+                data_[3] = 0;
+                data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
+            RCLCPP_INFO(this->get_logger(),
+                                    "motor[1,3,4]: %d,%d,%d", data_[1], data_[3], data_[4]); 
             // =================================================================
 
             // =================================================================
@@ -434,10 +436,6 @@ private:
         
             // =================================================================
             // SQUARE TRIANGLE:　
-            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？←そんなことは初耳です。誰から聞いたん？
-              なんでモーターの制御コードがないの？←モーターを使うという説明がなかったからだよ
-              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？←ピッチ、ヨーなんてmashiは１文字も書いていません。
-              機構図面共有したからあのナンバリングで書きな←OK*/
 
             //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
             if (SQUARE)
@@ -514,8 +512,6 @@ private:
         }
          RCLCPP_INFO(this->get_logger(), 
         "Speed ​​of the loading mechanism motor: %d", data_[4]); // 装填機構のモーターの速度を表示
-         /*デバッグログが死ぬほど分かりにくい。大アーム、小アームとかコメントに書いてあるんだからログにも反映させるべき。
-           じゃないとデバックは君がやらなければならなくなるよ*/
     
     last_L1 = L1; // L1の状態を更新
     last_R1 = R1; // R1の状態を更新
