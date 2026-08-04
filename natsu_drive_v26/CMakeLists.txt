@@ -28,6 +28,10 @@ ament_target_dependencies(omni_drive rclcpp std_msgs sensor_msgs geometry_msgs)
 # Install
 install(TARGETS omni_drive 
   DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
