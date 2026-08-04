@@ -222,10 +222,18 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         std_msgs::msg::Int16MultiArray msg;
 
         // 一応...
+        #if defined(CRANEGAME)
         RCLCPP_INFO(
             this->get_logger(),
-            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                         //"Front=%d, Back=%d",//確定したら数字を入れる
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+            "CRANEGAME is active. Mode:%s, Phase:%d / Crame phese:%d, Servo:%d, Motor:%d, tr:%d",                                        
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, (SQUARE_count % 4) + 1, data_[9], data_[10], data_[4], data_[2], data_[9], data_[19]); 
+        #else
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                        
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); 
+        
+        #endif
 
         msg.data = data_;
 
