@@ -34,6 +34,10 @@
 #define Mode_normal
 //#define Mode_custom
 
+//PIDを行う場所の設定
+// #define PC
+#define ESP32
+
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
 #define DEADZONE_R 0.15
@@ -41,8 +45,8 @@
 const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
-const float max_target_move_cps = 12.5; // 1秒あたりの最大回転数(移動方向)
-const float max_target_yaw_cps = 15.0;  // 1秒あたりの最大回転数(回転方向)
+const float max_target_move_rps = 12.5; // 1秒あたりの最大回転数(移動方向)
+const float max_target_yaw_rps = 15.0;  // 1秒あたりの最大回転数(回転方向)
 const float Kp_yaw = 4.0;               // ヘディングロック P ゲイン [rps/rad] (要調整)
 const float Kff = 0.0;                  // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
 const float Kp = 7.0;                   // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
@@ -117,6 +121,8 @@ private:
    float FF[4] = {0.0, 0.0, 0.0, 0.0};
    float P[4] = {0.0, 0.0, 0.0, 0.0}, I[4] = {0.0, 0.0, 0.0, 0.0}, D[4] = {0.0, 0.0, 0.0, 0.0};
    float motor_power[4] = {0.0, 0.0, 0.0, 0.0};
+
+   float target_rpm[4] = {0.0, 0.0, 0.0, 0.0};
 
    float dt = 0.0;
    float radian = 0.0;
@@ -194,6 +200,10 @@ private:
 };
 #if (defined(Mode_custom) + defined(Mode_normal)) !=1
 #error "Please choose "ONE" mode!!!"
+#endif
+
+#if (defined(PC) + defined(ESP32)) !=1
+#error "Please choose "ONE" PID location!!!"
 #endif
 
 #endif

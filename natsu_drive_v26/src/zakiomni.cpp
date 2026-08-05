@@ -142,19 +142,19 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     if (R2_DIGITAL && (LS_X == 0.0 && LS_Y == 0.0))
     {
         radian = opPI / 2.0;
-        target_v[0] = max_target_move_cps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-        target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
-        target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
-        target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
+        target_v[0] = max_target_move_rps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+        target_v[1] = max_target_move_rps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_rps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
+        target_v[3] = max_target_move_rps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
     }
 
     // 移動モード(R2を押し込みながら)
     if (LS_X || LS_Y)
     {
-        target_v[0] = max_target_move_cps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
-        target_v[1] = max_target_move_cps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
-        target_v[2] = max_target_move_cps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
-        target_v[3] = max_target_move_cps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
+        target_v[0] = max_target_move_rps * R2_DIGITAL * -std::cos( (opPI / 4.0) - radian); // スティックの入力に基づいて正射影を求め、モーターの出力方向に変換
+        target_v[1] = max_target_move_rps * R2_DIGITAL * std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_rps * R2_DIGITAL * std::cos( (opPI / 4.0) - radian);
+        target_v[3] = max_target_move_rps * R2_DIGITAL * -std::cos(radian + ( opPI / 4.0) );
     }
 
     // 旋回モード / ヘディングロック
@@ -162,7 +162,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
         for (int i = 0; i < 4; i++)
         {
-            target_v[i] = -max_target_yaw_cps * RS_X;
+            target_v[i] = -max_target_yaw_rps * RS_X;
         }
         // 旋回中は現在の向きを都度記録し、スティックを戻したときにその向きをキープ
         if (have_imu_) target_yaw_ = imu_yaw_;
@@ -173,7 +173,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
         double yaw_err = target_yaw_ - imu_yaw_;
         yaw_err = std::atan2(std::sin(yaw_err), std::cos(yaw_err));  // ±π に正規化
         float corr = std::clamp(Kp_yaw * static_cast<float>(yaw_err),
-                                -max_target_yaw_cps * 0.3f, max_target_yaw_cps * 0.3f);
+                                -max_target_yaw_rps * 0.3f, max_target_yaw_rps * 0.3f);
         for (int i = 0; i < 4; i++) target_v[i] += corr;
     }
     for (int l = 0; l < 4; l++)
@@ -240,22 +240,22 @@ void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 
     // 並進（既存と同じ）
     if (speed_ratio > 0.0) {
-        target_v[0] = max_target_move_cps * speed_ratio * -std::cos((opPI / 4.0) - radian);
-        target_v[1] = max_target_move_cps * speed_ratio *  std::cos((radian + (opPI / 4.0)));
-        target_v[2] = max_target_move_cps * speed_ratio *  std::cos((opPI / 4.0) - radian);
-        target_v[3] = max_target_move_cps * speed_ratio * -std::cos(radian + (opPI / 4.0));
+        target_v[0] = max_target_move_rps * speed_ratio * -std::cos((opPI / 4.0) - radian);
+        target_v[1] = max_target_move_rps * speed_ratio *  std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_rps * speed_ratio *  std::cos((opPI / 4.0) - radian);
+        target_v[3] = max_target_move_rps * speed_ratio * -std::cos(radian + (opPI / 4.0));
     }
 
     // 旋回（全輪同方向、既存と同じ符号）
     if (std::fabs(yaw_ratio) > 1e-6) {
-        for (int i = 0; i < 4; i++) target_v[i] += -max_target_yaw_cps * yaw_ratio;
+        for (int i = 0; i < 4; i++) target_v[i] += -max_target_yaw_rps * yaw_ratio;
         if (have_imu_) target_yaw_ = imu_yaw_;
     }
     else if (have_imu_) {
         double yaw_err = target_yaw_ - imu_yaw_;
         yaw_err = std::atan2(std::sin(yaw_err), std::cos(yaw_err));
         float corr = std::clamp(Kp_yaw * static_cast<float>(yaw_err),
-                                -max_target_yaw_cps * 0.3f, max_target_yaw_cps * 0.3f);
+                                -max_target_yaw_rps * 0.3f, max_target_yaw_rps * 0.3f);
         for (int i = 0; i < 4; i++) target_v[i] += corr;
     }
 
@@ -452,6 +452,7 @@ void Zakicar::about_PID()
         }
     }
 
+    #if defined(PC)
     // PI制御の出力を計算
     for (int l = 0; l < 4; l++)
     {   
@@ -462,7 +463,7 @@ void Zakicar::about_PID()
         D[l] = Kd * err_diff[l];
         #endif
 
-        #if defined(Mode_costom)
+        #if defined(Mode_custom)
         FF[l] = Kff_[l] * target_v[l]; // フィードフォワード(PIだけじゃ出力がしょぼすぎたから書いたけど結局いらなかったかも)
         P[l] = Kp_[l] * err[l];
         I[l] = std::clamp(Ki_[l] * err_sum[l], -Imax_[l], Imax_[l]); // -Imax <= err_sum <= Imaxに制限
@@ -566,6 +567,18 @@ void Zakicar::about_PID()
                     data_[1], data_[2], data_[3], data_[4], P[0], P[1], P[2], P[3], I[0], I[1], I[2], I[3]
                     /*,D[0],D[1],D[2],D[3],Kff*/);
     }
+    #elif defined(ESP32)
+
+    for(int l = 0; l < 4; l++)
+    {
+        //マイコン内でPIDを行うため、目標速度をそのまま送信する
+
+        target_rpm[l] = target_v[l] * 60.0; // rps -> rpm
+        data_[l + 1] = target_rpm[l]; //　マイコンはrpmを欲している
+       
+    }
+
+    #endif
 }
 
 void Zakicar::Shivangelion()
