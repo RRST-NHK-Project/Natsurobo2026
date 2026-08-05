@@ -38,7 +38,7 @@ FEEDBACK_MODE = "encoder"   # ← "encoder" か "sensorless" を選ぶ
 # ============================ D4250-600KV のパラメータ ============================
 MOTOR = {
     "kv": 600.0,
-    "pole_pairs": 6,               # 確認済み: 磁石12個 = 6極対
+    "pole_pairs": 7,               # 確認済み: 磁石12個 = 6極対
     "motor_type": MOTOR_TYPE_HIGH_CURRENT,
     "calibration_current": 10.0,   # 校正時電流 [A]（大きめモータなので10A程度）
     "current_lim": 20.0,           # 運転時電流上限 [A]（まず控えめに。必要なら上げる）
@@ -66,8 +66,8 @@ POWER = {
 
 # --- 運転パラメータ ---
 RUN = {
-    "vel_limit": 20.0,       # 速度上限 [turn/s]
-    "vel_ramp_rate": 10.0,   # 速度ランプ [turn/s^2]
+    "vel_limit": 200.0,       # 速度上限 [turn/s]
+    "vel_ramp_rate": 200.0,   # 速度ランプ [turn/s^2]
 }
 # ==============================================================================
 

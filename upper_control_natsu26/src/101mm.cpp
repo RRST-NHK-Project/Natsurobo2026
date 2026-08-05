@@ -3,37 +3,10 @@ Serial_Bridgeノードのホスト側プログラム
 Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 */
 
-#include <chrono>
-#include <cmath>
-#include <iostream>
-#include <thread>
-#include <vector>
+#include "101mm.hpp"
 
-// ROS
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/joy.hpp"
-#include <std_msgs/msg/int16_multi_array.hpp>
-#include <std_msgs/msg/int32_multi_array.hpp>
 
-// 以下マイコンに合わせて設定
-#define TX_DEVICE_ID 3 // 送信先マイコンのID
-
-#define TX16NUM 24 // 送信データ数
-#define RX16NUM 17 // 受信データ数
-
-#define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
-
-// スティックのデッドゾーン
-#define DEADZONE_L 0.3
-#define DEADZONE_R 0.3
-
-#define drive_mode (L1_count % 2 == 0)       // L1を押していないときはドライブモード
-#define get_eel_mode (L1_count % 2 == 1) // L1を押しているときは捕獲モード
-
-class unaginobori2026 : public rclcpp::Node
-{
-public:
-    unaginobori2026(uint8_t tx_device_id)
+    unaginobori2026::unaginobori2026(uint8_t tx_device_id)
         : Node("unaginobori2026"),
           tx_device_id_(tx_device_id)
     {
@@ -92,8 +65,8 @@ public:
                     "serial_tx_%d started.", tx_device_id_);
     }
 
-private:
-    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
+
+    void unaginobori2026::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
 
         // コントローラーの入力を取得、使わない入力はコメントアウト推奨
@@ -128,14 +101,11 @@ private:
         // bool L3 = msg->buttons[11];
         // bool R3 = msg->buttons[12];
 
-        // static bool last_option = false;
-        // static bool option_latch = false;
-
-        // static bool last_share = false;
-        // static bool share_latch = false;
-        static bool last_CIRCLE = false;
-        static bool last_L1 = false;
-        // bool last_R1 = false;
+        #if defined(CRANEGAME)
+            bool TRIANGLE = msg->buttons[2];
+            bool CROSS = msg->buttons[0];
+            bool SQUARE = msg->buttons[3];
+        #endif
 
         // 以降、配列data_を操作する
 
@@ -221,12 +191,24 @@ private:
         }
         else if (get_eel_mode)
         {
-            // RCLCPP_INFO(this->get_logger(),
-            //                     "Mode:Get_eel.");
-            // 捕獲モードの処理
-            /*e.g.
-            if(CIRCLE)
-            if(CROSS)*/
+            #if defined(CRANEGAME)
+                if(SQUARE && last_SQUARE){
+                    if(SQUARE_count % 4 == 0){
+                        //data_[9から16のどっか] = cranegame_servo();
+                    }
+                    else if(SQUARE_count % 4 == 1){
+                        //data_[9から16のどっか] = cranegame_tr();
+                    }else if(SQUARE_count % 4 == 2){
+                        //data_[9から16のどっか] = cranegame_tr();
+                    }
+                    else if(SQUARE_count % 4 == 3){
+                        //data_[9から16のどっか] = cranegame_servo();
+                    }
+                    SQUARE_count++;
+                }
+                // data_[1から8のどっか] = cranegame_motor();
+                
+            #endif
         }
 
         
@@ -235,32 +217,28 @@ private:
     }
 
     // publish
-    void publisher_timer_callback()
+    void unaginobori2026::publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
 
         // 一応...
+        #if defined(CRANEGAME)
         RCLCPP_INFO(
             this->get_logger(),
-            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                         //"Front=%d, Back=%d",//確定したら数字を入れる
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+            "CRANEGAME is active. Mode:%s, Phase:%d / Crame phese:%d, Servo:%d, Motor:%d, tr:%d",                                        
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, (SQUARE_count % 4) + 1, data_[9], data_[10], data_[4], data_[2], data_[9], data_[19]); 
+        #else
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                        
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); 
+        
+        #endif
 
         msg.data = data_;
 
         publisher_->publish(msg);
     }
-
-    uint8_t tx_device_id_;
-    uint8_t rx_device_id_;
-    int L1_count = 0;
-    int CIRCLE_count = 0;
-
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
-    rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
-
-    std::vector<int16_t> data_;
-};
 
 int main(int argc, char *argv[])
 {

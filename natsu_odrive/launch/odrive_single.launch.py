@@ -15,7 +15,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "serial_number": BOARD_A_SERIAL,
-                "vel_limit": 150.0,
+                "vel_limit": 200.0,
                 "current_limit": 20.0,
                 "input_mode": "passthrough",
                 "vel_ramp_rate": 200.0,

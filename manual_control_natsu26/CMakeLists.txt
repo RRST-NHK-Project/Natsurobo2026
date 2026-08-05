@@ -29,6 +29,10 @@ ament_target_dependencies(hardware_control_2 rclcpp std_msgs sensor_msgs geometr
 # Install
 install(TARGETS hardware_control_2
   DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

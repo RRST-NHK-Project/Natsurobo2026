@@ -21,10 +21,11 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
-#define INPUT_DEVICE_ID 0x02  // 入力マイコン（マイクロスイッチやエンコーダ）のID
+#define INPUT_DEVICE_ID 0x01 // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
 
@@ -275,6 +276,22 @@ public:
 
         RCLCPP_INFO(get_logger(),
                     "HardWareControl: serial_tx_%d 送信開始", OUTPUT_DEVICE_ID);
+
+      //以下追加
+        cllect_start_sub_1 = this->create_subscription<std_msgs::msg::Bool>(
+          "/collect/start", 10,
+          std::bind(&HardWareControl::collect_start_callback, this,
+                    std::placeholders::_1));
+
+        cllect_start_sub_2 = this->create_subscription<std_msgs::msg::Bool>(
+          "/collect/abort", 10,
+          std::bind(&HardWareControl::collect_abort_callback, this,
+                    std::placeholders::_1));
+
+        cllect_start_sub_3 = this->create_subscription<std_msgs::msg::Bool>(
+          "/collect/done", 10);
+      //ここまで
+
     }
 
 private:
@@ -298,13 +315,13 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        bool R1 = msg->buttons[5];
+        //bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
 
-        // bool L2 = msg->buttons[6];
-        // bool R2 = msg->buttons[7];
+        bool L2 = msg->buttons[6];
+        //bool R2 = msg->buttons[7];
 
         // bool SHARE = msg->buttons[8];
         // bool OPTION = msg->buttons[9];
@@ -320,7 +337,7 @@ private:
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
-        static bool last_R1 = false; // R1の前回状態を保持する変数
+        static bool last_L2 = false; // L2の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
 
         // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
@@ -342,12 +359,12 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if (R1 && !last_R1)
+        if (L2 && !last_L2)
         {
             isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
         
-        data_[4] = isrolling ? 50 : 0; // 回転/停止を切り替え
+        data_[2] = isrolling ? 50 : 0; // 回転/停止を切り替えをする
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
@@ -369,20 +386,22 @@ private:
 
             // =================================================================
             // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-            static int injection_speed = 75; // 射出速度
+            static int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
             if (TRIANGLE)
             {
-                data_[1] = injection_speed;
-                data_[2] = injection_speed;
-                data_[3] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
+                //data_[1] = injection_speed;
+                data_[3] = injection_speed;
+                data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
             {
-                data_[1] = 0;
-                data_[2] = 0;
-                data_[3] = 0; // 射出部分　出力は一旦50にしておく　要調整
+                //data_[1] = 0;
+                data_[3] = 0;
+                data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
+            RCLCPP_INFO(this->get_logger(),
+                                    "motor[1,3,4]: %d,%d,%d", data_[1], data_[3], data_[4]); 
             // =================================================================
 
             // =================================================================
@@ -434,28 +453,24 @@ private:
         
             // =================================================================
             // SQUARE TRIANGLE:　
-            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？←そんなことは初耳です。誰から聞いたん？
-              なんでモーターの制御コードがないの？←モーターを使うという説明がなかったからだよ
-              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？←ピッチ、ヨーなんてmashiは１文字も書いていません。
-              機構図面共有したからあのナンバリングで書きな←OK*/
 
             //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
             if (SQUARE)
             {
-                data_[13] -=5; // 角度は要調整
+                data_[1] -=5; // 角度は要調整
             }
             if (CIRCLE)
             {
-                data_[13] +=5; // 角度は要調整
+                data_[1] +=5; // 角度は要調整
             }
             
-            if(data_[13] > 270)
+            if(data_[1] > 270)
             {
-                data_[13] = 270; // 上限角度は要調整
+                data_[1] = 270; // 上限角度は要調整
             }
-            else if(data_[13] < 0)
+            else if(data_[1] < 0)
             {
-                data_[13] = 0; // 下限角度は要調整
+                data_[1] = 0; // 下限角度は要調整
             }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
@@ -509,16 +524,14 @@ private:
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[13]); // サーボの角度を表示
+        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[1]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
-        "Speed ​​of the loading mechanism motor: %d", data_[4]); // 装填機構のモーターの速度を表示
-         /*デバッグログが死ぬほど分かりにくい。大アーム、小アームとかコメントに書いてあるんだからログにも反映させるべき。
-           じゃないとデバックは君がやらなければならなくなるよ*/
+        "Speed ​​of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
     
     last_L1 = L1; // L1の状態を更新
-    last_R1 = R1; // R1の状態を更新
+    last_L2 = L2; // L2の状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     //last_SQUARE = SQUARE; // SQUAREの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
@@ -529,6 +542,13 @@ private:
     void publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
+
+        //以下追加
+        if (auto_collect_active_){
+            run_auto_collect();
+           }
+        //ここまで
+
 
         // ★★★ コントローラーの操作が無い時でも、マイクロスイッチの安全停止を最優先で適用する ★★★
         // （PS4コントローラーのイベントが来ない間も常に制限をかけるため、ここに記述する）
@@ -610,6 +630,12 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_1;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
+
+    bool auto_collect_active_; // 適切な初期化を行ってください
+    bool auto_collect_abort_;
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
