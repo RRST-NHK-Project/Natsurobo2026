@@ -21,6 +21,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
@@ -275,6 +276,22 @@ public:
 
         RCLCPP_INFO(get_logger(),
                     "HardWareControl: serial_tx_%d 送信開始", OUTPUT_DEVICE_ID);
+
+      //以下追加
+　　　　　cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+          "/collect/start", 10,
+          std::bind(&HardWareControl::collect_start_callback, this,
+                    std::placeholders::_1));
+
+        cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+          "/collect/abort", 10,
+          std::bind(&HardWareControl::collect_abort_callback, this,
+                    std::placeholders::_1));
+
+        cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+          "/collect/done", 10);
+      //ここまで
+
     }
 
 private:
@@ -525,6 +542,13 @@ private:
     void publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
+
+　　　　　//以下追加
+　　　　　if (auto_collect_active_){
+            run_auto_collect();
+           }
+        //ここまで
+
 
         // ★★★ コントローラーの操作が無い時でも、マイクロスイッチの安全停止を最優先で適用する ★★★
         // （PS4コントローラーのイベントが来ない間も常に制限をかけるため、ここに記述する）
