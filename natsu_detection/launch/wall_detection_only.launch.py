@@ -37,6 +37,7 @@ def generate_launch_description():
         # LiDARトピック名がドライバによって違う場合はここでremapする
         # 例: STL-19Pのドライバが /stl19p/scan を出す場合
         # remappings=[("/scan", "/stl19p/scan")],
+        remappings=[("/scan", "/ldlidar_node/scan")],
     )
 
     return LaunchDescription([wall_detection_node])

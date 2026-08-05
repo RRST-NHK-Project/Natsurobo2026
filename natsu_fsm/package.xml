@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>natsu_fsm</name>
+  <version>0.1.0</version>
+  <description>
+    Autonomous sequence FSM (司令塔) for RRST 夏ロボ 2026.
+    Manages step-climb → align → climb → move → manual collect → move → fire.
+  </description>
+  <maintainer email="you@example.com">RRST-NHK-Project</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
