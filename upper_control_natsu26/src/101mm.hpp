@@ -32,10 +32,6 @@
 #define drive_mode (L1_count % 2 == 0)       // L1を押していないときはドライブモード
 #define get_eel_mode (L1_count % 2 == 1) // L1を押しているときは捕獲モード
 
-
-
-
-
 class unaginobori2026 : public rclcpp::Node
 {
 public:
