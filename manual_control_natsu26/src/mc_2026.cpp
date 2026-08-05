@@ -289,7 +289,9 @@ public:
                     std::placeholders::_1));
 
         cllect_start_sub_3 = this->create_subscription<std_msgs::msg::Bool>(
-          "/collect/done", 10);
+          "/collect/done", 10,
+          std::bind(&HardWareControl::collect_done_callback, this,
+                    std::placeholders::_1));
       //ここまで
 
     }
@@ -538,6 +540,41 @@ private:
         // 配列操作ここまで
     }
 
+    // 自動回収フラグの受信（/collect/start, /collect/abort, /collect/done）
+    void collect_start_callback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+        if (msg->data)
+        {
+            auto_collect_active_ = true;
+            auto_collect_abort_ = false;
+            RCLCPP_INFO(this->get_logger(), "自動回収を開始します (/collect/start)");
+        }
+    }
+
+    void collect_abort_callback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+        if (msg->data)
+        {
+            auto_collect_abort_ = true;
+            auto_collect_active_ = false;
+            RCLCPP_WARN(this->get_logger(), "自動回収を中断しました (/collect/abort)");
+        }
+    }
+
+    void collect_done_callback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+        if (msg->data)
+        {
+            auto_collect_active_ = false;
+            RCLCPP_INFO(this->get_logger(), "自動回収が完了しました (/collect/done)");
+        }
+    }
+
+    // TODO: 自動回収の動作シーケンスを実装する（現状はビルドを通すための空実装）
+    void run_auto_collect()
+    {
+    }
+
     // publish
     void publisher_timer_callback()
     {
@@ -634,8 +671,8 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
 
-    bool auto_collect_active_; // 適切な初期化を行ってください
-    bool auto_collect_abort_;
+    bool auto_collect_active_ = false;
+    bool auto_collect_abort_ = false;
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;

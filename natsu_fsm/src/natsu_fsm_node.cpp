@@ -64,84 +64,6 @@ static const char* state_name(State s)
     return "UNKNOWN";
 }
 
-    // ── ユーティリティ ──────────────────────────
-    void stop_robot()
-    {
-        geometry_msgs::msg::Twist t;  // 全ゼロ
-        cmd_vel_pub_->publish(t);
-    }
-
-    void transit(State s)
-    {
-        state_ = s;
-        // ステート入口のフラグリセット
-        climb_started_ = false;
-        collect_handover_ = false;
-        fire_started_ = false;
-        if (s == State::CLIMB) climb_done_ = false;
-        if (s == State::MANUAL_COLLECT) collect_done_ = false;
-        RCLCPP_INFO(get_logger(), "→ state: %s", state_name(s));
-    }
-
-    void publish_state()
-    {
-        std_msgs::msg::String m;
-        m.data = state_name(state_);
-        state_pub_->publish(m);
-    }
-
-    void publish_arbitration(const std::string& mode)
-    {
-        std_msgs::msg::String m;
-        m.data = mode;   // "auto" or "manual"
-        arb_pub_->publish(m);
-    }
-
-    static double clamp(double v, double lo, double hi)
-    { return std::max(lo, std::min(hi, v)); }
-
-    static double normalize(double a)
-    {
-        while (a >  M_PI) a -= 2*M_PI;
-        while (a < -M_PI) a += 2*M_PI;
-        return a;
-    }
-
-    // ── パラメータ ─────────────────────────────
-    double step_dist_, align_tol_, align_kp_, align_omega_max_;
-    double home_x_, home_y_, home_yaw_;
-    double shoot_x_, shoot_y_, shoot_yaw_;
-    double pos_tol_, yaw_tol_;
-    double move_kp_, move_v_max_, move_kp_yaw_, move_omega_max_;
-    double climb_timeout_, fire_hold_, rate_hz_;
-
-    // ── 状態 ───────────────────────────────────
-    State state_ = State::IDLE;
-
-    double wall_angle_ = 0.0;   bool wall_angle_ok_ = false;
-    double wall_dist_  = 0.0;   bool wall_dist_ok_  = false;
-    double cur_x_ = 0, cur_y_ = 0, cur_yaw_ = 0;  bool pose_ok_ = false;
-
-    bool climb_started_ = false, climb_done_ = false;
-    rclcpp::Time climb_start_time_{0,0,RCL_ROS_TIME};
-
-    bool collect_handover_ = false, collect_done_ = false;
-
-    bool fire_started_ = false;
-    rclcpp::Time fire_start_time_{0,0,RCL_ROS_TIME};
-
-    // ── ROS ────────────────────────────────────
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr   climb_pub_, collect_pub_, fire_pub_, arrived_pub_;
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_pub_, arb_pub_;
-
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
-
-    rclcpp::TimerBase::SharedPtr timer_;
-};
-
 // ──────────────────────────────────────────────
 class NatsuFsmNode : public rclcpp::Node
 {
@@ -431,6 +353,83 @@ private:
         cmd_vel_pub_->publish(t);
     }
 
+    // ── ユーティリティ ──────────────────────────
+    void stop_robot()
+    {
+        geometry_msgs::msg::Twist t;  // 全ゼロ
+        cmd_vel_pub_->publish(t);
+    }
+
+    void transit(State s)
+    {
+        state_ = s;
+        // ステート入口のフラグリセット
+        climb_started_ = false;
+        collect_handover_ = false;
+        fire_started_ = false;
+        if (s == State::CLIMB) climb_done_ = false;
+        if (s == State::MANUAL_COLLECT) collect_done_ = false;
+        RCLCPP_INFO(get_logger(), "→ state: %s", state_name(s));
+    }
+
+    void publish_state()
+    {
+        std_msgs::msg::String m;
+        m.data = state_name(state_);
+        state_pub_->publish(m);
+    }
+
+    void publish_arbitration(const std::string& mode)
+    {
+        std_msgs::msg::String m;
+        m.data = mode;   // "auto" or "manual"
+        arb_pub_->publish(m);
+    }
+
+    static double clamp(double v, double lo, double hi)
+    { return std::max(lo, std::min(hi, v)); }
+
+    static double normalize(double a)
+    {
+        while (a >  M_PI) a -= 2*M_PI;
+        while (a < -M_PI) a += 2*M_PI;
+        return a;
+    }
+
+    // ── パラメータ ─────────────────────────────
+    double step_dist_, align_tol_, align_kp_, align_omega_max_;
+    double home_x_, home_y_, home_yaw_;
+    double shoot_x_, shoot_y_, shoot_yaw_;
+    double pos_tol_, yaw_tol_;
+    double move_kp_, move_v_max_, move_kp_yaw_, move_omega_max_;
+    double climb_timeout_, fire_hold_, rate_hz_;
+
+    // ── 状態 ───────────────────────────────────
+    State state_ = State::IDLE;
+
+    double wall_angle_ = 0.0;   bool wall_angle_ok_ = false;
+    double wall_dist_  = 0.0;   bool wall_dist_ok_  = false;
+    double cur_x_ = 0, cur_y_ = 0, cur_yaw_ = 0;  bool pose_ok_ = false;
+
+    bool climb_started_ = false, climb_done_ = false;
+    rclcpp::Time climb_start_time_{0,0,RCL_ROS_TIME};
+
+    bool collect_handover_ = false, collect_done_ = false;
+
+    bool fire_started_ = false;
+    rclcpp::Time fire_start_time_{0,0,RCL_ROS_TIME};
+
+    // ── ROS ────────────────────────────────────
+    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr   climb_pub_, collect_pub_, fire_pub_, arrived_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_pub_, arb_pub_;
+
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
+    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
+
+    rclcpp::TimerBase::SharedPtr timer_;
+};
 
 int main(int argc, char** argv)
 {
