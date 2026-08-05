@@ -278,17 +278,17 @@ public:
                     "HardWareControl: serial_tx_%d 送信開始", OUTPUT_DEVICE_ID);
 
       //以下追加
-　　　　　cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+        cllect_start_sub_1 = this->create_subscription<std_msgs::msg::Bool>(
           "/collect/start", 10,
           std::bind(&HardWareControl::collect_start_callback, this,
                     std::placeholders::_1));
 
-        cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+        cllect_start_sub_2 = this->create_subscription<std_msgs::msg::Bool>(
           "/collect/abort", 10,
           std::bind(&HardWareControl::collect_abort_callback, this,
                     std::placeholders::_1));
 
-        cllect_start_sub_ = this->create_subscription<std_msgs::msg::msg::Bool>(
+        cllect_start_sub_3 = this->create_subscription<std_msgs::msg::Bool>(
           "/collect/done", 10);
       //ここまで
 
@@ -543,8 +543,8 @@ private:
     {
         std_msgs::msg::Int16MultiArray msg;
 
-　　　　　//以下追加
-　　　　　if (auto_collect_active_){
+        //以下追加
+        if (auto_collect_active_){
             run_auto_collect();
            }
         //ここまで
@@ -630,6 +630,12 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_1;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
+
+    bool auto_collect_active_; // 適切な初期化を行ってください
+    bool auto_collect_abort_;
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
