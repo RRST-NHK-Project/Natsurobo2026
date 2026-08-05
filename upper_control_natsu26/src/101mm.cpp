@@ -19,14 +19,14 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         | data[n] | 詳細 | 範囲 |
         | ---- | ---- | ---- |
         | data[0] | debug | 0 or 1 |
-        | data[1] | MD1 | -100 ~ 100 |
-        | data[2] | MD2 | -100 ~ 100 |
-        | data[3] | MD3 | -100 ~ 100 |
-        | data[4] | MD4 | -100 ~ 100 |
-        | data[5] | MD5 | -100 ~ 100 |
-        | data[6] | MD6 | -100 ~ 100 |
-        | data[7] | MD7 | -100 ~ 100 |
-        | data[8] | MD8 | -100 ~ 100 |
+        | data[1] | MD1 | -255 ~ 255 |
+        | data[2] | MD2 | -255 ~ 255 |
+        | data[3] | MD3 | -255 ~ 255 |
+        | data[4] | MD4 | -255 ~ 255 |
+        | data[5] | MD5 | -255 ~ 255 |
+        | data[6] | MD6 | -255 ~ 255 |
+        | data[7] | MD7 | -255 ~ 255 |
+        | data[8] | MD8 | -255 ~ 255 |
         | data[9] | Servo1 | 0 ~ 270 |
         | data[10] | Servo2 | 0 ~ 270 |
         | data[11] | Servo3 | 0 ~ 270 |
@@ -222,18 +222,10 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         std_msgs::msg::Int16MultiArray msg;
 
         // 一応...
-        #if defined(CRANEGAME)
         RCLCPP_INFO(
             this->get_logger(),
-            "CRANEGAME is active. Mode:%s, Phase:%d / Crame phese:%d, Servo:%d, Motor:%d, tr:%d",                                        
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, (SQUARE_count % 4) + 1, data_[9], data_[10], data_[4], data_[2], data_[9], data_[19]); 
-        #else
-        RCLCPP_INFO(
-            this->get_logger(),
-            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",                                        
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); 
-        
-        #endif
+            "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",
+            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
