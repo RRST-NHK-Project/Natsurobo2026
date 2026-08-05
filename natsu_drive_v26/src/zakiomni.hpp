@@ -17,6 +17,7 @@
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
+#include "geometry_msgs/msg/twist.hpp" //上に同じく。自動旋回用。
 
 #define opPI 3.1415926
 
@@ -74,6 +75,7 @@ private:
    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
+   void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
    void publisher_timer_callback();
    void about_PID();
    void Timeout_check();
@@ -87,6 +89,11 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+   std::atomic<bool> cmd_vel_received_{false};
+   rclcpp::Time last_cmd_vel_time_;
+   double cmd_vel_v_ref_ = 1.0;   // [m/s] 要実測調整
+   double cmd_vel_w_ref_ = 1.0;   // [rad/s] 要実測調整
    rclcpp::TimerBase::SharedPtr timer_;
 
    // IMU ヘディングロック

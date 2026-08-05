@@ -220,6 +220,65 @@ void Zakicar::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     }
 }
 
+//以下追加（既存の流用）
+void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
+{
+    const double vx = msg->linear.x;
+    const double vy = msg->linear.y;
+    const double wz = msg->angular.z;
+
+    const double speed  = std::hypot(vx, vy);
+    const double radian = (speed > 1e-6) ? std::atan2(vy, vx) : 0.0;
+
+    double speed_ratio = (cmd_vel_v_ref_ > 1e-6) ? (speed / cmd_vel_v_ref_) : 0.0;
+    speed_ratio = std::clamp(speed_ratio, 0.0, 1.0);
+
+    double yaw_ratio = (cmd_vel_w_ref_ > 1e-6) ? (wz / cmd_vel_w_ref_) : 0.0;
+    yaw_ratio = std::clamp(yaw_ratio, -1.0, 1.0);
+
+    for (int i = 0; i < 4; i++) target_v[i] = 0.0;
+
+    // 並進（既存と同じ）
+    if (speed_ratio > 0.0) {
+        target_v[0] = max_target_move_cps * speed_ratio * -std::cos((opPI / 4.0) - radian);
+        target_v[1] = max_target_move_cps * speed_ratio *  std::cos((radian + (opPI / 4.0)));
+        target_v[2] = max_target_move_cps * speed_ratio *  std::cos((opPI / 4.0) - radian);
+        target_v[3] = max_target_move_cps * speed_ratio * -std::cos(radian + (opPI / 4.0));
+    }
+
+    // 旋回（全輪同方向、既存と同じ符号）
+    if (std::fabs(yaw_ratio) > 1e-6) {
+        for (int i = 0; i < 4; i++) target_v[i] += -max_target_yaw_cps * yaw_ratio;
+        if (have_imu_) target_yaw_ = imu_yaw_;
+    }
+    else if (have_imu_) {
+        double yaw_err = target_yaw_ - imu_yaw_;
+        yaw_err = std::atan2(std::sin(yaw_err), std::cos(yaw_err));
+        float corr = std::clamp(Kp_yaw * static_cast<float>(yaw_err),
+                                -max_target_yaw_cps * 0.3f, max_target_yaw_cps * 0.3f);
+        for (int i = 0; i < 4; i++) target_v[i] += corr;
+    }
+
+    // 平滑化（既存と同じ）
+    for (int l = 0; l < 4; l++) {
+        #if defined(Mode_normal)
+        target_v[l] = filter * target_v[l] + (1.0 - filter) * last_target_v[l];
+        #endif
+        #if defined(Mode_custom)
+        target_v[l] = filter * target_v[l] + (1.0 - filter_[l]) * last_target_v[l];
+        #endif
+        last_target_v[l] = target_v[l];
+    }
+
+    // 自動走行中も joy と同様「受信中」として扱い、Timeout_check の誤検知を防ぐ
+    joy_received.store(true);
+    last_joy_time = this->now();
+    cmd_vel_received_.store(true);
+    last_cmd_vel_time_ = this->now();
+}
+//ここまで
+
+
 void Zakicar::sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
 {
     // 最低限、サイズチェック
