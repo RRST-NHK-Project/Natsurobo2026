@@ -582,7 +582,7 @@ private:
             }
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[11], data_[1], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+        "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[11], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
