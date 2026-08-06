@@ -123,13 +123,14 @@ def generate_launch_description():
         ),
 
         # ── 静的 TF ─────────────────────────────────────────
-        # LiDAR 取り付け位置（計測後に数値を更新すること）
+        # LiDAR 取り付け位置（実測値 (-4.0, 46.0)cm。natsu_localization の
+        # field_map.yaml lidar_x/lidar_y と一致させること）
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='tf_lidar',
             arguments=[
-                '--x', '0.0', '--y', '0.0', '--z', '0.10',
+                '--x', '-0.04', '--y', '0.46', '--z', '0.10',
                 '--yaw', '0', '--pitch', '0', '--roll', '0',
                 '--frame-id', 'base_link',
                 '--child-frame-id', 'ldlidar_link',

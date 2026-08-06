@@ -29,13 +29,14 @@ def generate_launch_description():
             parameters=[cfg],
         ),
 
-        # LiDAR 取付 TF (base_link -> ldlidar_link)。実機の固定値に合わせる。
+        # LiDAR 取付 TF (base_link -> ldlidar_link)。実測値 (-4.0, 46.0)cm。
+        # field_map.yaml の lidar_x/lidar_y と一致させること。
         # 引数: --x --y --z --yaw --pitch --roll --frame-id --child-frame-id
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='base_to_ldlidar',
-            arguments=['--x', '0.0', '--y', '0.0', '--z', '0.0',
+            arguments=['--x', '-0.04', '--y', '0.46', '--z', '0.0',
                        '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0',
                        '--frame-id', 'base_link', '--child-frame-id', 'ldlidar_link'],
         ),

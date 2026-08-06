@@ -1,11 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════
 //  scan_matcher_localizer  —  RRST 夏ロボ 2026 自己位置推定
 // ════════════════════════════════════════════════════════════════════════
-//  LD19 360°LiDAR(/scan)を「既知フィールド壁線分」にマッチングし、
+//  LD19 360°LiDAR(/scan)を「石倉(900mm角)の4面」にマッチングし、
 //  summer2026_odometry の /odom を初期値(動き予測)にして絶対自己位置を推定する。
 //
-//  地図は構築しない(SLAMではない)。フィールドが既知なので、壁を線分マップとして
-//  与え、scan点を点-直線ICPで合わせる → 累積ドリフトが原理的に乗らない絶対位置。
+//  地図は構築しない(SLAMではない)。石倉の寸法は既知(0.9m角)なので、位置
+//  (ishigura_x/y)だけをパラメータで与え、4面の線分はノードが組み立てる。
+//  scan点を点-直線ICPで合わせる → 累積ドリフトが原理的に乗らない絶対位置。
 //
 //  アルゴリズムは LittleSLAM (MPL-2.0, Masahiro Tomono / fuRo) を移植・再構成:
 //    Pose2D             … 2D姿勢と座標変換 (compose/relative/inverse)
@@ -113,7 +114,9 @@ class ScanMatcherLocalizer : public rclcpp::Node {
 public:
   ScanMatcherLocalizer() : Node("scan_matcher_localizer") {
     // ── パラメータ ──
-    declare_parameter<std::vector<double>>("field_map.segments", std::vector<double>{});
+    // 石倉の位置 [m]（フィールド座標。サイズは既知の0.9m角なので位置のみ。要実測）
+    declare_parameter<double>("ishigura_x", 3.20);  // スタートゾーン中心 → 石倉手前面 の距離
+    declare_parameter<double>("ishigura_y", 0.0);   // 石倉中心の左右オフセット（左が正）
     declare_parameter<std::vector<double>>("start_pose", std::vector<double>{0.0, 0.0, 0.0});
     declare_parameter<double>("lidar_x", 0.0);
     declare_parameter<double>("lidar_y", 0.0);
@@ -127,14 +130,16 @@ public:
     declare_parameter<std::string>("odom_frame", "odom");
     declare_parameter<double>("range_min", 0.10);
     declare_parameter<double>("range_max", 12.0);
-    declare_parameter<int>("point_skip", 2);
+    declare_parameter<int>("point_skip", 1);
     declare_parameter<int>("icp_max_iter", 30);
     declare_parameter<double>("icp_dthre", 0.30);
     declare_parameter<double>("icp_dthre_end", 0.10);
     declare_parameter<int>("gn_max_iter", 5);
     declare_parameter<double>("converge_delta", 0.001);
-    declare_parameter<double>("min_match_ratio", 0.30);
-    declare_parameter<int>("min_match_points", 30);
+    // 地図が石倉のみのため、スキャンの大半（フェンス等）は対応なしが正常。
+    // ratio は「石倉に当たった点の割合」（0.9m幅@3.2m ≈ 20点想定）。
+    declare_parameter<double>("min_match_ratio", 0.05);
+    declare_parameter<int>("min_match_points", 10);
     declare_parameter<double>("max_mean_error", 0.10);
 
     load_params();
@@ -187,16 +192,26 @@ private:
     max_mean_error_ = get_parameter("max_mean_error").as_double();
   }
 
+  // 石倉(0.9m角)の4面を線分マップとして組み立てる
+  static constexpr double kIshiguraSize = 0.90;  // [m] 900mm角（既知寸法）
   void load_map() {
-    auto seg = get_parameter("field_map.segments").as_double_array();
+    const double x0 = get_parameter("ishigura_x").as_double();  // 手前面
+    const double y0 = get_parameter("ishigura_y").as_double();  // 中心
+    const double x1 = x0 + kIshiguraSize;
+    const double h  = kIshiguraSize / 2.0;
+    const double seg[4][4] = {
+        {x0, y0 - h, x0, y0 + h},   // 手前面
+        {x1, y0 - h, x1, y0 + h},   // 奥面
+        {x0, y0 + h, x1, y0 + h},   // 左側面
+        {x0, y0 - h, x1, y0 - h},   // 右側面
+    };
     map_.clear();
-    for (size_t i = 0; i + 3 < seg.size(); i += 4) {
-      Segment s{seg[i], seg[i + 1], seg[i + 2], seg[i + 3], 0, 0, 0, 0, 0, 0};
+    for (const auto &q : seg) {
+      Segment s{q[0], q[1], q[2], q[3], 0, 0, 0, 0, 0, 0};
       s.precompute();
       map_.push_back(s);
     }
-    if (map_.empty())
-      RCLCPP_WARN(get_logger(), "field_map.segments が空です。マッチングできません。");
+    RCLCPP_INFO(get_logger(), "石倉マップ: 手前面x=%.2f, 中心y=%.2f, %.2fm角", x0, y0, kIshiguraSize);
   }
 
   // ── オドメトリ: 最新値を保持 ──
