@@ -489,6 +489,7 @@ private:
         
             // =================================================================
             // SQUARE TRIANGLE:　
+<<<<<<< HEAD
 
             //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
             if (SQUARE)
@@ -533,32 +534,59 @@ private:
             else if(crosskey_count % 3 == 0)
             {
             if (UP)
+=======
+            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？
+              なんでモーターの制御コードがないの？
+              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？
+              機構図面共有したからあのナンバリングで書きな*/
+            // if (SQUARE)
+            // {
+            //     data_[11] -=5; // 角度は要調整
+            // }
+            // if (TRIANGLE)
+            // {
+            //     data_[11] +=5; // 角度は要調整
+            // }
+            
+            // if(data_[11] > 270)
+            // {
+            //     data_[11] = 270; // 上限角度は要調整
+            // }
+            // else if(data_[11] < 0)
+            // {
+            //     data_[11] = 0; // 下限角度は要調整
+            // }
+            // =================================================================
+            // UP,DOWN:「ピッチ軸回転」
+            static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
+            if (DOWN)
+>>>>>>> 35332f8 (射出機構)
             {
                 pitch_state = pitch_state + 3; 
 
-                if (pitch_state >90)
+                if (pitch_state >270)
                 {
-                    pitch_state =90; // 上限角度は要調整
+                    pitch_state =270; // 上限角度は要調整
                 }
             }
 
-            else if (DOWN)
+            else if (UP)
             {
                 pitch_state = pitch_state - 3;
 
-                if (pitch_state < 0)
+                if (pitch_state < 120)
                 {
-                    pitch_state = 0; // 下限角度は要調整
+                    pitch_state = 120; // 下限角度は要調整
                 }
             }
 
-            data_[12] = pitch_state;
+            data_[11] = pitch_state;
             // =================================================================
 
             // =================================================================
             // LEFT,RIGHT:「ヨー軸回転」
             static int yaw_state=135; // ヨー軸(横回転)の角度
-            if (LEFT)
+            if (RIGHT)
             {
                 yaw_state = yaw_state + 3; 
 
@@ -568,7 +596,7 @@ private:
                 }
             }
 
-            else if (RIGHT)
+            else if (LEFT)
             {
                 yaw_state = yaw_state - 3; 
 
