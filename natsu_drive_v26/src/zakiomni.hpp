@@ -79,7 +79,7 @@ private:
    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
-   void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+   // void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);  // 自動走行: 調停未実装のため一旦無効化
    void publisher_timer_callback();
    void about_PID();
    void Timeout_check();
@@ -93,11 +93,12 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
-   std::atomic<bool> cmd_vel_received_{false};
-   rclcpp::Time last_cmd_vel_time_;
-   double cmd_vel_v_ref_ = 1.0;   // [m/s] 要実測調整
-   double cmd_vel_w_ref_ = 1.0;   // [rad/s] 要実測調整
+   // 自動走行(/cmd_vel)用: 調停未実装のため一旦無効化
+   // rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+   // std::atomic<bool> cmd_vel_received_{false};
+   // rclcpp::Time last_cmd_vel_time_;
+   // double cmd_vel_v_ref_ = 1.0;   // [m/s] 要実測調整
+   // double cmd_vel_w_ref_ = 1.0;   // [rad/s] 要実測調整
    rclcpp::TimerBase::SharedPtr timer_;
 
    // IMU ヘディングロック

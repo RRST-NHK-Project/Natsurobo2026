@@ -5,7 +5,7 @@ sensor_test.launch.py
 
 起動するノード:
   - ldlidar_component  (LD19 LiDAR, composable container)
-  - wt901_node         (WT901C IMU)
+  - wt901c_publisher   (WT901C IMU, natsu_imu)
   - wall_detection_node
   - sensor_visualizer
   - RViz2
@@ -108,13 +108,17 @@ def generate_launch_description():
             ),
         ]),
 
-        # ── IMU（WT901C） ───────────────────────────────────
+        # ── IMU（WT901C, natsu_imu/wt901c_publisher） ───────
+        # 起動時に6軸モード(地磁気オフ)を自動設定して /imu, /imu/step_detected を publish
         Node(
-            package='wt901_node',
-            executable='wt901_node',
-            name='wt901_node',
+            package='natsu_imu',
+            executable='wt901c_publisher',
+            name='wt901c_publisher',
             output='screen',
-            parameters=[{'port': imu_port}],
+            parameters=[{
+                'serial_port': imu_port,
+                'baud_rate': 9600,
+            }],
             condition=IfCondition(LaunchConfiguration('use_imu')),
         ),
 

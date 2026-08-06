@@ -221,6 +221,8 @@ void Zakicar::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
 }
 
 //以下追加（既存の流用）
+// 自動走行(/cmd_vel)受け口: joy側との調停(/fsm/arbitration)が未実装のため一旦無効化
+#if 0
 void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
     const double vx = msg->linear.x;
@@ -276,6 +278,7 @@ void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
     cmd_vel_received_.store(true);
     last_cmd_vel_time_ = this->now();
 }
+#endif
 //ここまで
 
 
