@@ -35,8 +35,8 @@
 //#define Mode_custom
 
 //PIDを行う場所の設定
-// #define PC
-#define ESP32
+#define PC
+// #define ESP32
 
 // スティックのデッドゾーン
 #define DEADZONE_L 0.15
