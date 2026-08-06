@@ -411,18 +411,18 @@ private:
             // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
             static int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
-            // if (TRIANGLE)
-            // {
+            if (TRIANGLE)
+            {
             //     //data_[1] = injection_speed;
-            //     data_[3] = injection_speed;
-            //     data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
-            // }
-            // else
-            // {
+                data_[3] = injection_speed;
+                data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
+            }
+            else
+            {
             //     //data_[1] = 0;
-            //     data_[3] = 0;
-            //     data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
-            // }
+                data_[3] = 0;
+                data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
+            }
             RCLCPP_INFO(this->get_logger(),
                                     "motor[1,3,4]: %d,%d,%d", data_[1], data_[3], data_[4]); 
             // =================================================================
