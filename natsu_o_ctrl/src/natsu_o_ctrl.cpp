@@ -84,39 +84,35 @@ private:
             return;
         }
 
-        bool SQUARE = msg->buttons[SQUARE_BUTTON];
+        bool SQUARE = (msg->buttons[SQUARE_BUTTON] > 0);
 
         // □の立ち上がり（押した瞬間）だけ状態を進める
         if (SQUARE && !last_square_)
         {
-            // 状態遷移を明示的に記述（停止 -> SPEED_1 -> SPEED_2 -> SPEED_3 -> 停止）
-            if (speed_state_ == 0)
-            {
-                speed_state_ = 1;
-                target_vel_ = SPEED_1;
-            }
-            else if (speed_state_ == 1)
-            {
-                speed_state_ = 2;
-                target_vel_ = SPEED_2;
-            }
-            else if (speed_state_ == 2)
-            {
-                speed_state_ = 3;
-                target_vel_ = SPEED_3;
-            }
-            else
-            {
-                speed_state_ = 0;
+        speed_state_ = (speed_state_ + 1) % 3; // 0->1->2->0 の巡回
+    
+    RCLCPP_INFO(get_logger(),"SQUARE押下 -> 状態%d : %.1f turn/s " , speed_state_, target_vel_);  
+
+    
+       // 状態遷移を明示的に記述（停止 -> SPEED_1 -> SPEED_2 -> 停止）
+        if (speed_state_ == 0)
+
+        {
                 target_vel_ = 0.0;
             }
+        else if (speed_state_   == 1)
+            {
+                target_vel_ = SPEED_1;
+            }
+        else if (speed_state_ == 2)
+            {
+                target_vel_ = SPEED_2;
+            }     
 
-            RCLCPP_INFO(get_logger(),
-                        "SQUARE押下 -> 状態%d : %.1f turn/s", speed_state_, target_vel_);
-        }
-
-        last_square_ = SQUARE; // 前回状態を更新
+        }        
+    last_square_= SQUARE; // □の状態を更新    
     }
+    
 
     void publisher_timer_callback()
     {
@@ -134,9 +130,10 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    int speed_state_;   // 0=停止, 1=SPEED_1, 2=SPEED_2, 3=SPEED_3
+    int speed_state_ = 0;   // 0=停止, 1=SPEED_1, 2=SPEED_2
     double target_vel_; // 現在の目標速度 [turn/s]
     bool last_square_;  // □の前回状態（エッジ検出用）
+
 };
 
 int main(int argc, char *argv[])

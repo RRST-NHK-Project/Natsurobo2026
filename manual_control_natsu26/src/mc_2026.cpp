@@ -400,6 +400,8 @@ private:
         { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Drive.");
+
+            
             // =================================================================
             // CROSS:
             // =================================================================
@@ -439,8 +441,10 @@ private:
             // =================================================================
             // LEFT,RIGHT:
             // =================================================================
-        }
-        else if (get_eel_mode){
+        } 
+        else if (get_eel_mode)
+        {
+            static int crosskey_count = 0; // CROSSの押下回数をカウントする変数
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
@@ -489,76 +493,57 @@ private:
         
             // =================================================================
             // SQUARE TRIANGLE:　
-
-            //ハンドアームの内、根本のモーターを回転させる。SQUAREで逆回転、CIRCLEで正回転。角度は要調整
-            if (SQUARE)
-            {
-                data_[1] -=5; // 角度は要調整
-            }
-            if (CIRCLE)
-            {
-                data_[1] +=5; // 角度は要調整
-            }
+            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？
+              なんでモーターの制御コードがないの？
+              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？
+              機構図面共有したからあのナンバリングで書きな*/
+            // if (SQUARE)
+            // {
+            //     data_[11] -=5; // 角度は要調整
+            // }
+            // if (TRIANGLE)
+            // {
+            //     data_[11] +=5; // 角度は要調整
+            // }
             
-            if(data_[1] > 270)
-            {
-                data_[1] = 270; // 上限角度は要調整
-            }
-            else if(data_[1] < 0)
-            {
-                data_[1] = 0; // 下限角度は要調整
-            }
+            // if(data_[11] > 270)
+            // {
+            //     data_[11] = 270; // 上限角度は要調整
+            // }
+            // else if(data_[11] < 0)
+            // {
+            //     data_[11] = 0; // 下限角度は要調整
+            // }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
-            static int crosskey_count = 0; // UP/DOWNの押下回数をカウントする変数
-            if(CROSS && !last_CROSS)
-            {
-                crosskey_count++; // 押下回数をインクリメント
-            }
-
-            static int pitch_state= 0 ; // ピッチ軸(縦回転)の角度
-
-            if(crosskey_count % 3 == 1)// 1回目の押下時の処理(サーボがワークを掴む位置に移動する)
-            {
-                data_[13] = 0; // この値は実機を動かすときに調節する。
-                data_[14] = 0;// この値は実機を動かすときに調節する。
-                data_[15] = 0;// この値は実機を動かすときに調節する。
-            }
-            if(crosskey_count % 3 == 2)// 2回目の押下時の処理(サーボがワークを装填する位置に移動する)
-            {
-                data_[13] = 90; // この値は実機を動かすときに調節する。
-                data_[14] = 90;// この値は実機を動かすときに調節する。
-                data_[15] = 90;// この値は実機を動かすときに調節する。
-            }
-            else if(crosskey_count % 3 == 0)
-            {
-            if (UP)
+            static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
+            if (DOWN)
             {
                 pitch_state = pitch_state + 3; 
 
-                if (pitch_state >90)
+                if (pitch_state >270)
                 {
-                    pitch_state =90; // 上限角度は要調整
+                    pitch_state =270; // 上限角度は要調整
                 }
             }
 
-            else if (DOWN)
+            else if (UP)
             {
                 pitch_state = pitch_state - 3;
 
-                if (pitch_state < 0)
+                if (pitch_state < 120)
                 {
-                    pitch_state = 0; // 下限角度は要調整
+                    pitch_state = 120; // 下限角度は要調整
                 }
             }
 
-            data_[12] = pitch_state;
+            data_[11] = pitch_state;
             // =================================================================
 
             // =================================================================
             // LEFT,RIGHT:「ヨー軸回転」
             static int yaw_state=135; // ヨー軸(横回転)の角度
-            if (LEFT)
+            if (RIGHT)
             {
                 yaw_state = yaw_state + 3; 
 
@@ -568,7 +553,7 @@ private:
                 }
             }
 
-            else if (RIGHT)
+            else if (LEFT)
             {
                 yaw_state = yaw_state - 3; 
 
@@ -579,14 +564,15 @@ private:
             }
 
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
-            }
+        
 
             RCLCPP_INFO(this->get_logger(), 
         "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
-        }
-         RCLCPP_INFO(this->get_logger(), 
-        "Speed ​​of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
+    }
+
+        RCLCPP_INFO(this->get_logger(), 
+        "Speed of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
     
     last_L1 = L1; // L1の状態を更新
     last_L2 = L2; // L2の状態を更新
@@ -597,6 +583,7 @@ private:
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
     }
+
 
     // 自動回収フラグの受信（/collect/start, /collect/abort, /collect/done）
     void collect_start_callback(const std_msgs::msg::Bool::SharedPtr msg)
@@ -738,6 +725,7 @@ private:
     #endif
 
     std::vector<int16_t> data_;
+
 };
 
 int main(int argc, char *argv[])
