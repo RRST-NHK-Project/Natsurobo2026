@@ -329,7 +329,7 @@ private:
         // bool OPTION = msg->buttons[9];
         // bool PS = msg->buttons[10];
 
-        // bool L3 = msg->buttons[11];
+        bool L3 = msg->buttons[11];
         // bool R3 = msg->buttons[12];
         // static bool last_option = false;
         // static bool option_latch = false;
@@ -340,7 +340,9 @@ private:
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_L2 = false; // L2の前回状態を保持する変数
+        static bool last_L3 = false; // L3の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
+        static bool reverserolling = false; // 逆回転モードのフラグ
 
         // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
         // static int d2 = 0; // 小アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
@@ -365,14 +367,33 @@ private:
         {
             isrolling = !isrolling; // 押した瞬間だけ状態を反転
         }
+        if(L3&&!last_L3) // L3が押された瞬間にモード切替
+        {
+            reverserolling = !reverserolling; // 逆回転モードの切り替え
+        }
         
-        data_[2] = isrolling ? 50 : 0; // 回転/停止を切り替えをする
+        if(isrolling == true)
+        {
+            data_[2] = 20;
+        }
+        else if(reverserolling == true)
+        {
+            data_[2] = -20;
+        }
+        else
+        {
+            data_[2] = 0;
+        }
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
         {
             mode_count++;
         }
+
+
+
+        //data_[2] = reverserolling ? -20 : 0; // 逆回転モードが有効な場合、回転方向を反転
 
         if(drive_mode)
         { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
@@ -535,6 +556,7 @@ private:
     last_L1 = L1; // L1の状態を更新
     last_L2 = L2; // L2の状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
+    last_L3 = L3; // L3の状態を更新
     //last_SQUARE = SQUARE; // SQUAREの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
