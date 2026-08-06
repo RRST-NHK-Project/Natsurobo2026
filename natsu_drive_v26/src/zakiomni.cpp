@@ -569,6 +569,7 @@ void Zakicar::about_PID()
     }
     #elif defined(ESP32)
 
+
     for(int l = 0; l < 4; l++)
     {
         //マイコン内でPIDを行うため、目標速度をそのまま送信する
@@ -577,7 +578,10 @@ void Zakicar::about_PID()
         data_[l + 1] = target_rpm[l]; //　マイコンはrpmを欲している
        
     }
-
+    RCLCPP_INFO(this->get_logger(),
+                "PID in ESP32 is active: target_rpm[1-4]: %f,%f,%f,%f,ENC[1-4]: %d,%d,%d,%d",
+                target_rpm[0], target_rpm[1], target_rpm[2], target_rpm[3], ENC1, ENC2, ENC3, ENC4);
+    
     #endif
 }
 
