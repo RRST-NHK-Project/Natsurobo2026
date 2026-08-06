@@ -336,6 +336,7 @@ private:
         static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         //static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
         //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
+        static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
@@ -509,7 +510,28 @@ private:
             }
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
+            static int crosskey_count = 0; // UP/DOWNの押下回数をカウントする変数
+            if(CROSS && !last_CROSS)
+            {
+                crosskey_count++; // 押下回数をインクリメント
+            }
+
             static int pitch_state= 0 ; // ピッチ軸(縦回転)の角度
+
+            if(crosskey_count % 3 == 1)// 1回目の押下時の処理(サーボがワークを掴む位置に移動する)
+            {
+                data_[13] = 0; // この値は実機を動かすときに調節する。
+                data_[14] = 0;// この値は実機を動かすときに調節する。
+                data_[15] = 0;// この値は実機を動かすときに調節する。
+            }
+            if(crosskey_count % 3 == 2)// 2回目の押下時の処理(サーボがワークを装填する位置に移動する)
+            {
+                data_[13] = 90; // この値は実機を動かすときに調節する。
+                data_[14] = 90;// この値は実機を動かすときに調節する。
+                data_[15] = 90;// この値は実機を動かすときに調節する。
+            }
+            else if(crosskey_count % 3 == 0)
+            {
             if (UP)
             {
                 pitch_state = pitch_state + 3; 
@@ -557,9 +579,10 @@ private:
             }
 
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
+            }
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d triangle: %d", data_[9], data_[10], data_[11], data_[1], triangle_count); // サーボの角度を表示
+        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[11], data_[1], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
@@ -569,6 +592,7 @@ private:
     last_L2 = L2; // L2の状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     last_L3 = L3; // L3の状態を更新
+    last_CROSS = CROSS; // CROSSの状態を更新
     //last_SQUARE = SQUARE; // SQUAREの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
