@@ -5,7 +5,7 @@ sensor_visualizer.py  ─ センサテスト用 RViz2 可視化ノード
 subscribe:
   /wall_detection/angle    [std_msgs/Float64]  壁偏角 [rad]
   /wall_detection/distance [std_msgs/Float64]  壁距離 [m]
-  /imu/data                [sensor_msgs/Imu]   WT901C
+  /imu                     [sensor_msgs/Imu]   WT901C (wt901c_publisher)
 
 publish:
   /sensor_viz/markers      [visualization_msgs/MarkerArray]
@@ -47,7 +47,7 @@ class SensorVisualizer(Node):
             self._angle_cb, 10)
         self.create_subscription(Float64, '/wall_detection/distance',
             self._dist_cb, 10)
-        self.create_subscription(Imu, '/imu/data', self._imu_cb, 10)
+        self.create_subscription(Imu, '/imu', self._imu_cb, 10)
 
         self._pub = self.create_publisher(MarkerArray, '/sensor_viz/markers', 10)
         self.create_timer(0.1, self._publish)

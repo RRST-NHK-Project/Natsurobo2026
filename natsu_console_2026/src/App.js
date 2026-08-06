@@ -486,7 +486,7 @@ function App() {
   const odomNavSubRef = useRef(null);
   const locPathRef = useRef([]);                      // ICP補正後の軌跡
   const locPoseSubRef = useRef(null);                 // /localization/pose 購読
-  const imuSubRef = useRef(null);                     // /imu/data 購読
+  const imuSubRef = useRef(null);                     // /imu 購読 (wt901c_publisher)
   const imuYaw0Ref = useRef(null);                    // 初回IMU yaw(起動時を方位の基準に)
   const traceLanguageRef = useRef("ja");
   const defaultRosHost = window.location.hostname || "localhost";
@@ -4207,10 +4207,10 @@ function App() {
       }
     });
 
-    // IMU(WT901C)を購読し、機体の方位(yaw)と傾き(roll/pitch)を取得
+    // IMU(WT901C, natsu_senser/wt901c_publisher)を購読し、機体の方位(yaw)と傾き(roll/pitch)を取得
     imuSubRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
-      name: "/imu/data",
+      name: "/imu",
       messageType: "sensor_msgs/msg/Imu",
     });
     imuSubRef.current.subscribe((msg) => {
@@ -5540,6 +5540,53 @@ function App() {
                   "Overlays /odom (summer2026_odometry) and /localization/pose (natsu_localization, known-wall ICP) on the field map. The gap between them is the odometry drift."
                 )}
               </p>
+
+              <section className="pose-graph-card" style={{ marginTop: 12 }}>
+                <div className="pose-graph-title-row">
+                  <h3 className="pose-graph-title">{tr("現在姿勢", "Current Attitude")}</h3>
+                  <span className="pose-graph-scale">IMU: /imu / odom: /odom</span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 24, padding: "10px 6px" }}>
+                  <div>
+                    <div style={{ color: "#d2a8ff", fontSize: 12, marginBottom: 4 }}>
+                      {tr("IMU (WT901C)", "IMU (WT901C)")}
+                    </div>
+                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                      <span>Roll <strong>{imuRpy ? (imuRpy.roll * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                      <span>Pitch <strong>{imuRpy ? (imuRpy.pitch * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                      <span>Yaw <strong>{imuRpy ? (imuRpy.yaw * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#f0883e", fontSize: 12, marginBottom: 4 }}>
+                      {tr("odom (補正なし)", "odom (raw)")}
+                    </div>
+                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                      <span>X <strong>{odomPose.x.toFixed(3)}m</strong></span>
+                      <span>Y <strong>{odomPose.y.toFixed(3)}m</strong></span>
+                      <span>Yaw <strong>{(odomPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
+                    </div>
+                  </div>
+                  {locPose && (
+                    <div>
+                      <div style={{ color: "#39c5cf", fontSize: 12, marginBottom: 4 }}>
+                        {tr("ICP補正 (絶対位置)", "ICP corrected")}
+                      </div>
+                      <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                        <span>X <strong>{locPose.x.toFixed(3)}m</strong></span>
+                        <span>Y <strong>{locPose.y.toFixed(3)}m</strong></span>
+                        <span>Yaw <strong>{(locPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="serial-packet-hint" style={{ margin: "0 6px 6px" }}>
+                  {tr(
+                    "IMUのYawは起動時の向きを0°とした相対値です（6軸モード・地磁気オフ）。",
+                    "IMU yaw is relative to the boot-time heading (6-axis mode, magnetometer off)."
+                  )}
+                </p>
+              </section>
 
               <section className="pose-graph-card" style={{ marginTop: 12 }}>
                 <div className="pose-graph-title-row">

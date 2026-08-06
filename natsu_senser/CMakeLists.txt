@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(natsu_senser)
+project(natsu_imu)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -14,7 +14,11 @@ add_executable(imu_publisher src/imu_publisher.cpp)
 target_compile_features(imu_publisher PUBLIC cxx_std_17)
 ament_target_dependencies(imu_publisher rclcpp sensor_msgs std_msgs)
 
-install(TARGETS imu_publisher
+add_executable(wt901c_publisher src/wt901c_publisher.cpp)
+target_compile_features(wt901c_publisher PUBLIC cxx_std_17)
+ament_target_dependencies(wt901c_publisher rclcpp sensor_msgs std_msgs)
+
+install(TARGETS imu_publisher wt901c_publisher
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
