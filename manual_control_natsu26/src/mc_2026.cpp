@@ -411,18 +411,18 @@ private:
             // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
             static int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
-            if (TRIANGLE)
-            {
-                //data_[1] = injection_speed;
-                data_[3] = injection_speed;
-                data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
-            }
-            else
-            {
-                //data_[1] = 0;
-                data_[3] = 0;
-                data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
-            }
+            // if (TRIANGLE)
+            // {
+            //     //data_[1] = injection_speed;
+            //     data_[3] = injection_speed;
+            //     data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
+            // }
+            // else
+            // {
+            //     //data_[1] = 0;
+            //     data_[3] = 0;
+            //     data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
+            // }
             RCLCPP_INFO(this->get_logger(),
                                     "motor[1,3,4]: %d,%d,%d", data_[1], data_[3], data_[4]); 
             // =================================================================
@@ -454,17 +454,29 @@ private:
             {
                 triangle_count++; // 押下回数をインクリメント
                 // TRIANGLEが押された瞬間の処理
-                if(triangle_count % 2 == 1)
+                if(triangle_count % 4 == 1)
                 {
                     
                     // 奇数回目の押下時の処理（例: 開く）
-                    data_[9] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
-                    data_[10] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
-                    data_[11] = 90; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
+                    data_[9] = 40; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
+                    data_[10] = 40; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
+                    data_[11] = 40; // ハンドアームの内、ワークを掴むサーボの開く角度に設定。必要に応じて調整してください
                 }
-
-
-                else if (triangle_count % 2 == 0)
+                else if (triangle_count % 4 == 2)
+                {
+                    // 偶数回目の押下時の処理（例: 閉じる）
+                    data_[9] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[10] = 40; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[11] = 40; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                }
+                else if (triangle_count % 4 == 3)
+                {
+                    // 偶数回目の押下時の処理（例: 閉じる）
+                    data_[9] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[10] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                    data_[11] = 40; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
+                }
+                else if (triangle_count % 4 == 0)
                 {
                     // 偶数回目の押下時の処理（例: 閉じる）
                     data_[9] = 0; // ハンドアームの内、ワークを掴むサーボの角度に設定。必要に応じて調整してください
@@ -547,7 +559,7 @@ private:
             data_[12] = yaw_state; // ヨー軸の角度を配列に格納
 
             RCLCPP_INFO(this->get_logger(), 
-        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d", data_[9], data_[10], data_[11], data_[1]); // サーボの角度を表示
+        "Now, servo angle is: %d,%d and %d Speed ​​of the motor at the base of the hand arm: %d triangle: %d", data_[9], data_[10], data_[11], data_[1], triangle_count); // サーボの角度を表示
             // =================================================================
         }
          RCLCPP_INFO(this->get_logger(), 
