@@ -75,6 +75,37 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     //     "/imu", 10,
     //     std::bind(&Zakicar::imu_callback, this, std::placeholders::_1));
 
+    //以下追加（自動走行の調停）
+    last_cmd_vel_time_ = this->now();
+
+    // 自動走行の速度指令（natsu_autoが出す）
+    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+        "/cmd_vel", 10,
+        std::bind(&Zakicar::cmd_vel_callback, this, std::placeholders::_1));
+
+    // トピック受信の有無を監視するためのタイマー
+    arbitration_sub_ = this->create_subscription<std_msgs::msg::String>(
+        "/fsm/arbitration", 10,
+        [this](std_msgs::msg::String::SharedPtr m) {
+            const bool next = (m->data == "auto");
+            if (next != auto_mode_.load())
+            {
+                RCLCPP_WARN(get_logger(), "arbitration -> %s", m->data.c_str());
+                // モードが切り替わる瞬間に目標値を捨てる（前モードの速度で飛び出さないように）
+                for (int i = 0; i < 4; i++)
+                {
+                    target_v[i] = 0.0;
+                    last_target_v[i] = 0.0;
+                    err_sum[i] = 0.0;
+                }
+            }
+            auto_mode_.store(next);
+        });
+
+    // AUTO中にスティックが倒されたらFSMへ中断を通知するための出口
+    abort_pub_ = this->create_publisher<std_msgs::msg::Bool>("/fsm/abort", 10);
+    //ここまで
+
     RCLCPP_INFO(get_logger(),
                 "serial_tx_%d started.", tx_device_id_);
 }
@@ -119,6 +150,35 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // share_latch = false;
 
     // 以降、配列data_を操作する
+
+    //以下追加（自動走行の調停）
+    // AUTO中: スティックが明確に倒されたら手動へ割り込み。それ以外のjoyは無視する
+    // （joyのスティック中立メッセージがcmd_velの目標値を0で上書きしないように）
+    if (auto_mode_.load())
+    {
+        if (fabs(LS_X) > 0.3 || fabs(LS_Y) > 0.3 || fabs(RS_X) > 0.3)
+        {
+            auto_mode_.store(false);
+            for (int i = 0; i < 4; i++)
+            {
+                target_v[i] = 0.0;
+                last_target_v[i] = 0.0;
+                err_sum[i] = 0.0;
+            }
+            std_msgs::msg::Bool abort_msg;
+            abort_msg.data = true;
+            abort_pub_->publish(abort_msg); // FSMはこれを受けてABORTEDに遷移する
+            RCLCPP_WARN(get_logger(), "手動割り込み検出！AUTOを解除して/fsm/abortを送信！");
+            // このまま下の手動処理へ落ちる（今のスティックがすぐ効く）
+        }
+        else
+        {
+            joy_received.store(true);
+            last_joy_time = this->now();
+            return; // AUTO継続中はスティックを無視
+        }
+    }
+    //ここまで
 
     // デバッグ用
     // RCLCPP_INFO(
@@ -221,10 +281,12 @@ void Zakicar::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
 }
 
 //以下追加（既存の流用）
-// 自動走行(/cmd_vel)受け口: joy側との調停(/fsm/arbitration)が未実装のため一旦無効化
-#if 0
+// 自動走行(/cmd_vel)受け口: /fsm/arbitration が "auto" のときだけ効く
 void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
+    if (!auto_mode_.load())
+        return; // 手動中のcmd_velは完全に無視（自動側に機体を触らせない）
+
     const double vx = msg->linear.x;
     const double vy = msg->linear.y;
     const double wz = msg->angular.z;
@@ -278,7 +340,6 @@ void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
     cmd_vel_received_.store(true);
     last_cmd_vel_time_ = this->now();
 }
-#endif
 //ここまで
 
 

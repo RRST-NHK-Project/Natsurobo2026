@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>natsu_fsm</name>
+  <name>natsu_auto</name>
   <version>0.1.0</version>
   <description>
     Autonomous sequence FSM (司令塔) for RRST 夏ロボ 2026.

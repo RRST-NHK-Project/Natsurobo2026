@@ -1,5 +1,5 @@
 /*
- * natsu_fsm_node.cpp
+ * natsu_auto_node.cpp
  *
  * 夏ロボ2026 自律シーケンスFSM(有限オートマトン遷移図)
  * 
@@ -68,7 +68,7 @@ static const char* state_name(State s)
 class NatsuFsmNode : public rclcpp::Node
 {
 public:
-    NatsuFsmNode() : Node("natsu_fsm_node")
+    NatsuFsmNode() : Node("natsu_auto_node")
     {
         //　パラメータ（全て仮お気なので実測すること）
         // 段差検知: 壁距離がこれ以下なら石倉前とみなす [m]
@@ -153,9 +153,9 @@ public:
             std::chrono::milliseconds(ms),
             std::bind(&NatsuFsmNode::loop, this));
 
-        RCLCPP_INFO(get_logger(), "natsu_fsm_node started. state=IDLE");
+        RCLCPP_INFO(get_logger(), "natsu_auto_node started. state=IDLE");
         publish_state();
-        publish_arbitration("auto");
+        publish_arbitration("manual"); // IDLE=手動待機。autoは自動走行状態に入ってから
     }
 
 private:
@@ -224,6 +224,18 @@ private:
             case State::ABORTED:        break;
         }
         publish_state();
+
+        // 調停は毎周期publishする（遷移時の1回だけだと、後から起動した
+        // zakiomniが現在モードを受け取れず、cmd_velが永遠に無視されるため）
+        publish_arbitration(state_is_auto(state_) ? "auto" : "manual");
+    }
+
+    // 自動走行側が機体を持つべき状態か（それ以外はjoy専属＝手動）
+    static bool state_is_auto(State s)
+    {
+        return s == State::DETECT_STEP || s == State::ALIGN ||
+               s == State::CLIMB       || s == State::MOVE_TO_HOME ||
+               s == State::MOVE_TO_SHOOT || s == State::FIRE;
     }
 
     // ── 各ステート処理 ──────────────────────────

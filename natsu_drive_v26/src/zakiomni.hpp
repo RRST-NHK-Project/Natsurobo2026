@@ -17,6 +17,8 @@
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
+#include "std_msgs/msg/bool.hpp"   //自動化用（/fsm/abort通知）
+#include "std_msgs/msg/string.hpp" //自動化用（/fsm/arbitration受信）
 #include "geometry_msgs/msg/twist.hpp" //上に同じく。自動旋回用。
 
 #define opPI 3.1415926
@@ -79,7 +81,7 @@ private:
    void sensor_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
    void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg);
-   // void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);  // 自動走行: 調停未実装のため一旦無効化
+   void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg); // 自動走行(調停実装済みで有効化)
    void publisher_timer_callback();
    void about_PID();
    void Timeout_check();
@@ -93,12 +95,20 @@ private:
    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sensor_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-   // 自動走行(/cmd_vel)用: 調停未実装のため一旦無効化
-   // rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
-   // std::atomic<bool> cmd_vel_received_{false};
-   // rclcpp::Time last_cmd_vel_time_;
-   // double cmd_vel_v_ref_ = 1.0;   // [m/s] 要実測調整
-   // double cmd_vel_w_ref_ = 1.0;   // [rad/s] 要実測調整
+   // 自動走行(/cmd_vel)用
+   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+   std::atomic<bool> cmd_vel_received_{false};
+   rclcpp::Time last_cmd_vel_time_;
+   // スケール基準: 「スティック全倒し時の実速度」を実測して入れる。
+   // 大きめに入れると指令より遅く動く（安全側）、小さめだと速く動く（危険側）。
+   double cmd_vel_v_ref_ = 4.0;   // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
+   double cmd_vel_w_ref_ = 16.0;  // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
+
+   // 調停(/fsm/arbitration): "auto"でcmd_velを受け付け、"manual"でjoy専属に戻る。
+   // AUTO中にスティックが倒されたら即座にmanualへ落とし、/fsm/abortでFSMに通知する。
+   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr arbitration_sub_;
+   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr abort_pub_;
+   std::atomic<bool> auto_mode_{false};
    rclcpp::TimerBase::SharedPtr timer_;
 
    // IMU ヘディングロック

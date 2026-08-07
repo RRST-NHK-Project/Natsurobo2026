@@ -19,13 +19,13 @@ import os
 
 def generate_launch_description():
     config = os.path.join(
-        get_package_share_directory("natsu_fsm"),
-        "config", "natsu_fsm.yaml")
+        get_package_share_directory("natsu_auto"),
+        "config", "natsu_auto.yaml")
 
     fsm = Node(
-        package="natsu_fsm",
-        executable="natsu_fsm_node",
-        name="natsu_fsm_node",
+        package="natsu_auto",
+        executable="natsu_auto_node",
+        name="natsu_auto_node",
         output="screen",
         parameters=[config],
     )
