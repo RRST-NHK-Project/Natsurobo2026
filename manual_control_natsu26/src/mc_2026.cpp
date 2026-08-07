@@ -24,8 +24,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/bool.hpp>
 
 // 以下マイコンに合わせて設定
-#define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
-#define INPUT_DEVICE_ID 0x01 // 入力マイコン（マイクロスイッチやエンコーダ）のID
+#define OUTPUT_DEVICE_ID 0x03 // 出力マイコン（モーター制御）のID
+#define INPUT_DEVICE_ID 0x03 // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
 
@@ -416,8 +416,8 @@ private:
 
             if (TRIANGLE)
             {
-            //     //data_[1] = injection_speed;
-                data_[3] = injection_speed;
+                data_[1] = injection_speed;
+                data_[2] = injection_speed;
                 data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else

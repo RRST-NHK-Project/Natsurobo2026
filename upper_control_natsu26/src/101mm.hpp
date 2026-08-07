@@ -18,7 +18,7 @@
 // #define CRANEGAME
 
 // 以下マイコンに合わせて設定
-#define TX_DEVICE_ID 3 // 送信先マイコンのID
+#define TX_DEVICE_ID 2 // 送信先マイコンのID
 
 #define TX16NUM 24 // 送信データ数
 #define RX16NUM 17 // 受信データ数
