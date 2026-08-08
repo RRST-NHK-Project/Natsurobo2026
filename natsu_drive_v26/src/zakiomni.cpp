@@ -85,7 +85,7 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
 
     // トピック受信の有無を監視するためのタイマー
     arbitration_sub_ = this->create_subscription<std_msgs::msg::String>(
-        "/fsm/arbitration", 10,
+        "/auto/arbitration", 10,
         [this](std_msgs::msg::String::SharedPtr m) {
             const bool next = (m->data == "auto");
             if (next != auto_mode_.load())
@@ -103,7 +103,7 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
         });
 
     // AUTO中にスティックが倒されたらFSMへ中断を通知するための出口
-    abort_pub_ = this->create_publisher<std_msgs::msg::Bool>("/fsm/abort", 10);
+    abort_pub_ = this->create_publisher<std_msgs::msg::Bool>("/auto/abort", 10);
     //ここまで
 
     RCLCPP_INFO(get_logger(),
@@ -168,7 +168,7 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
             std_msgs::msg::Bool abort_msg;
             abort_msg.data = true;
             abort_pub_->publish(abort_msg); // FSMはこれを受けてABORTEDに遷移する
-            RCLCPP_WARN(get_logger(), "手動割り込み検出！AUTOを解除して/fsm/abortを送信！");
+            RCLCPP_WARN(get_logger(), "手動割り込み検出！AUTOを解除して/auto/abortを送信！");
             // このまま下の手動処理へ落ちる（今のスティックがすぐ効く）
         }
         else
@@ -281,7 +281,7 @@ void Zakicar::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
 }
 
 //以下追加（既存の流用）
-// 自動走行(/cmd_vel)受け口: /fsm/arbitration が "auto" のときだけ効く
+// 自動走行(/cmd_vel)受け口: /auto/arbitration が "auto" のときだけ効く
 void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
     if (!auto_mode_.load())

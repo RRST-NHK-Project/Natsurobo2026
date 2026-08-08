@@ -17,8 +17,8 @@
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/int16_multi_array.hpp"
 #include "std_msgs/msg/int32_multi_array.hpp"
-#include "std_msgs/msg/bool.hpp"   //自動化用（/fsm/abort通知）
-#include "std_msgs/msg/string.hpp" //自動化用（/fsm/arbitration受信）
+#include "std_msgs/msg/bool.hpp"   //自動化用（/auto/abort通知）
+#include "std_msgs/msg/string.hpp" //自動化用（/auto/arbitration受信）
 #include "geometry_msgs/msg/twist.hpp" //上に同じく。自動旋回用。
 
 #define opPI 3.1415926
@@ -104,8 +104,8 @@ private:
    double cmd_vel_v_ref_ = 4.0;   // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
    double cmd_vel_w_ref_ = 16.0;  // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
 
-   // 調停(/fsm/arbitration): "auto"でcmd_velを受け付け、"manual"でjoy専属に戻る。
-   // AUTO中にスティックが倒されたら即座にmanualへ落とし、/fsm/abortでFSMに通知する。
+   // 調停(/auto/arbitration): "auto"でcmd_velを受け付け、"manual"でjoy専属に戻る。
+   // AUTO中にスティックが倒されたら即座にmanualへ落とし、/auto/abortでFSMに通知する。
    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr arbitration_sub_;
    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr abort_pub_;
    std::atomic<bool> auto_mode_{false};

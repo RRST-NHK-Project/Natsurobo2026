@@ -3,23 +3,24 @@
  *
  * 夏ロボ2026 自律シーケンスFSM(有限オートマトン遷移図)
  * 
- * 購読:
- *   /fsm/start            [std_msgs/Bool]      シーケンス開始(GUI)
- *   /fsm/collect_done     [std_msgs/Bool]      手動回収完了(GUI)
- *   /fsm/abort            [std_msgs/Bool]      緊急中断(GUI/PS4)
+ * subscribe:
+ *   /auto/start            [std_msgs/Bool]      シーケンス開始(GUI)
+ *   /auto/collect_done     [std_msgs/Bool]      手動回収完了(GUI)
+ *   /auto/abort            [std_msgs/Bool]      緊急中断(GUI/PS4)
+ *   /auto/force_state      [std_msgs/String]    任意状態へ強制遷移(GUI, 動作完了を待たない)
  *   /wall_detection/angle [std_msgs/Float64]   壁偏角[rad]
  *   /wall_detection/distance [std_msgs/Float64] 壁距離[m]
  *   /localization/pose    [geometry_msgs/PoseWithCovarianceStamped] 自己位置
  *   /climb/done           [std_msgs/Bool]      昇降完了
  *
- * 配信:
+ * publish:
  *   /cmd_vel              [geometry_msgs/Twist]  走行指令(→zakiomni)
  *   /climb/start          [std_msgs/Bool]        昇降開始
  *   /collect/start        [std_msgs/Bool]        回収開始(手動運用時は未使用可)
  *   /shooter/fire_request [std_msgs/Bool]        射出要求
- *   /fsm/state            [std_msgs/String]      現在状態(GUI表示)
- *   /fsm/arrived          [std_msgs/Bool]        定位置到達(GUI「移動完了！」)
- *   /fsm/arbitration      [std_msgs/String]      調停指示 "auto"/"manual"
+ *   /auto/state            [std_msgs/String]      現在状態(GUI表示)
+ *   /auto/arrived          [std_msgs/Bool]        定位置到達(GUI「移動完了！」)
+ *   /auto/arbitration      [std_msgs/String]      調停指示 "auto"/"manual"
  */
 
 #include <cmath>
@@ -64,11 +65,27 @@ static const char* state_name(State s)
     return "UNKNOWN";
 }
 
+// 状態名(文字列) → State。未知の名前なら std::nullopt。
+static std::optional<State> state_from_name(const std::string& n)
+{
+    if (n == "IDLE")           return State::IDLE;
+    if (n == "DETECT_STEP")    return State::DETECT_STEP;
+    if (n == "ALIGN")          return State::ALIGN;
+    if (n == "CLIMB")          return State::CLIMB;
+    if (n == "MOVE_TO_HOME")   return State::MOVE_TO_HOME;
+    if (n == "MANUAL_COLLECT") return State::MANUAL_COLLECT;
+    if (n == "MOVE_TO_SHOOT")  return State::MOVE_TO_SHOOT;
+    if (n == "FIRE")           return State::FIRE;
+    if (n == "DONE")           return State::DONE;
+    if (n == "ABORTED")        return State::ABORTED;
+    return std::nullopt;
+}
+
 // ──────────────────────────────────────────────
-class NatsuFsmNode : public rclcpp::Node
+class NatsuAutoNode : public rclcpp::Node
 {
 public:
-    NatsuFsmNode() : Node("natsu_auto_node")
+    NatsuAutoNode() : Node("natsu_auto_node")
     {
         //　パラメータ（全て仮お気なので実測すること）
         // 段差検知: 壁距離がこれ以下なら石倉前とみなす [m]
@@ -95,12 +112,13 @@ public:
 
         // 移動制御ゲイン
         declare_parameter<double>("move_kp", 1.2);
-        declare_parameter<double>("move_v_max", 0.5);        // [m/s]
+        declare_parameter<double>("move_v_max", 0.5);
         declare_parameter<double>("move_kp_yaw", 1.5);
         declare_parameter<double>("move_omega_max", 1.0);
 
         // 昇降完了のタイムアウト保険 [s]
         declare_parameter<double>("climb_timeout", 20.0);
+        
         // 射出パルスの長さ [s]
         declare_parameter<double>("fire_hold", 1.0);
 
@@ -114,22 +132,27 @@ public:
         climb_pub_     = create_publisher<std_msgs::msg::Bool>("/climb/start", 10);
         collect_pub_   = create_publisher<std_msgs::msg::Bool>("/collect/start", 10);
         fire_pub_      = create_publisher<std_msgs::msg::Bool>("/shooter/fire_request", 10);
-        state_pub_     = create_publisher<std_msgs::msg::String>("/fsm/state", 10);
-        arrived_pub_   = create_publisher<std_msgs::msg::Bool>("/fsm/arrived", 10);
-        arb_pub_       = create_publisher<std_msgs::msg::String>("/fsm/arbitration", 10);
+        state_pub_     = create_publisher<std_msgs::msg::String>("/auto/state", 10);
+        arrived_pub_   = create_publisher<std_msgs::msg::Bool>("/auto/arrived", 10);
+        arb_pub_       = create_publisher<std_msgs::msg::String>("/auto/arbitration", 10);
 
         // ── Subscriber ──────────────────────────────
         start_sub_ = create_subscription<std_msgs::msg::Bool>(
-            "/fsm/start", 10,
+            "/auto/start", 10,
             [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) on_start(); });
 
         collect_done_sub_ = create_subscription<std_msgs::msg::Bool>(
-            "/fsm/collect_done", 10,
+            "/auto/collect_done", 10,
             [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) collect_done_ = true; });
 
         abort_sub_ = create_subscription<std_msgs::msg::Bool>(
-            "/fsm/abort", 10,
+            "/auto/abort", 10,
             [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) on_abort(); });
+
+        // GUIからの強制ステート遷移(動作完了を待たない。状態名の文字列)
+        force_state_sub_ = create_subscription<std_msgs::msg::String>(
+            "/auto/force_state", 10,
+            [this](std_msgs::msg::String::SharedPtr m){ on_force_state(m->data); });
 
         angle_sub_ = create_subscription<std_msgs::msg::Float64>(
             "/wall_detection/angle", 10,
@@ -141,7 +164,7 @@ public:
 
         pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "/localization/pose", 10,
-            std::bind(&NatsuFsmNode::pose_cb, this, std::placeholders::_1));
+            std::bind(&NatsuAutoNode::pose_cb, this, std::placeholders::_1));
 
         climb_done_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/climb/done", 10,
@@ -151,7 +174,7 @@ public:
         const int ms = static_cast<int>(1000.0 / rate_hz_);
         timer_ = create_wall_timer(
             std::chrono::milliseconds(ms),
-            std::bind(&NatsuFsmNode::loop, this));
+            std::bind(&NatsuAutoNode::loop, this));
 
         RCLCPP_INFO(get_logger(), "natsu_auto_node started. state=IDLE");
         publish_state();
@@ -198,6 +221,23 @@ private:
         RCLCPP_WARN(get_logger(), "ABORTED by request.");
     }
 
+    // 動作完了を待たず、GUIから任意の状態へ強制遷移(デバッグ/手動運用)。
+    // 誤操作防止のロックはGUI側で担保。ここは受けたら即遷移する。
+    void on_force_state(const std::string& name)
+    {
+        auto s = state_from_name(name);
+        if (!s) {
+            RCLCPP_WARN(get_logger(), "force_state: 未知の状態名 '%s' を無視", name.c_str());
+            return;
+        }
+        stop_robot();  // 現動作の指令を止めてから遷移(飛び出し防止)
+        RCLCPP_WARN(get_logger(), "force_state: %s → %s へ強制遷移",
+                    state_name(state_), state_name(*s));
+        transit(*s);
+        // 自動走行を伴う状態へ飛ぶなら制御権をautoへ、手動回収へ飛ぶならmanualへ
+        publish_arbitration(*s == State::MANUAL_COLLECT ? "manual" : "auto");
+    }
+
     void pose_cb(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr m)
     {
         cur_x_ = m->pose.pose.position.x;
@@ -212,7 +252,7 @@ private:
     void loop()
     {
         switch (state_) {
-            case State::IDLE:           break;  // /fsm/start 待ち
+            case State::IDLE:           break;  // /auto/start 待ち
             case State::DETECT_STEP:    do_detect_step(); break;
             case State::ALIGN:          do_align();       break;
             case State::CLIMB:          do_climb();       break;
@@ -292,7 +332,7 @@ private:
         }
     }
 
-    // 手動回収: 調停を手動に明け渡し /fsm/collect_done を待つ
+    // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ
     void do_manual_collect()
     {
         if (!collect_handover_) {
@@ -326,7 +366,7 @@ private:
     }
 
     // 位置制御: 目標(x,y,yaw)へ /cmd_vel を出す。到達でtrueを返し次へ。
-    // arrived_flag=true のとき、到達時に /fsm/arrived を publish
+    // arrived_flag=true のとき、到達時に /auto/arrived を publish
     void do_move(double tx, double ty, double tyaw, bool arrived_flag)
     {
         if (!pose_ok_) return;
@@ -437,6 +477,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_pub_, arb_pub_;
 
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
 
@@ -446,7 +487,7 @@ private:
 int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<NatsuFsmNode>());
+    rclcpp::spin(std::make_shared<NatsuAutoNode>());
     rclcpp::shutdown();
     return 0;
 }

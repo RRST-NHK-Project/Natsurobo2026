@@ -7,7 +7,7 @@
     Autonomous sequence FSM (司令塔) for RRST 夏ロボ 2026.
     Manages step-climb → align → climb → move → manual collect → move → fire.
   </description>
-  <maintainer email="you@example.com">RRST-NHK-Project</maintainer>
+  <maintainer email="ec1388vk@ed.ritsumei.ac.jp">RRST-NHK-Project</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

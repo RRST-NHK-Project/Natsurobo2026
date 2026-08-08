@@ -23,9 +23,10 @@
 
 .console-page {
   position: relative;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 8px;
   overflow: hidden;
   background: radial-gradient(circle at 20% 20%, var(--bg-soft), transparent 42%),
@@ -69,6 +70,7 @@
   position: relative;
   z-index: 1;
   width: min(1720px, 99vw);
+  max-height: 100%;
   padding: 18px;
   border-radius: 18px;
   background: var(--panel);
@@ -76,6 +78,21 @@
   box-shadow: var(--shadow);
   backdrop-filter: blur(8px);
   animation: cardIn 0.45s ease-out both;
+  /* ヘッダ等は固定し、ページ本体(.page-layout)だけを内部スクロールさせる */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* カード直下の要素(ヘッダ/接続バー等)は縮ませない。ページ本体だけ残り高さを埋める */
+.console-card>* {
+  flex-shrink: 0;
+}
+
+.console-card>.page-layout {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .console-card-fullscreen {
@@ -587,18 +604,19 @@
 .page-layout {
   margin-top: 10px;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 12px;
+  min-height: 0;
+  overflow: hidden;
 }
 
+/* サイドバー: 完全固定。タブが多い時のみサイドバー内で独立スクロール */
 .page-switch-row {
   flex: 0 0 172px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  position: sticky;
-  top: 8px;
-  max-height: calc(100vh - 24px);
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -606,10 +624,16 @@
 .active-pages-grid {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
   gap: 10px;
   align-items: start;
+  align-content: start;
+  /* コンテンツ枠だけに独立したスクロールバー */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
 .active-pages-grid>* {
@@ -1969,7 +1993,7 @@
   }
 
   .page-switch-row {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     flex-direction: row;
     position: static;
     max-height: none;

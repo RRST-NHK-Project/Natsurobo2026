@@ -271,6 +271,54 @@ const getDriveModeLabel = (code, language) => {
   return entry ? (language === "ja" ? entry.ja : entry.en) : `${language === "ja" ? "モード" : "Mode"} ${code}`;
 };
 
+// natsu_auto FSM の状態(natsu_auto_node.cpp の enum State と一致させること)
+const AUTO_STATE_FLOW = [
+  "IDLE", "DETECT_STEP", "ALIGN", "CLIMB", "MOVE_TO_HOME",
+  "MANUAL_COLLECT", "MOVE_TO_SHOOT", "FIRE", "DONE",
+];
+const AUTO_STATE_LABELS = {
+  IDLE:           { ja: "待機",          en: "Idle" },
+  DETECT_STEP:    { ja: "段差検知",      en: "Detect Step" },
+  ALIGN:          { ja: "壁面平行合わせ", en: "Align" },
+  CLIMB:          { ja: "昇降",          en: "Climb" },
+  MOVE_TO_HOME:   { ja: "定位置へ移動",   en: "Move to Home" },
+  MANUAL_COLLECT: { ja: "手動回収待ち",   en: "Manual Collect" },
+  MOVE_TO_SHOOT:  { ja: "射出位置へ移動", en: "Move to Shoot" },
+  FIRE:           { ja: "射出",          en: "Fire" },
+  DONE:           { ja: "完了",          en: "Done" },
+  ABORTED:        { ja: "中断",          en: "Aborted" },
+};
+const getAutoStateLabel = (code, language) => {
+  const entry = AUTO_STATE_LABELS[code];
+  if (!entry) return code || (language === "ja" ? "未受信" : "N/A");
+  return language === "ja" ? entry.ja : entry.en;
+};
+// 強制遷移で飛べる全状態(中断も含む)
+const AUTO_STATE_ALL = [...AUTO_STATE_FLOW, "ABORTED"];
+// ガラス風(半透明+ブラー)カード。App.css の --panel と同系統。
+const AUTO_GLASS_CARD = {
+  background: "rgba(22, 27, 34, 0.55)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255, 255, 255, 0.10)",
+  borderRadius: 12,
+  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.28)",
+};
+// 大きめの押しやすいボタン共通スタイル。
+const AUTO_BIG_BTN = {
+  padding: "18px 24px",
+  fontSize: 17,
+  fontWeight: 700,
+  borderRadius: 12,
+  minWidth: 200,
+  flex: "1 1 200px",
+  cursor: "pointer",
+  color: "#fff",
+  backdropFilter: "blur(6px)",
+  WebkitBackdropFilter: "blur(6px)",
+  transition: "transform 0.08s ease, background 0.2s, border-color 0.2s",
+};
+
 const normalizePlannerPublishName = (value, fallback = "") => {
   const text = String(value || "").trim();
   if (!text) {
@@ -488,6 +536,15 @@ function App() {
   const locPoseSubRef = useRef(null);                 // /localization/pose 購読
   const imuSubRef = useRef(null);                     // /imu 購読 (wt901c_publisher)
   const imuYaw0Ref = useRef(null);                    // 初回IMU yaw(起動時を方位の基準に)
+  // natsu_auto FSM 連携 (/auto/*)
+  const autoStartPubRef = useRef(null);               // /auto/start 発行
+  const autoCollectDonePubRef = useRef(null);         // /auto/collect_done 発行
+  const autoAbortPubRef = useRef(null);               // /auto/abort 発行
+  const autoForceStatePubRef = useRef(null);          // /auto/force_state 発行(強制遷移)
+  const autoStateSubRef = useRef(null);               // /auto/state 購読
+  const autoArbitrationSubRef = useRef(null);         // /auto/arbitration 購読
+  const autoArrivedSubRef = useRef(null);             // /auto/arrived 購読
+  const autoArrivedTimerRef = useRef(null);           // 到達フラッシュ用タイマー
   const traceLanguageRef = useRef("ja");
   const defaultRosHost = window.location.hostname || "localhost";
   const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -518,6 +575,7 @@ function App() {
     "game",
     "motion-sim",
     "controller",
+    "auto",
     "pose",
     "localization",
     "wall-angle",
@@ -624,6 +682,11 @@ function App() {
   const [locPose, setLocPose] = useState(null);   // ICP補正後の絶対姿勢(/localization/pose)
   const [locPath, setLocPath] = useState([]);
   const [imuRpy, setImuRpy] = useState(null);     // IMU姿勢 {roll,pitch,yaw}[rad] (yawは起動時基準)
+  // natsu_auto FSM 状態 (/auto/*)
+  const [autoState, setAutoState] = useState("");         // /auto/state 現在の状態名
+  const [autoArbitration, setAutoArbitration] = useState(""); // /auto/arbitration "auto"/"manual"
+  const [autoArrivedFlash, setAutoArrivedFlash] = useState(false); // /auto/arrived 到達通知フラッシュ
+  const [autoForceUnlocked, setAutoForceUnlocked] = useState(false); // 強制遷移ボタンのロック解除フラグ
   const [bodyFootprintM, setBodyFootprintM] = useState(0.9);  // 機体フットプリント1辺[m] (足回り900mm)
   const [autoDriveCmdInfo, setAutoDriveCmdInfo] = useState("未送信");
   const [rotateOnlyMode, setRotateOnlyMode] = useState(false);
@@ -910,6 +973,7 @@ function App() {
     if (page === "game") return tr("ゲーム管理", "Game Manager");
     if (page === "motion-sim") return tr("動作シミュレータ", "Motion Simulator");
     if (page === "controller") return tr("コントローラ操作", "Controller");
+    if (page === "auto") return tr("自動シーケンス", "Auto Sequence");
     if (page === "sequence") return tr("シーケンス操作", "Sequence");
     if (page === "pose") return tr("座標・姿勢管理", "Pose");
     if (page === "localization") return tr("自己位置マップ", "Localization");
@@ -1080,6 +1144,28 @@ function App() {
       </div>
     </section>
   );
+
+  // ── natsu_auto FSM 操作 (/auto/*) ───────────────────────────
+  const publishAutoStart = () => {
+    if (!autoStartPubRef.current) return;
+    autoStartPubRef.current.publish({ data: true });
+    console.info("[auto] /auto/start 発行");
+  };
+  const publishAutoCollectDone = () => {
+    if (!autoCollectDonePubRef.current) return;
+    autoCollectDonePubRef.current.publish({ data: true });
+    console.info("[auto] /auto/collect_done 発行");
+  };
+  const publishAutoAbort = () => {
+    if (!autoAbortPubRef.current) return;
+    autoAbortPubRef.current.publish({ data: true });
+    console.warn("[auto] /auto/abort 発行");
+  };
+  const publishAutoForceState = (stateName) => {
+    if (!autoForceStatePubRef.current || !autoForceUnlocked) return;
+    autoForceStatePubRef.current.publish({ data: String(stateName) });
+    console.warn("[auto] /auto/force_state 発行:", stateName);
+  };
 
   const publishPlannerState = (stateCode) => {
     if (!taskStateCommandRef.current) return;
@@ -4227,6 +4313,62 @@ function App() {
       setImuRpy({ roll, pitch, yaw: relYaw });
     });
 
+    // ── natsu_auto FSM 連携 (/auto/*) ─────────────────────────
+    // 発行: 開始 / 手動回収完了 / 中断
+    autoStartPubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/start",
+      messageType: "std_msgs/msg/Bool",
+    });
+    autoStartPubRef.current.advertise?.();
+    autoCollectDonePubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/collect_done",
+      messageType: "std_msgs/msg/Bool",
+    });
+    autoCollectDonePubRef.current.advertise?.();
+    autoAbortPubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/abort",
+      messageType: "std_msgs/msg/Bool",
+    });
+    autoAbortPubRef.current.advertise?.();
+    autoForceStatePubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/force_state",
+      messageType: "std_msgs/msg/String",
+    });
+    autoForceStatePubRef.current.advertise?.();
+
+    // 購読: 現在状態 / 調停(auto·manual) / 定位置到達
+    autoStateSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/state",
+      messageType: "std_msgs/msg/String",
+    });
+    autoStateSubRef.current.subscribe((msg) => {
+      setAutoState(String(msg?.data || ""));
+    });
+    autoArbitrationSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/arbitration",
+      messageType: "std_msgs/msg/String",
+    });
+    autoArbitrationSubRef.current.subscribe((msg) => {
+      setAutoArbitration(String(msg?.data || ""));
+    });
+    autoArrivedSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/auto/arrived",
+      messageType: "std_msgs/msg/Bool",
+    });
+    autoArrivedSubRef.current.subscribe((msg) => {
+      if (!msg?.data) return;
+      setAutoArrivedFlash(true);
+      if (autoArrivedTimerRef.current) clearTimeout(autoArrivedTimerRef.current);
+      autoArrivedTimerRef.current = setTimeout(() => setAutoArrivedFlash(false), 4000);
+    });
+
     driveModeRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
       name: "r2_drive_mode",
@@ -4716,6 +4858,27 @@ function App() {
         }
         imuSubRef.current = null;
       }
+      // natsu_auto FSM 連携のクリーンアップ
+      if (autoArrivedTimerRef.current) {
+        clearTimeout(autoArrivedTimerRef.current);
+        autoArrivedTimerRef.current = null;
+      }
+      [autoStateSubRef, autoArbitrationSubRef, autoArrivedSubRef].forEach((ref) => {
+        try {
+          ref.current?.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing auto topic:", error);
+        }
+        ref.current = null;
+      });
+      [autoStartPubRef, autoCollectDonePubRef, autoAbortPubRef, autoForceStatePubRef].forEach((ref) => {
+        try {
+          ref.current?.unadvertise?.();
+        } catch (error) {
+          console.warn("Error unadvertising auto topic:", error);
+        }
+        ref.current = null;
+      });
       if (driveModeRef.current) {
         try {
           driveModeRef.current.unsubscribe?.();
@@ -5123,6 +5286,186 @@ function App() {
               updateCommand={updateCommand}
               tr={tr}
             />
+          )}
+
+          {isPageActive("auto") && (
+            <section className="pose-panel">
+              <h2 className="serial-packet-title">{tr("自動シーケンス (natsu_auto)", "Auto Sequence (natsu_auto)")}</h2>
+              <p className="connection-hint" style={{ margin: "0 6px 14px" }}>
+                {tr(
+                  "natsu_auto_node の状態遷移(FSM)を監視・操作します。/auto/state を購読し、/auto/start・/auto/collect_done・/auto/abort・/auto/force_state を発行します。",
+                  "Monitor and drive the natsu_auto_node FSM. Subscribes /auto/state and publishes /auto/start, /auto/collect_done, /auto/abort, /auto/force_state."
+                )}
+              </p>
+
+              {/* 現在状態 */}
+              <div
+                style={{
+                  ...AUTO_GLASS_CARD,
+                  display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap",
+                  padding: "18px 20px", marginBottom: 14,
+                  background: autoArrivedFlash ? "rgba(63, 185, 80, 0.16)" : AUTO_GLASS_CARD.background,
+                  border: `1px solid ${autoArrivedFlash ? "rgba(63, 185, 80, 0.55)" : "rgba(255, 255, 255, 0.10)"}`,
+                  transition: "background 0.3s, border-color 0.3s",
+                }}
+              >
+                <div>
+                  <div style={{ color: "#8b949e", fontSize: 12, marginBottom: 4 }}>
+                    {tr("現在の状態", "Current State")}
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: autoState === "ABORTED" ? "#f85149" : autoState === "DONE" ? "#3fb950" : "#58a6ff" }}>
+                    {getAutoStateLabel(autoState, language)}
+                    <span style={{ color: "#8b949e", fontWeight: 400, fontSize: 14, marginLeft: 10 }}>
+                      {autoState || "—"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#8b949e", fontSize: 12, marginBottom: 4 }}>
+                    {tr("制御権 (調停)", "Control (Arbitration)")}
+                  </div>
+                  <span
+                    style={{
+                      display: "inline-block", padding: "5px 16px", borderRadius: 14,
+                      fontWeight: 700, fontSize: 14, backdropFilter: "blur(6px)",
+                      background: autoArbitration === "auto" ? "rgba(88, 166, 255, 0.18)" : autoArbitration === "manual" ? "rgba(240, 136, 62, 0.18)" : "rgba(255, 255, 255, 0.06)",
+                      border: `1px solid ${autoArbitration === "auto" ? "rgba(88, 166, 255, 0.5)" : autoArbitration === "manual" ? "rgba(240, 136, 62, 0.5)" : "rgba(255, 255, 255, 0.12)"}`,
+                      color: autoArbitration === "auto" ? "#58a6ff" : autoArbitration === "manual" ? "#f0883e" : "#8b949e",
+                    }}
+                  >
+                    {autoArbitration === "auto" ? tr("自動", "AUTO")
+                      : autoArbitration === "manual" ? tr("手動", "MANUAL")
+                      : tr("未受信", "N/A")}
+                  </span>
+                </div>
+                {autoArrivedFlash && (
+                  <div style={{ color: "#3fb950", fontWeight: 700, fontSize: 15 }}>
+                    ✓ {tr("定位置に到達しました", "Arrived at position")}
+                  </div>
+                )}
+              </div>
+
+              {/* 状態フロー */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+                {AUTO_STATE_FLOW.map((s) => (
+                  <span
+                    key={s}
+                    style={{
+                      padding: "6px 12px", borderRadius: 8, fontSize: 12.5,
+                      fontVariantNumeric: "tabular-nums", backdropFilter: "blur(6px)",
+                      background: s === autoState ? "rgba(31, 111, 235, 0.85)" : "rgba(255, 255, 255, 0.05)",
+                      color: s === autoState ? "#fff" : "#8b949e",
+                      border: `1px solid ${s === autoState ? "rgba(88, 166, 255, 0.7)" : "rgba(255, 255, 255, 0.10)"}`,
+                    }}
+                  >
+                    {getAutoStateLabel(s, language)}
+                  </span>
+                ))}
+              </div>
+
+              {/* 主操作ボタン(大きめ) */}
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+                <button
+                  onClick={publishAutoStart}
+                  style={{
+                    ...AUTO_BIG_BTN,
+                    background: "rgba(35, 134, 54, 0.35)",
+                    border: "1px solid rgba(63, 185, 80, 0.55)",
+                  }}
+                >
+                  ▶ {tr("シーケンス開始", "Start Sequence")}
+                </button>
+                <button
+                  onClick={publishAutoCollectDone}
+                  style={{
+                    ...AUTO_BIG_BTN,
+                    background: "rgba(88, 166, 255, 0.28)",
+                    border: "1px solid rgba(88, 166, 255, 0.55)",
+                  }}
+                >
+                  ✓ {tr("手動回収 完了", "Collect Done")}
+                </button>
+                <button
+                  onClick={publishAutoAbort}
+                  style={{
+                    ...AUTO_BIG_BTN,
+                    background: "rgba(218, 54, 51, 0.38)",
+                    border: "1px solid rgba(248, 81, 73, 0.6)",
+                  }}
+                >
+                  ■ {tr("緊急中断", "Abort")}
+                </button>
+              </div>
+              <p className="connection-hint" style={{ margin: "0 6px 20px" }}>
+                {tr(
+                  "「手動回収 完了」は状態が『手動回収待ち』のときに押してください。中断はいつでも有効です。",
+                  "Press 'Collect Done' while in Manual Collect state. Abort is always available."
+                )}
+              </p>
+
+              {/* 強制ステート遷移(ロック付き) */}
+              <div style={{ ...AUTO_GLASS_CARD, padding: "16px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "#e6edf3" }}>
+                      {tr("強制ステート遷移", "Force State Transition")}
+                    </div>
+                    <div style={{ color: "#8b949e", fontSize: 12, marginTop: 2 }}>
+                      {tr(
+                        "動作の完了を待たず、任意の状態へ直接ジャンプします(デバッグ/手動運用)。",
+                        "Jump directly to any state without waiting for completion (debug / manual)."
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoForceUnlocked((v) => !v)}
+                    style={{
+                      padding: "10px 18px", fontSize: 14, fontWeight: 700, borderRadius: 10,
+                      cursor: "pointer", color: "#fff", backdropFilter: "blur(6px)",
+                      background: autoForceUnlocked ? "rgba(218, 54, 51, 0.38)" : "rgba(255, 255, 255, 0.06)",
+                      border: `1px solid ${autoForceUnlocked ? "rgba(248, 81, 73, 0.6)" : "rgba(255, 255, 255, 0.18)"}`,
+                    }}
+                  >
+                    {autoForceUnlocked ? `🔓 ${tr("ロック解除中", "Unlocked")}` : `🔒 ${tr("ロック中", "Locked")}`}
+                  </button>
+                </div>
+                <div
+                  style={{
+                    display: "grid", gap: 10,
+                    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                    opacity: autoForceUnlocked ? 1 : 0.45,
+                    pointerEvents: autoForceUnlocked ? "auto" : "none",
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  {AUTO_STATE_ALL.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => publishAutoForceState(s)}
+                      disabled={!autoForceUnlocked}
+                      style={{
+                        padding: "14px 12px", fontSize: 14, fontWeight: 700, borderRadius: 10,
+                        cursor: autoForceUnlocked ? "pointer" : "not-allowed",
+                        color: s === autoState ? "#fff" : "#c9d1d9", backdropFilter: "blur(6px)",
+                        background: s === autoState
+                          ? "rgba(31, 111, 235, 0.7)"
+                          : s === "ABORTED" ? "rgba(218, 54, 51, 0.25)" : "rgba(255, 255, 255, 0.05)",
+                        border: `1px solid ${s === autoState ? "rgba(88, 166, 255, 0.7)" : s === "ABORTED" ? "rgba(248, 81, 73, 0.45)" : "rgba(255, 255, 255, 0.12)"}`,
+                      }}
+                    >
+                      {getAutoStateLabel(s, language)}
+                      <div style={{ fontSize: 10.5, fontWeight: 400, color: "#8b949e", marginTop: 2 }}>{s}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="connection-hint" style={{ margin: "12px 4px 0" }}>
+                  {tr(
+                    "安全のため既定はロック。解除してから状態ボタンを押すと /auto/force_state を発行します。",
+                    "Locked by default for safety. Unlock, then a state button publishes /auto/force_state."
+                  )}
+                </p>
+              </div>
+            </section>
           )}
 
           {isPageActive("pose") && (
