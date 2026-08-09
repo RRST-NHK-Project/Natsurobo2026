@@ -90,11 +90,22 @@ public:
         //　パラメータ（全て仮お気なので実測すること）
         // 段差検知: 壁距離がこれ以下なら石倉前とみなす [m]
         declare_parameter<double>("step_detect_distance", 0.30);
+        // 石倉に向かって詰めるときの前進速度 [m/s]
+        declare_parameter<double>("approach_v", 0.15);
+        // 前進の打ち切り [s]。壁検知が出ない/閾値に届かない場合の走行距離上限を決める
+        declare_parameter<double>("approach_timeout", 8.0);
+        // 壁検知値をこの秒数より古ければ「無効」とみなす [s]
+        declare_parameter<double>("wall_data_timeout", 0.5);
+        // false にすると壁検知を待たず approach_timeout だけで次へ進む
+        declare_parameter<bool>("use_wall_detection", true);
+
         // 平行判定: 壁偏角の許容 [rad]
         declare_parameter<double>("align_angle_tol", 0.05);
         // 平行旋回の角速度ゲイン
         declare_parameter<double>("align_kp", 1.5);
         declare_parameter<double>("align_omega_max", 1.0);   // [rad/s]
+        // 平行が出せないまま回り続けるのを防ぐ打ち切り [s]
+        declare_parameter<double>("align_timeout", 6.0);
 
         // 定位置(HOME)座標 [m, m, rad] (map系、仮置き)
         declare_parameter<double>("home_x", 3.20);
@@ -156,11 +167,13 @@ public:
 
         angle_sub_ = create_subscription<std_msgs::msg::Float64>(
             "/wall_detection/angle", 10,
-            [this](std_msgs::msg::Float64::SharedPtr m){ wall_angle_ = m->data; wall_angle_ok_ = true; });
+            [this](std_msgs::msg::Float64::SharedPtr m){
+                wall_angle_ = m->data; wall_angle_stamp_ = now(); });
 
         dist_sub_ = create_subscription<std_msgs::msg::Float64>(
             "/wall_detection/distance", 10,
-            [this](std_msgs::msg::Float64::SharedPtr m){ wall_dist_ = m->data; wall_dist_ok_ = true; });
+            [this](std_msgs::msg::Float64::SharedPtr m){
+                wall_dist_ = m->data; wall_dist_stamp_ = now(); });
 
         pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "/localization/pose", 10,
@@ -176,6 +189,7 @@ public:
             std::chrono::milliseconds(ms),
             std::bind(&NatsuAutoNode::loop, this));
 
+        state_entered_ = now();
         RCLCPP_INFO(get_logger(), "natsu_auto_node started. state=IDLE");
         publish_state();
         publish_arbitration("manual"); // IDLE=手動待機。autoは自動走行状態に入ってから
@@ -185,9 +199,14 @@ private:
     void load_params()
     {
         step_dist_     = get_parameter("step_detect_distance").as_double();
+        approach_v_    = get_parameter("approach_v").as_double();
+        approach_timeout_ = get_parameter("approach_timeout").as_double();
+        wall_data_timeout_ = get_parameter("wall_data_timeout").as_double();
+        use_wall_detection_ = get_parameter("use_wall_detection").as_bool();
         align_tol_     = get_parameter("align_angle_tol").as_double();
         align_kp_      = get_parameter("align_kp").as_double();
         align_omega_max_ = get_parameter("align_omega_max").as_double();
+        align_timeout_ = get_parameter("align_timeout").as_double();
         home_x_        = get_parameter("home_x").as_double();
         home_y_        = get_parameter("home_y").as_double();
         home_yaw_      = get_parameter("home_yaw").as_double();
@@ -280,22 +299,54 @@ private:
 
     // ── 各ステート処理 ──────────────────────────
 
-    // 段差検知: 壁距離が閾値以下になったら石倉前
+    // 段差検知: 石倉に向かって前進し、壁距離が閾値以下になったら停止
     void do_detect_step()
     {
-        if (!wall_dist_ok_) return;
-        if (wall_dist_ <= step_dist_) {
-            RCLCPP_INFO(get_logger(), "段差検知: dist=%.2fm", wall_dist_);
+        const double elapsed = (now() - state_entered_).seconds();
+
+        if (use_wall_detection_ && wall_dist_fresh() && wall_dist_ <= step_dist_) {
+            RCLCPP_INFO(get_logger(), "段差検知: dist=%.2fm (%.1fs)", wall_dist_, elapsed);
+            stop_robot();
             transit(State::ALIGN);
+            return;
         }
-        // 検知前は静止（前進は手動 or 別ロジックで石倉前まで来ている前提）
-        stop_robot();
+
+        // 壁検知が出ない/閾値に届かないまま走り続けないための打ち切り。
+        // approach_v × approach_timeout がそのまま前進距離の上限になる。
+        if (elapsed > approach_timeout_) {
+            const std::string d = wall_dist_fresh()
+                                ? std::to_string(wall_dist_) : std::string("無効");
+            RCLCPP_WARN(get_logger(),
+                        "前進を打ち切り (%.1fs経過, dist=%s) → ALIGNへ",
+                        elapsed, d.c_str());
+            stop_robot();
+            transit(State::ALIGN);
+            return;
+        }
+
+        geometry_msgs::msg::Twist t;
+        t.linear.x = approach_v_;
+        cmd_vel_pub_->publish(t);
     }
 
     // 平行旋回: wall_angle が 0 付近になるまで ω を出す
     void do_align()
     {
-        if (!wall_angle_ok_) return;
+        const double elapsed = (now() - state_entered_).seconds();
+
+        // 壁検知が死んでいる/平行が出せないまま回り続けるのを防ぐ
+        if (elapsed > align_timeout_) {
+            RCLCPP_WARN(get_logger(), "平行旋回を打ち切り (%.1fs経過) → CLIMBへ", elapsed);
+            stop_robot();
+            transit(State::CLIMB);
+            return;
+        }
+
+        if (!use_wall_detection_ || !wall_angle_fresh()) {
+            stop_robot();   // 検知値が無い間は止めて待つ(打ち切りまで)
+            return;
+        }
+
         if (std::abs(wall_angle_) < align_tol_) {
             stop_robot();
             RCLCPP_INFO(get_logger(), "平行完了: angle=%.3f", wall_angle_);
@@ -412,9 +463,24 @@ private:
         cmd_vel_pub_->publish(t);
     }
 
+    // 壁検知値の鮮度。wall_detection が落ちた/条件を満たせず publish を止めた場合に
+    // 古い値でDETECT_STEPを即抜けしないようにする。
+    bool wall_dist_fresh() const
+    { return stamp_fresh(wall_dist_stamp_); }
+
+    bool wall_angle_fresh() const
+    { return stamp_fresh(wall_angle_stamp_); }
+
+    bool stamp_fresh(const rclcpp::Time& t) const
+    {
+        if (t.nanoseconds() == 0) return false;   // 未受信
+        return (now() - t).seconds() < wall_data_timeout_;
+    }
+
     void transit(State s)
     {
         state_ = s;
+        state_entered_ = now();
         // ステート入口のフラグリセット
         climb_started_ = false;
         collect_handover_ = false;
@@ -449,7 +515,9 @@ private:
     }
 
     // ── パラメータ ─────────────────────────────
-    double step_dist_, align_tol_, align_kp_, align_omega_max_;
+    double step_dist_, approach_v_, approach_timeout_, wall_data_timeout_;
+    bool   use_wall_detection_;
+    double align_tol_, align_kp_, align_omega_max_, align_timeout_;
     double home_x_, home_y_, home_yaw_;
     double shoot_x_, shoot_y_, shoot_yaw_;
     double pos_tol_, yaw_tol_;
@@ -458,9 +526,10 @@ private:
 
     // ── 状態 ───────────────────────────────────
     State state_ = State::IDLE;
+    rclcpp::Time state_entered_{0,0,RCL_ROS_TIME};
 
-    double wall_angle_ = 0.0;   bool wall_angle_ok_ = false;
-    double wall_dist_  = 0.0;   bool wall_dist_ok_  = false;
+    double wall_angle_ = 0.0;   rclcpp::Time wall_angle_stamp_{0,0,RCL_ROS_TIME};
+    double wall_dist_  = 0.0;   rclcpp::Time wall_dist_stamp_{0,0,RCL_ROS_TIME};
     double cur_x_ = 0, cur_y_ = 0, cur_yaw_ = 0;  bool pose_ok_ = false;
 
     bool climb_started_ = false, climb_done_ = false;

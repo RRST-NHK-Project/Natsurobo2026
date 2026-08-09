@@ -71,12 +71,19 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
                   std::placeholders::_1));
 
     // // IMU (ヘディングロック用)
-    // imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-    //     "/imu", 10,
-    //     std::bind(&Zakicar::imu_callback, this, std::placeholders::_1));
+    imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+         "/imu", 10,
+         std::bind(&Zakicar::imu_callback, this, std::placeholders::_1));
 
     //以下追加（自動走行の調停）
     last_cmd_vel_time_ = this->now();
+
+    // /cmd_vel のスケール基準と、静止摩擦を超えるための出力下限。
+    cmd_vel_v_ref_     = this->declare_parameter<double>("cmd_vel_v_ref", 4.0); // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
+    cmd_vel_w_ref_     = this->declare_parameter<double>("cmd_vel_w_ref", 16.0); // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
+    cmd_vel_min_ratio_v_ = this->declare_parameter<double>("cmd_vel_min_ratio_v", 0.08); // 並進: 12.5rps × ratio × cos(π/4)=0.707 が 0.3rps を超える必要がある
+    cmd_vel_min_ratio_w_ = this->declare_parameter<double>("cmd_vel_min_ratio_w", 0.035); // 旋回: 15.0rps × ratio が 0.3rps を超える必要がある
+    joy_override_th_   = this->declare_parameter<double>("joy_override_threshold", 0.6); // AUTO中にスティックが倒されたら手動へ割り込み。それ以外のjoyは無視する
 
     // 自動走行の速度指令（natsu_autoが出す）
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -156,7 +163,8 @@ void Zakicar::ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     // （joyのスティック中立メッセージがcmd_velの目標値を0で上書きしないように）
     if (auto_mode_.load())
     {
-        if (fabs(LS_X) > 0.3 || fabs(LS_Y) > 0.3 || fabs(RS_X) > 0.3)
+        if (fabs(LS_X) > joy_override_th_ || fabs(LS_Y) > joy_override_th_ ||
+            fabs(RS_X) > joy_override_th_)
         {
             auto_mode_.store(false);
             for (int i = 0; i < 4; i++)
@@ -299,6 +307,15 @@ void Zakicar::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 
     double yaw_ratio = (cmd_vel_w_ref_ > 1e-6) ? (wz / cmd_vel_w_ref_) : 0.0;
     yaw_ratio = std::clamp(yaw_ratio, -1.0, 1.0);
+
+    // 自動走行の指令値は v_ref/w_ref に対して数%〜1割にしかならず、そのまま
+    // rps に落とすと about_PID() の下限(target_v<=0.3rps → motor_power=0)に
+    // 埋もれて全く回らない。ゼロでない指令は機体の最低速度まで持ち上げる。
+    if (speed_ratio > 1e-6)
+        speed_ratio = std::max(speed_ratio, cmd_vel_min_ratio_v_);
+    if (std::fabs(yaw_ratio) > 1e-6)
+        yaw_ratio = std::copysign(std::max(std::fabs(yaw_ratio), cmd_vel_min_ratio_w_),
+                                  yaw_ratio);
 
     for (int i = 0; i < 4; i++) target_v[i] = 0.0;
 

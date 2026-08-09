@@ -8,7 +8,13 @@
 //  <パブリッシュ>
 //  /wall_detection/angle    : 壁の角度（ロボット正面からの偏角、単位はラジアン）
 //  /wall_detection/distance : 壁までの距離（単位はメートル）
+//  /wall_detection/filtered_points : フィルタ後の点群(GUI/RViz用)
+//  /wall_detection/ransac_params   : 採用した直線 [a,b,c,inliers,total]
 //
+//  石倉は凹形なので、FOV内には「左の側面・奥の面・右の側面」が同時に入る。
+//  単一直線のRANSACだと点数の多い側面に引っかかって明後日の方向に平行判定が
+//  出るため、逐次RANSACで複数の面を抜き出し、その中から「正面を向いている面」
+//  (法線がロボット前方に近い面)だけを壁として採用する。
 ///////////////////////////////////////
 
 
@@ -17,6 +23,7 @@
 #include <random>
 #include <algorithm>
 #include <optional>
+#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -46,10 +53,10 @@ public:
     {
         // ── パラメータ宣言 ──────────────────────────
         declare_parameter<double>("fov_half_deg",60.0);
-        declare_parameter<double>("aiming_fov_half_deg",20.0); 
-        declare_parameter<bool>  ("aiming_mode",false); 
+        declare_parameter<double>("aiming_fov_half_deg",20.0);
+        declare_parameter<bool>  ("aiming_mode",false);
         declare_parameter<double>("max_angle_step_deg",5.0);
-        declare_parameter<double>("distance_gate_min",0.10); 
+        declare_parameter<double>("distance_gate_min",0.10);
         declare_parameter<double>("distance_gate_max",4.00);
         declare_parameter<int>   ("ransac_iterations",50);
         declare_parameter<double>("ransac_threshold",0.03);
@@ -58,8 +65,15 @@ public:
         declare_parameter<double>("line_lpf_alpha",0.3);
         declare_parameter<double>("angle_lpf_alpha",0.2);
         declare_parameter<double>("dist_lpf_alpha",0.2);
-        declare_parameter<double>("warm_start_threshold_deg",3.0); 
-        declare_parameter<double>("angle_offset_deg",0.0);   
+        declare_parameter<double>("warm_start_threshold_deg",3.0);
+        declare_parameter<double>("angle_offset_deg",0.0);
+        // 凹形対応: 逐次RANSACで抜き出す面の最大数
+        declare_parameter<int>   ("max_wall_candidates",3);
+        // 法線の偏角がこれを超える面は「正面の壁ではない」として捨てる [deg]
+        // 石倉の側面(≒±90°)を弾くための本命パラメータ
+        declare_parameter<double>("wall_angle_max_deg",40.0);
+        // ウォームスタートを連続で使う上限フレーム数(誤ロックの固定化を防ぐ)
+        declare_parameter<int>   ("warm_start_max_frames",20);
 
         load_params();
 
@@ -86,7 +100,7 @@ public:
                 RCLCPP_INFO(get_logger(), "aiming_mode -> %s", aiming_mode_ ? "ON" : "OFF");
             });
 
-        RCLCPP_INFO(get_logger(), "wall_detection_node (夏ロボ改修版) started.");
+        RCLCPP_INFO(get_logger(), "wall_detection_node started.");
     }
 
 private:
@@ -108,6 +122,9 @@ private:
         dist_lpf_alpha_      = get_parameter("dist_lpf_alpha").as_double();
         warm_start_threshold_= get_parameter("warm_start_threshold_deg").as_double() * M_PI / 180.0;
         angle_offset_rad_    = get_parameter("angle_offset_deg").as_double()    * M_PI / 180.0;
+        max_wall_candidates_ = get_parameter("max_wall_candidates").as_int();
+        wall_angle_max_rad_  = get_parameter("wall_angle_max_deg").as_double()  * M_PI / 180.0;
+        warm_start_max_frames_ = get_parameter("warm_start_max_frames").as_int();
     }
 
     // ── メインコールバック ──────────────────────
@@ -125,20 +142,19 @@ private:
             return;
         }
 
-        // 2. RANSAC（ウォームスタートで可能ならスキップ） + TLS再フィット
-        std::optional<LineCoeff> result;
-        if (warm_start_valid(pts)) {
-            result = refine_line_with_inliers(pts, smoothed_line_.value());
-        } else {
-            auto ransac_res = ransac_fit(pts);
-            if (!ransac_res) return;
-            const double ratio = static_cast<double>(ransac_res->inliers) / pts.size();
-            if (ransac_res->inliers < ransac_min_inliers_ || ratio < min_inlier_ratio_) return;
-            result = refine_line_with_inliers(pts, *ransac_res);
+        // 2. 壁面の決定
+        std::optional<LineCoeff> result = try_warm_start(pts);
+        if (!result) {
+            result = select_front_wall(pts);
+            warm_start_frames_ = 0;
         }
-        if (!result) return;
+        if (!result) {
+            // 正面を向いた面が見つからない。前回値を出し続けると嘘をつくので黙る。
+            RCLCPP_DEBUG(get_logger(), "正面の壁が見つからない (pts=%zu)", pts.size());
+            return;
+        }
 
-        // RANSAC直線パラメータを publish ([a, b, c, inliers, total])
+        // 採用した直線パラメータを publish ([a, b, c, inliers, total])
         {
             std_msgs::msg::Float64MultiArray rp;
             rp.data = {result->a, result->b, result->c,
@@ -147,8 +163,84 @@ private:
             ransac_params_pub_->publish(rp);
         }
 
-        // 3. LPF（修正版） + publish
+        // 3. LPF + publish
         smooth_and_publish(*result);
+    }
+
+    // ── ウォームスタート ────────────────────────
+    // 前フレームの面をそのまま追従する。誤った面にロックしたまま抜けられなく
+    // ならないよう、(1) 角度が warm_start_threshold_ 以上飛んだら破棄、
+    // (2) 連続 warm_start_max_frames_ 回で強制的に全探索へ戻す。
+    std::optional<LineCoeff> try_warm_start(const std::vector<Point2D>& pts)
+    {
+        if (!smoothed_line_.has_value()) return std::nullopt;
+        if (warm_start_frames_ >= warm_start_max_frames_) return std::nullopt;
+
+        const auto& L = smoothed_line_.value();
+        int inliers = 0;
+        for (const auto& p : pts) {
+            if (std::abs(L.a*p.x + L.b*p.y + L.c) < ransac_threshold_ * 1.5) ++inliers;
+        }
+        if (inliers < ransac_min_inliers_) return std::nullopt;
+
+        const LineCoeff refined = refine_line_with_inliers(pts, L);
+        const double ang = std::atan2(refined.b, refined.a);
+
+        // 正面から外れた面は追従対象にしない
+        if (std::abs(ang) > wall_angle_max_rad_) return std::nullopt;
+        // 前フレームから角度が飛びすぎていたら信用しない
+        if (std::isfinite(filtered_angle_) &&
+            std::abs(wrap_pi(ang - filtered_angle_)) > warm_start_threshold_) {
+            return std::nullopt;
+        }
+
+        ++warm_start_frames_;
+        return refined;
+    }
+
+    // ── 正面の壁を選ぶ (凹形対応したか？) ──────────
+    // 逐次RANSACで面を抜き出し、法線がロボット前方を向いている面のうち
+    // もっとも支持点の多いものを壁として返す。
+    std::optional<LineCoeff> select_front_wall(const std::vector<Point2D>& pts)
+    {
+        std::vector<Point2D> remaining = pts;
+        std::optional<LineCoeff> best;
+
+        for (int k = 0; k < max_wall_candidates_; ++k) {
+            if (static_cast<int>(remaining.size()) < ransac_min_inliers_) break;
+
+            auto seed = ransac_fit(remaining);
+            if (!seed || seed->inliers < ransac_min_inliers_) break;
+
+            const LineCoeff cand = refine_line_with_inliers(remaining, *seed);
+            if (cand.inliers < ransac_min_inliers_) break;
+
+            // この面の法線がロボット前方を向いているか
+            const double ang = std::atan2(cand.b, cand.a);
+            const bool facing = std::abs(ang) <= wall_angle_max_rad_;
+            const double ratio = static_cast<double>(cand.inliers) / pts.size();
+
+            if (facing && ratio >= min_inlier_ratio_ &&
+                (!best || cand.inliers > best->inliers)) {
+                best = cand;
+            }
+
+            RCLCPP_DEBUG(get_logger(),
+                "候補%d: angle=%.1fdeg dist=%.2fm inliers=%d(%.0f%%) %s",
+                k, ang * 180.0 / M_PI, std::abs(cand.c), cand.inliers, ratio * 100.0,
+                facing ? "採用可" : "側面とみなし除外");
+
+            // 採用した面の点を除いて次の面を探す
+            std::vector<Point2D> rest;
+            rest.reserve(remaining.size());
+            for (const auto& p : remaining) {
+                if (std::abs(cand.a*p.x + cand.b*p.y + cand.c) >= ransac_threshold_)
+                    rest.push_back(p);
+            }
+            if (rest.size() == remaining.size()) break;  // 進捗なし
+            remaining.swap(rest);
+        }
+        return best;
     }
 
     // フィルタ後点群を PointCloud2(x,y,z=0, LiDARフレーム) として publish
@@ -183,7 +275,6 @@ private:
         std::vector<Point2D> pts;
         pts.reserve(512);
 
-        double prev_angle = std::numeric_limits<double>::quiet_NaN();
         const size_t n = scan.ranges.size();
 
         for (size_t i = 0; i < n; ++i) {
@@ -197,14 +288,6 @@ private:
 
             // FOVフィルタ（前方 ±fov_half_rad）
             if (std::abs(angle) > fov_half_rad) continue;
-
-            // 連続点間の角度ステップ異常除去
-            if (!std::isnan(prev_angle) &&
-                std::abs(angle - prev_angle) > max_angle_step_rad_) {
-                prev_angle = angle;
-                continue;
-            }
-            prev_angle = angle;
 
             pts.push_back({r * std::cos(angle), r * std::sin(angle)});
         }
@@ -289,21 +372,6 @@ private:
         return {na, nb, nc, static_cast<int>(inliers.size())};
     }
 
-    // ── ウォームスタート判定 [Add 2] ─────────────
-    bool warm_start_valid(const std::vector<Point2D>& pts) const
-    {
-        if (!smoothed_line_.has_value()) return false;
-        const auto& L = smoothed_line_.value();
-
-        // 前フレーム直線に対するインライア率チェック
-        int inliers = 0;
-        for (const auto& p : pts) {
-            if (std::abs(L.a*p.x + L.b*p.y + L.c) < ransac_threshold_ * 1.5) ++inliers;
-        }
-        const double ratio = static_cast<double>(inliers) / pts.size();
-        return ratio >= min_inlier_ratio_;
-    }
-
     // ── LPF平滑化 + publish [Fix 1] [Fix 2] ─────
     void smooth_and_publish(const LineCoeff& raw)
     {
@@ -329,9 +397,7 @@ private:
         }
 
         // smoothed_line_ を更新（cは平滑化距離で再設定）
-        // 符号はロボット原点が直線の正側になるよう合わせる
-        const double sc = -(sa * 0.0 + sb * 0.0) - filtered_distance_;
-        // ※ 正確には重心からcを取る。ここでは距離だけ保持しLPFを通した値を使う
+        // 法線はx>0側に正規化済みなので、原点からの符号付き距離は -filtered_distance_
         smoothed_line_ = LineCoeff{sa, sb, -filtered_distance_, raw.inliers};
 
         // ── 壁角度の計算
@@ -342,11 +408,7 @@ private:
         if (!std::isfinite(filtered_angle_)) {
             filtered_angle_ = raw_wall_angle;
         } else {
-            // 角度折り返し対応
-            double diff = raw_wall_angle - filtered_angle_;
-            while (diff >  M_PI) diff -= 2 * M_PI;
-            while (diff < -M_PI) diff += 2 * M_PI;
-            filtered_angle_ += angle_lpf_alpha_ * diff;
+            filtered_angle_ += angle_lpf_alpha_ * wrap_pi(raw_wall_angle - filtered_angle_);
         }
 
         // 取り付けオフセット補正 [Add 4]
@@ -367,6 +429,13 @@ private:
             filtered_distance_, raw.inliers);
     }
 
+    static double wrap_pi(double a)
+    {
+        while (a >  M_PI) a -= 2 * M_PI;
+        while (a < -M_PI) a += 2 * M_PI;
+        return a;
+    }
+
     // ── メンバ変数 ──────────────────────────────
     // パラメータ
     double fov_half_rad_, aiming_fov_half_rad_;
@@ -378,11 +447,15 @@ private:
     double line_lpf_alpha_, angle_lpf_alpha_, dist_lpf_alpha_;
     double warm_start_threshold_;
     double angle_offset_rad_;
+    int    max_wall_candidates_;
+    double wall_angle_max_rad_;
+    int    warm_start_max_frames_;
 
     // 状態
     std::optional<LineCoeff> smoothed_line_;
     double filtered_angle_    = std::numeric_limits<double>::quiet_NaN();
     double filtered_distance_ = std::numeric_limits<double>::quiet_NaN();
+    int    warm_start_frames_ = 0;
 
     // ROS
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr   angle_pub_;

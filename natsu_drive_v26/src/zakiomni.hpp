@@ -99,10 +99,11 @@ private:
    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
    std::atomic<bool> cmd_vel_received_{false};
    rclcpp::Time last_cmd_vel_time_;
-   // スケール基準: 「スティック全倒し時の実速度」を実測して入れる。
-   // 大きめに入れると指令より遅く動く（安全側）、小さめだと速く動く（危険側）。
    double cmd_vel_v_ref_ = 4.0;   // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
    double cmd_vel_w_ref_ = 16.0;  // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
+   double cmd_vel_min_ratio_v_ = 0.08;
+   double cmd_vel_min_ratio_w_ = 0.035;
+   double joy_override_th_ = 0.6;
 
    // 調停(/auto/arbitration): "auto"でcmd_velを受け付け、"manual"でjoy専属に戻る。
    // AUTO中にスティックが倒されたら即座にmanualへ落とし、/auto/abortでFSMに通知する。
