@@ -81,6 +81,29 @@ static std::optional<State> state_from_name(const std::string& n)
     return std::nullopt;
 }
 
+// --- 状態ごとのフラグ束 (Google C++ Style Guide 準拠) ---
+// データを束ねるだけ(不変条件なし)なので struct を使う。
+// struct のメンバは末尾アンダースコアを付けない(class のデータメンバとは異なる)。
+
+// CLIMB 状態だけが使うフラグ
+struct ClimbState {
+    bool started = false;                       // /climb/start を発行済みか
+    bool done    = false;                       // /climb/done を受信したか
+    rclcpp::Time start_time{0,0,RCL_ROS_TIME};  // 昇降開始時刻(タイムアウト用)
+};
+
+// MANUAL_COLLECT 状態だけが使うフラグ
+struct CollectState {
+    bool handover = false;                      // 調停を手動に明け渡し済みか
+    bool done     = false;                      // /auto/collect_done を受信したか
+};
+
+// FIRE 状態だけが使うフラグ
+struct FireState {
+    bool started = false;                       // 射出要求を開始済みか
+    rclcpp::Time start_time{0,0,RCL_ROS_TIME};  // 射出開始時刻
+};
+
 // ──────────────────────────────────────────────
 class NatsuAutoNode : public rclcpp::Node
 {
@@ -154,7 +177,7 @@ public:
 
         collect_done_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/auto/collect_done", 10,
-            [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) collect_done_ = true; });
+            [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) collect_.done = true; });
 
         abort_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/auto/abort", 10,
@@ -181,7 +204,7 @@ public:
 
         climb_done_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/climb/done", 10,
-            [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) climb_done_ = true; });
+            [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) climb_.done = true; });
 
         // ── 制御ループ ───────────────────────────────
         const int ms = static_cast<int>(1000.0 / rate_hz_);
@@ -364,20 +387,20 @@ private:
     // 昇降: /climb/start を1回発行して /climb/done を待つ
     void do_climb()
     {
-        if (!climb_started_) {
+        if (!climb_.started) {
             std_msgs::msg::Bool b; b.data = true;
             climb_pub_->publish(b);
-            climb_started_ = true;
-            climb_start_time_ = now();
+            climb_.started = true;
+            climb_.start_time = now();
             RCLCPP_INFO(get_logger(), "昇降を開始します /climb/start");
             return;
         }
         // タイムアウト保険
-        if ((now() - climb_start_time_).seconds() > climb_timeout_) {
+        if ((now() - climb_.start_time).seconds() > climb_timeout_) {
             RCLCPP_WARN(get_logger(), "昇降タイムアウト → 次へ強制に遷移します！！！");
-            climb_done_ = true;
+            climb_.done = true;
         }
-        if (climb_done_) {
+        if (climb_.done) {
             RCLCPP_INFO(get_logger(), "昇降が完了しました。HOME位置に移動します。");
             transit(State::MOVE_TO_HOME);
         }
@@ -386,13 +409,13 @@ private:
     // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ
     void do_manual_collect()
     {
-        if (!collect_handover_) {
+        if (!collect_.handover) {
             publish_arbitration("manual");
             stop_robot();
-            collect_handover_ = true;
+            collect_.handover = true;
             RCLCPP_INFO(get_logger(), "手動回収へ: コントローラで回収してください");
         }
-        if (collect_done_) {
+        if (collect_.done) {
             publish_arbitration("auto");  // 自動に戻す
             RCLCPP_INFO(get_logger(), "回収完了しました → HOME位置へ移動します");
             transit(State::MOVE_TO_SHOOT);
@@ -402,13 +425,13 @@ private:
     // 射出: /shooter/fire_request を fire_hold 秒だけ立てる
     void do_fire()
     {
-        if (!fire_started_) {
-            fire_start_time_ = now();
-            fire_started_ = true;
+        if (!fire_.started) {
+            fire_.start_time = now();
+            fire_.started = true;
             RCLCPP_INFO(get_logger(), "射出を要求します /shooter/fire_request");
         }
         std_msgs::msg::Bool b;
-        b.data = ((now() - fire_start_time_).seconds() < fire_hold_);
+        b.data = ((now() - fire_.start_time).seconds() < fire_hold_);
         fire_pub_->publish(b);
         if (!b.data) {
             RCLCPP_INFO(get_logger(), "射出が完了しました → DONE");
@@ -482,11 +505,11 @@ private:
         state_ = s;
         state_entered_ = now();
         // ステート入口のフラグリセット
-        climb_started_ = false;
-        collect_handover_ = false;
-        fire_started_ = false;
-        if (s == State::CLIMB) climb_done_ = false;
-        if (s == State::MANUAL_COLLECT) collect_done_ = false;
+        climb_.started = false;
+        collect_.handover = false;
+        fire_.started = false;
+        if (s == State::CLIMB) climb_.done = false;
+        if (s == State::MANUAL_COLLECT) collect_.done = false;
         RCLCPP_INFO(get_logger(), "→ state: %s", state_name(s));
     }
 
@@ -532,13 +555,10 @@ private:
     double wall_dist_  = 0.0;   rclcpp::Time wall_dist_stamp_{0,0,RCL_ROS_TIME};
     double cur_x_ = 0, cur_y_ = 0, cur_yaw_ = 0;  bool pose_ok_ = false;
 
-    bool climb_started_ = false, climb_done_ = false;
-    rclcpp::Time climb_start_time_{0,0,RCL_ROS_TIME};
-
-    bool collect_handover_ = false, collect_done_ = false;
-
-    bool fire_started_ = false;
-    rclcpp::Time fire_start_time_{0,0,RCL_ROS_TIME};
+    // 状態ごとのフラグ束(struct のメンバは末尾_なし)
+    ClimbState   climb_;
+    CollectState collect_;
+    FireState    fire_;
 
     // ── ROS ────────────────────────────────────
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
