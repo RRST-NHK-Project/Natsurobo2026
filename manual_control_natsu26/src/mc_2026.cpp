@@ -24,7 +24,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/bool.hpp>
 
 // 以下マイコンに合わせて設定
-#define OUTPUT_DEVICE_ID 0x03 // 出力マイコン（モーター制御）のID
+#define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
 #define INPUT_DEVICE_ID 0x03 // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
@@ -334,7 +334,8 @@ private:
         // static bool last_option = false;
         // static bool option_latch = false;
         static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
-        //static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
+        static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
+        static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
         //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
@@ -343,6 +344,8 @@ private:
         static bool last_L2 = false; // L2の前回状態を保持する変数
         static bool last_L3 = false; // L3の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
+        static bool rightrolling = false; // 右回転モードのフラグ
+        static bool leftrolling = false; // 左回転モードのフラグ
         static bool reverserolling = false; // 逆回転モードのフラグ
 
         // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
@@ -422,7 +425,7 @@ private:
             }
             else
             {
-            //     //data_[1] = 0;
+                data_[1] = 0;
                 data_[3] = 0;
                 data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
@@ -492,28 +495,29 @@ private:
             }
         
             // =================================================================
-            // SQUARE TRIANGLE:　
-            /*SQUARE、TRIANGLE、UP、DOWNで機構を制御するんだよね？
-              なんでモーターの制御コードがないの？
-              ピッチ、ヨーとか書いてるけど他人のを適当にパクって当てはめただけでは？
-              機構図面共有したからあのナンバリングで書きな*/
-            // if (SQUARE)
+            //ハンドアームの根元部分のモーター回転機構の制御
+            // if (SQUARE&& !last_SQUARE)
             // {
-            //     data_[11] -=5; // 角度は要調整
+            //     rightrolling = !rightrolling; // 右回転モードの切り替え
             // }
-            // if (TRIANGLE)
+            // if (CIRCLE&& !last_CIRCLE)
             // {
-            //     data_[11] +=5; // 角度は要調整
+            //     leftrolling = !leftrolling; // 左回転モードの切り替え
+            // }
+            // if(rightrolling == true)
+            // {
+            //     data_[1] = 50;
+            // }
+            // else if(leftrolling == true)
+            // {
+            //     data_[1] = -50;
+            // }
+            // else
+            // {
+            //     data_[1] = 0;
             // }
             
-            // if(data_[11] > 270)
-            // {
-            //     data_[11] = 270; // 上限角度は要調整
-            // }
-            // else if(data_[11] < 0)
-            // {
-            //     data_[11] = 0; // 下限角度は要調整
-            // }
+
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
             static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
@@ -567,7 +571,7 @@ private:
         
 
             RCLCPP_INFO(this->get_logger(), 
-        "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+        "data_[1]: %d data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[1], data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
     }
 
@@ -579,7 +583,8 @@ private:
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     last_L3 = L3; // L3の状態を更新
     last_CROSS = CROSS; // CROSSの状態を更新
-    //last_SQUARE = SQUARE; // SQUAREの状態を更新
+    last_SQUARE = SQUARE; // SQUAREの状態を更新
+    last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
     }
