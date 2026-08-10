@@ -24,7 +24,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/bool.hpp>
 
 // 以下マイコンに合わせて設定
-#define OUTPUT_DEVICE_ID 0x01 // 出力マイコン（モーター制御）のID
+#define OUTPUT_DEVICE_ID 0x03 // 出力マイコン（モーター制御）のID
 #define INPUT_DEVICE_ID 0x03 // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
@@ -195,15 +195,15 @@ private:
         //                      msg->data[12], msg->data[13], msg->data[14], msg->data[15]);
 
         // SW3, SW4専用の明示的なデバッグ
-        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
-                             "【通信確認】SW3(外側):%d, SW4(内側):%d", msg->data[11], msg->data[12]);
+        //RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
+                            // "【通信確認】SW3(外側):%d, SW4(内側):%d", msg->data[11], msg->data[12]);
     }
 
     rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr sw_sub_;
 };
 
 // =================================================================
-// HardWareControlノード: ID=2のESP32へモーター指令を送信する
+// HardWareControlノード: ID=3のESP32へモーター指令を送信する
 // =================================================================
 class HardWareControl : public rclcpp::Node
 {
@@ -422,16 +422,16 @@ private:
             {
                 data_[1] = injection_speed;
                 data_[2] = injection_speed;
-                data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
+                data_[3] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
             {
                 data_[1] = 0;
-                data_[3] = 0;
-                data_[4] = 0; // 射出部分　出力は一旦50にしておく　要調整
+                data_[2] = 0;
+                data_[3] = 0; // 射出部分　出力は一旦50にしておく　要調整
             }
             RCLCPP_INFO(this->get_logger(),
-                                    "motor[1,3,4]: %d,%d,%d", data_[1], data_[3], data_[4]); 
+                                    "motor[1,2,3]: %d,%d,%d", data_[1], data_[2], data_[3]); 
             // =================================================================
 
             // =================================================================
@@ -461,7 +461,7 @@ private:
                 }
             }
 
-            data_[11] = pitch_state;
+            data_[10] = pitch_state;
             
             // =================================================================
 
@@ -488,7 +488,7 @@ private:
                 }
             }
 
-            data_[12] = yaw_state; // ヨー軸の角度を配列に格納
+            data_[9] = yaw_state; // ヨー軸の角度を配列に格納
         
 
             RCLCPP_INFO(this->get_logger(), 
