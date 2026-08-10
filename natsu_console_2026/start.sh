@@ -104,9 +104,12 @@ if [ "${START_SENSORS}" = "1" ]; then
   sleep 1
 
   if ! kill -0 "${SENSOR_PID}" >/dev/null 2>&1; then
-    echo "センサノードの起動に失敗しました。ログ: /tmp/r2_console_sensors.log"
-    echo "(センサ無しでGUIだけ動かすには START_SENSORS=0 ./start.sh)"
-    exit 1
+    # センサ(LiDAR等)が繋がっていない環境でも GUI は動かしたいので、
+    # ここで exit せず警告だけ出して続行する。
+    echo "⚠ センサノードの起動に失敗しました。ログ: /tmp/r2_console_sensors.log"
+    echo "  センサ無しのままGUIを起動します (センサ表示は出ません)。"
+    echo "  最初からセンサを起動しない場合は START_SENSORS=0 ./start.sh"
+    SENSOR_PID=""
   fi
 else
   echo "センサノードの起動はスキップします (START_SENSORS=0)"
@@ -137,8 +140,10 @@ echo "=================================="
 echo ""
 echo "rosbridge: ws://localhost:${BRIDGE_PORT}"
 echo "console backend: http://localhost:${CONSOLE_BACKEND_PORT}"
-if [ "${START_SENSORS}" = "1" ]; then
+if [ -n "${SENSOR_PID}" ]; then
   echo "センサノード: 起動済み (ログ: /tmp/r2_console_sensors.log)"
+elif [ "${START_SENSORS}" = "1" ]; then
+  echo "センサノード: 起動できず (センサ無しで続行中)"
 fi
 echo "ブラウザで http://localhost:3000 を開いてください"
 echo "終了するには Ctrl+C を押してください (センサノードも一緒に停止します)"
