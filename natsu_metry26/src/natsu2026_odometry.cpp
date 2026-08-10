@@ -73,11 +73,11 @@ void Shivalian_control::sensor_callback_2(
 
     ENC1 = msg->data[1];
     ENC2 = msg->data[2];
-    ENC3 = msg->data[3];
+    ENC4 = msg->data[4];
 
     enc[0] = ENC1;
     enc[1] = ENC2;
-    enc[2] = ENC3;
+    enc[2] = ENC4;
 
     for (int i = 0; i < 3; i++)
     {
@@ -205,7 +205,7 @@ void Shivalian_control::publisher_position_callback()
     tf.transform.rotation.w = q_w;
     tf_broadcaster_->sendTransform(tf);
     RCLCPP_INFO(this->get_logger(), "Position: (%.3f, %.3f)(m), Yaw: %.3f(rad), vx_r,vy_r: (%.3f, %.3f)(m/s), d_rad: %.3f(rad), dt: %.4f(s), Encoders: (%d, %d, %d), Wheel Velocities: (%.3f, %.3f, %.3f)(m/s), q_z: %.3f(rad), q_w: %.3f(rad)",
-                point_Px, point_Py, yaw, vx_r, vy_r, d_rad, dt, ENC1, ENC2, ENC3, v[0], v[1], v[2], q_z, q_w);
+                point_Px, point_Py, yaw, vx_r, vy_r, d_rad, dt, ENC1, ENC2, ENC4, v[0], v[1], v[2], q_z, q_w);
 }
 
 int main(int argc, char *argv[])
