@@ -375,27 +375,7 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if (L2 && !last_L2)
-        {
-            isrolling = !isrolling; // 押した瞬間だけ状態を反転
-        }
-        if(L3&&!last_L3) // L3が押された瞬間にモード切替
-        {
-            reverserolling = !reverserolling; // 逆回転モードの切り替え
-        }
-        
-        if(isrolling == true)
-        {
-            data_[2] = 20;
-        }
-        else if(reverserolling == true)
-        {
-            data_[2] = -20;
-        }
-        else
-        {
-            data_[2] = 0;
-        }
+
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
@@ -514,7 +494,27 @@ private:
             //circle:大小合体アームの「開閉」
             //ハンドアームの内、ワークを掴むサーボの開閉。角度は要調整
 
-            
+        if (L2 && !last_L2)
+        {
+            isrolling = !isrolling; // 押した瞬間だけ状態を反転
+        }
+        if(L3&&!last_L3) // L3が押された瞬間にモード切替
+        {
+            reverserolling = !reverserolling; // 逆回転モードの切り替え
+        }
+        
+        if(isrolling == true)
+        {
+            data_[2] = 20;
+        }
+        else if(reverserolling == true)
+        {
+            data_[2] = -20;
+        }
+        else
+        {
+            data_[2] = 0;
+        }
 
             if (TRIANGLE && !last_TRIANGLE)
             {
