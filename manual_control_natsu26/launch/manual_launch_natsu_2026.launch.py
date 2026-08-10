@@ -5,9 +5,11 @@ def generate_launch_description():
     return LaunchDescription([
       
         Node(
+            # このexeは HardWareControl と SwitchInput の2ノードを1プロセスで起動する。
+            # name= で上書きすると両方が同名になり /mc_2026 が重複するため指定しない
+            # (各ノードはコード側の hardware_control_<id> / switch_input_<id> を使う)。
             package="manual_control_natsu26",
-            executable="hardware_control_2",
-            name="mc_2026",
+            executable="hardware_control_3",
             output="screen"
         ),
         Node(

@@ -11,6 +11,7 @@
 // ROS
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 
@@ -40,6 +41,8 @@ public:
 private:
     void ps4_listener_callback(const sensor_msgs::msg::Joy::SharedPtr msg);
     void publisher_timer_callback();
+    // natsu_auto の CLIMB 状態から /climb/start を受けて自動昇降を実行する
+    void climb_start_callback(const std_msgs::msg::Bool::SharedPtr msg);
 
     #if defined(CRANEGAME)
         int cranegame_servo();
@@ -60,6 +63,13 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
+
+    // 自動昇降(CLIMB): /climb/start 受信でシリンダ上げ、raise_sec_ 秒後に /climb/done を返す
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr climb_start_sub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr climb_done_pub_;
+    bool climbing_ = false;                 // 自動昇降シーケンス実行中か
+    rclcpp::Time climb_start_time_;         // シーケンス開始時刻
+    double raise_sec_ = 2.0;                // シリンダ上げ保持時間[s](param)
 
     std::vector<int16_t> data_;
 

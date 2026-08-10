@@ -14,20 +14,20 @@ find_package(geometry_msgs REQUIRED)
 
 # Add executable
 
-add_executable(hardware_control_2
+add_executable(hardware_control_3
   src/mc_2026.cpp
 )
 
-target_include_directories(hardware_control_2 PUBLIC
+target_include_directories(hardware_control_3 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(hardware_control_2 PUBLIC c_std_99 cxx_std_17)
+target_compile_features(hardware_control_3 PUBLIC c_std_99 cxx_std_17)
 
 # Link dependencies
-ament_target_dependencies(hardware_control_2 rclcpp std_msgs sensor_msgs geometry_msgs)
+ament_target_dependencies(hardware_control_3 rclcpp std_msgs sensor_msgs geometry_msgs)
 
 # Install
-install(TARGETS hardware_control_2
+install(TARGETS hardware_control_3
   DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY
   launch

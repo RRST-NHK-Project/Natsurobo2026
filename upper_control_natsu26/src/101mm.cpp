@@ -54,6 +54,15 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         publisher_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
             "serial_tx_" + std::to_string(tx_device_id_), 10);
 
+        // 自動昇降: シリンダ上げ保持時間[s]
+        raise_sec_ = this->declare_parameter<double>("raise_sec", 2.0);
+
+        // natsu_auto の CLIMB から /climb/start を受けて昇降、完了で /climb/done を返す
+        climb_start_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+            "/climb/start", 10,
+            std::bind(&unaginobori2026::climb_start_callback, this, std::placeholders::_1));
+        climb_done_pub_ = this->create_publisher<std_msgs::msg::Bool>("/climb/done", 10);
+
         // timer_callbackを呼び出すタイマーを作成
         timer_ = create_wall_timer(
             std::chrono::milliseconds(PUBLISH_RATE_MS),
@@ -216,9 +225,34 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // 配列操作ここまで
     }
 
+    // 自動昇降開始: /climb/start(data=true) を受けたらエアシリンダを上げてシーケンス開始。
+    // 実行中の再受信は無視(多重起動防止)。
+    void unaginobori2026::climb_start_callback(const std_msgs::msg::Bool::SharedPtr msg)
+    {
+        if (!msg->data || climbing_)
+            return;
+
+        data_[17] = 1; // 前輪シリンダ上げ
+        data_[18] = 1; // 後輪シリンダ上げ
+        climbing_ = true;
+        climb_start_time_ = this->now();
+        RCLCPP_INFO(get_logger(), "自動昇降を開始します: シリンダ上げ (raise_sec=%.1fs)", raise_sec_);
+    }
+
     // publish
     void unaginobori2026::publisher_timer_callback()
     {
+        // 自動昇降シーケンスの完了判定: raise_sec_ 経過で /climb/done を1回発行
+        if (climbing_ &&
+            (this->now() - climb_start_time_).seconds() >= raise_sec_)
+        {
+            climbing_ = false;
+            std_msgs::msg::Bool done;
+            done.data = true;
+            climb_done_pub_->publish(done);
+            RCLCPP_INFO(get_logger(), "自動昇降が完了しました → /climb/done を発行");
+        }
+
         std_msgs::msg::Int16MultiArray msg;
 
         // 一応...
