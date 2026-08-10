@@ -272,18 +272,17 @@ const getDriveModeLabel = (code, language) => {
 };
 
 // natsu_auto FSM の状態(natsu_auto_node.cpp の enum State と一致させること)
+// 昇降後は機体を動かさないため MOVE_TO_HOME / MOVE_TO_SHOOT は廃止(localization不使用)
 const AUTO_STATE_FLOW = [
-  "IDLE", "DETECT_STEP", "ALIGN", "CLIMB", "MOVE_TO_HOME",
-  "MANUAL_COLLECT", "MOVE_TO_SHOOT", "FIRE", "DONE",
+  "IDLE", "DETECT_STEP", "ALIGN", "CLIMB",
+  "MANUAL_COLLECT", "FIRE", "DONE",
 ];
 const AUTO_STATE_LABELS = {
   IDLE:           { ja: "待機",          en: "Idle" },
   DETECT_STEP:    { ja: "段差検知",      en: "Detect Step" },
   ALIGN:          { ja: "壁面平行合わせ", en: "Align" },
   CLIMB:          { ja: "昇降",          en: "Climb" },
-  MOVE_TO_HOME:   { ja: "定位置へ移動",   en: "Move to Home" },
   MANUAL_COLLECT: { ja: "手動回収待ち",   en: "Manual Collect" },
-  MOVE_TO_SHOOT:  { ja: "射出位置へ移動", en: "Move to Shoot" },
   FIRE:           { ja: "射出",          en: "Fire" },
   DONE:           { ja: "完了",          en: "Done" },
   ABORTED:        { ja: "中断",          en: "Aborted" },

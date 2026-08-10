@@ -10,7 +10,6 @@
  *   /auto/force_state      [std_msgs/String]    任意状態へ強制遷移(GUI, 動作完了を待たない)
  *   /wall_detection/angle [std_msgs/Float64]   壁偏角[rad]
  *   /wall_detection/distance [std_msgs/Float64] 壁距離[m]
- *   /localization/pose    [geometry_msgs/PoseWithCovarianceStamped] 自己位置
  *   /climb/done           [std_msgs/Bool]      昇降完了
  *
  * publish:
@@ -19,8 +18,11 @@
  *   /collect/start        [std_msgs/Bool]        回収開始(手動運用時は未使用可)
  *   /shooter/fire_request [std_msgs/Bool]        射出要求
  *   /auto/state            [std_msgs/String]      現在状態(GUI表示)
- *   /auto/arrived          [std_msgs/Bool]        定位置到達(GUI「移動完了！」)
+ *   /auto/arrived          [std_msgs/Bool]        手動回収の準備完了(GUI「回収してください」通知)
  *   /auto/arbitration      [std_msgs/String]      調停指示 "auto"/"manual"
+ *
+ * 昇降(CLIMB)後は機体を動かさない運用のため、自己位置(/localization/pose)を用いた
+ * 移動状態(MOVE_TO_HOME / MOVE_TO_SHOOT)は廃止した。CLIMB完了で直接その場の手動回収へ。
  */
 
 #include <cmath>
@@ -32,7 +34,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 
 // ──────────────────────────────────────────────
 enum class State {
@@ -40,9 +41,7 @@ enum class State {
     DETECT_STEP,
     ALIGN,
     CLIMB,
-    MOVE_TO_HOME,
     MANUAL_COLLECT,
-    MOVE_TO_SHOOT,
     FIRE,
     DONE,
     ABORTED
@@ -55,9 +54,7 @@ static const char* state_name(State s)
         case State::DETECT_STEP:    return "DETECT_STEP";
         case State::ALIGN:          return "ALIGN";
         case State::CLIMB:          return "CLIMB";
-        case State::MOVE_TO_HOME:   return "MOVE_TO_HOME";
         case State::MANUAL_COLLECT: return "MANUAL_COLLECT";
-        case State::MOVE_TO_SHOOT:  return "MOVE_TO_SHOOT";
         case State::FIRE:           return "FIRE";
         case State::DONE:           return "DONE";
         case State::ABORTED:        return "ABORTED";
@@ -72,9 +69,7 @@ static std::optional<State> state_from_name(const std::string& n)
     if (n == "DETECT_STEP")    return State::DETECT_STEP;
     if (n == "ALIGN")          return State::ALIGN;
     if (n == "CLIMB")          return State::CLIMB;
-    if (n == "MOVE_TO_HOME")   return State::MOVE_TO_HOME;
     if (n == "MANUAL_COLLECT") return State::MANUAL_COLLECT;
-    if (n == "MOVE_TO_SHOOT")  return State::MOVE_TO_SHOOT;
     if (n == "FIRE")           return State::FIRE;
     if (n == "DONE")           return State::DONE;
     if (n == "ABORTED")        return State::ABORTED;
@@ -130,26 +125,6 @@ public:
         // 平行が出せないまま回り続けるのを防ぐ打ち切り [s]
         declare_parameter<double>("align_timeout", 6.0);
 
-        // 定位置(HOME)座標 [m, m, rad] (map系、仮置き)
-        declare_parameter<double>("home_x", 3.20);
-        declare_parameter<double>("home_y", 0.30);
-        declare_parameter<double>("home_yaw", 0.0);
-
-        // 射出位置(SHOOT)座標 [m, m, rad] (仮置き)
-        declare_parameter<double>("shoot_x", 3.20);
-        declare_parameter<double>("shoot_y", -0.20);
-        declare_parameter<double>("shoot_yaw", 0.0);
-
-        // 位置到達判定 [m] / [rad]
-        declare_parameter<double>("pos_tol", 0.05);
-        declare_parameter<double>("yaw_tol", 0.05);
-
-        // 移動制御ゲイン
-        declare_parameter<double>("move_kp", 1.2);
-        declare_parameter<double>("move_v_max", 0.5);
-        declare_parameter<double>("move_kp_yaw", 1.5);
-        declare_parameter<double>("move_omega_max", 1.0);
-
         // 昇降完了のタイムアウト保険 [s]
         declare_parameter<double>("climb_timeout", 20.0);
         
@@ -198,10 +173,6 @@ public:
             [this](std_msgs::msg::Float64::SharedPtr m){
                 wall_dist_ = m->data; wall_dist_stamp_ = now(); });
 
-        pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "/localization/pose", 10,
-            std::bind(&NatsuAutoNode::pose_cb, this, std::placeholders::_1));
-
         climb_done_sub_ = create_subscription<std_msgs::msg::Bool>(
             "/climb/done", 10,
             [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) climb_.done = true; });
@@ -230,18 +201,6 @@ private:
         align_kp_      = get_parameter("align_kp").as_double();
         align_omega_max_ = get_parameter("align_omega_max").as_double();
         align_timeout_ = get_parameter("align_timeout").as_double();
-        home_x_        = get_parameter("home_x").as_double();
-        home_y_        = get_parameter("home_y").as_double();
-        home_yaw_      = get_parameter("home_yaw").as_double();
-        shoot_x_       = get_parameter("shoot_x").as_double();
-        shoot_y_       = get_parameter("shoot_y").as_double();
-        shoot_yaw_     = get_parameter("shoot_yaw").as_double();
-        pos_tol_       = get_parameter("pos_tol").as_double();
-        yaw_tol_       = get_parameter("yaw_tol").as_double();
-        move_kp_       = get_parameter("move_kp").as_double();
-        move_v_max_    = get_parameter("move_v_max").as_double();
-        move_kp_yaw_   = get_parameter("move_kp_yaw").as_double();
-        move_omega_max_= get_parameter("move_omega_max").as_double();
         climb_timeout_ = get_parameter("climb_timeout").as_double();
         fire_hold_     = get_parameter("fire_hold").as_double();
         rate_hz_       = get_parameter("rate_hz").as_double();
@@ -280,16 +239,6 @@ private:
         publish_arbitration(*s == State::MANUAL_COLLECT ? "manual" : "auto");
     }
 
-    void pose_cb(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr m)
-    {
-        cur_x_ = m->pose.pose.position.x;
-        cur_y_ = m->pose.pose.position.y;
-        const auto& q = m->pose.pose.orientation;
-        cur_yaw_ = std::atan2(2.0*(q.w*q.z + q.x*q.y),
-                              1.0 - 2.0*(q.y*q.y + q.z*q.z));
-        pose_ok_ = true;
-    }
-
     // ── メインループ ────────────────────────────
     void loop()
     {
@@ -298,9 +247,7 @@ private:
             case State::DETECT_STEP:    do_detect_step(); break;
             case State::ALIGN:          do_align();       break;
             case State::CLIMB:          do_climb();       break;
-            case State::MOVE_TO_HOME:   do_move(home_x_, home_y_, home_yaw_, true);  break;
             case State::MANUAL_COLLECT: do_manual_collect(); break;
-            case State::MOVE_TO_SHOOT:  do_move(shoot_x_, shoot_y_, shoot_yaw_, false); break;
             case State::FIRE:           do_fire();        break;
             case State::DONE:           break;
             case State::ABORTED:        break;
@@ -316,8 +263,7 @@ private:
     static bool state_is_auto(State s)
     {
         return s == State::DETECT_STEP || s == State::ALIGN ||
-               s == State::CLIMB       || s == State::MOVE_TO_HOME ||
-               s == State::MOVE_TO_SHOOT || s == State::FIRE;
+               s == State::CLIMB       || s == State::FIRE;
     }
 
     // ── 各ステート処理 ──────────────────────────
@@ -401,24 +347,28 @@ private:
             climb_.done = true;
         }
         if (climb_.done) {
-            RCLCPP_INFO(get_logger(), "昇降が完了しました。HOME位置に移動します。");
-            transit(State::MOVE_TO_HOME);
+            RCLCPP_INFO(get_logger(), "昇降が完了しました。その場で手動回収に移ります。");
+            transit(State::MANUAL_COLLECT);
         }
     }
 
-    // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ
+    // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ。
+    // 昇降した位置のまま回収するので移動は挟まず、完了したら直接 FIRE へ。
     void do_manual_collect()
     {
         if (!collect_.handover) {
             publish_arbitration("manual");
             stop_robot();
+            // 昇降後の停止位置＝回収位置。GUIへ「回収してください」を通知(旧・定位置到達の代替)
+            std_msgs::msg::Bool b; b.data = true;
+            arrived_pub_->publish(b);
             collect_.handover = true;
             RCLCPP_INFO(get_logger(), "手動回収へ: コントローラで回収してください");
         }
         if (collect_.done) {
             publish_arbitration("auto");  // 自動に戻す
-            RCLCPP_INFO(get_logger(), "回収完了しました → HOME位置へ移動します");
-            transit(State::MOVE_TO_SHOOT);
+            RCLCPP_INFO(get_logger(), "回収完了しました → 射出します");
+            transit(State::FIRE);
         }
     }
 
@@ -437,46 +387,6 @@ private:
             RCLCPP_INFO(get_logger(), "射出が完了しました → DONE");
             transit(State::DONE);
         }
-    }
-
-    // 位置制御: 目標(x,y,yaw)へ /cmd_vel を出す。到達でtrueを返し次へ。
-    // arrived_flag=true のとき、到達時に /auto/arrived を publish
-    void do_move(double tx, double ty, double tyaw, bool arrived_flag)
-    {
-        if (!pose_ok_) return;
-
-        const double dx = tx - cur_x_;
-        const double dy = ty - cur_y_;
-        const double dist = std::hypot(dx, dy);
-        double dyaw = normalize(tyaw - cur_yaw_);
-
-        if (dist < pos_tol_ && std::abs(dyaw) < yaw_tol_) {
-            stop_robot();
-            if (arrived_flag) {
-                std_msgs::msg::Bool b; b.data = true;
-                arrived_pub_->publish(b);
-                RCLCPP_INFO(get_logger(), "定位置に到達。 GUIに通知します。");
-                transit(State::MANUAL_COLLECT);
-            } else {
-                RCLCPP_INFO(get_logger(), "射出位置に到達");
-                transit(State::FIRE);
-            }
-            return;
-        }
-
-        // map系の目標方向を機体座標へ（yawで回転）
-        geometry_msgs::msg::Twist t;
-        const double c = std::cos(cur_yaw_), s = std::sin(cur_yaw_);
-        double vx_body =  c*dx + s*dy;
-        double vy_body = -s*dx + c*dy;
-        double n = std::hypot(vx_body, vy_body);
-        if (n > 1e-6) {
-            double v = clamp(move_kp_ * dist, 0.0, move_v_max_);
-            t.linear.x = v * vx_body / n;
-            t.linear.y = v * vy_body / n;
-        }
-        t.angular.z = clamp(move_kp_yaw_ * dyaw, -move_omega_max_, move_omega_max_);
-        cmd_vel_pub_->publish(t);
     }
 
     // ── ユーティリティ ──────────────────────────
@@ -530,21 +440,10 @@ private:
     static double clamp(double v, double lo, double hi)
     { return std::max(lo, std::min(hi, v)); }
 
-    static double normalize(double a)
-    {
-        while (a >  M_PI) a -= 2*M_PI;
-        while (a < -M_PI) a += 2*M_PI;
-        return a;
-    }
-
     // ── パラメータ ─────────────────────────────
     double step_dist_, approach_v_, approach_timeout_, wall_data_timeout_;
     bool   use_wall_detection_;
     double align_tol_, align_kp_, align_omega_max_, align_timeout_;
-    double home_x_, home_y_, home_yaw_;
-    double shoot_x_, shoot_y_, shoot_yaw_;
-    double pos_tol_, yaw_tol_;
-    double move_kp_, move_v_max_, move_kp_yaw_, move_omega_max_;
     double climb_timeout_, fire_hold_, rate_hz_;
 
     // ── 状態 ───────────────────────────────────
@@ -553,7 +452,6 @@ private:
 
     double wall_angle_ = 0.0;   rclcpp::Time wall_angle_stamp_{0,0,RCL_ROS_TIME};
     double wall_dist_  = 0.0;   rclcpp::Time wall_dist_stamp_{0,0,RCL_ROS_TIME};
-    double cur_x_ = 0, cur_y_ = 0, cur_yaw_ = 0;  bool pose_ok_ = false;
 
     // 状態ごとのフラグ束(struct のメンバは末尾_なし)
     ClimbState   climb_;
@@ -568,7 +466,6 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
 
     rclcpp::TimerBase::SharedPtr timer_;
 };
