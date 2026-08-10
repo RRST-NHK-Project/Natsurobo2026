@@ -22,6 +22,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
 
 // 以下マイコンに合わせて設定
 #define OUTPUT_DEVICE_ID 0x03 // 出力マイコン（モーター制御）のID
@@ -54,6 +55,10 @@ std::atomic<int16_t> g_micro2_sw{0}; // マイクロスイッチ(下): 1=押さ�
 std::atomic<int16_t> g_micro3_sw{0}; // マイクロスイッチ(外側): SW3
 std::atomic<int16_t> g_micro4_sw{0}; // マイクロスイッチ(内側): SW4
 std::atomic<int16_t> g_enc1_val{0};  // エンコーダ1: data[1]から受信
+
+// 現在の操作モード(L1で切替)。GUI表示用に /manual/mode へ publish する。
+// 偶数=Drive(走行), 奇数=Get_eel(捕獲)。ps4コールバックとpublishタイマで共有するため atomic。
+std::atomic<int> g_mode_count{0};
 
 // フォークリフト座標管理 (EncoderCoordinator)
 // エンコーダ減少 -> 座標増加 / エンコーダ増加 -> 座標減少
@@ -255,6 +260,9 @@ public:
         publisher_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
             "serial_tx_" + std::to_string(OUTPUT_DEVICE_ID), 10);
 
+        // 現在の操作モードをGUIへ通知(Drive/Get_eel)。定常publishでGUIが常に最新値を持てる
+        mode_pub_ = this->create_publisher<std_msgs::msg::String>("/manual/mode", 10);
+
         // timer_callbackを呼び出すタイマーを作成
         timer_ = create_wall_timer(
             std::chrono::milliseconds(PUBLISH_RATE_MS),
@@ -394,6 +402,7 @@ private:
         {
             mode_count++;
         }
+        g_mode_count.store(mode_count); // GUI表示用にモードを共有(/manual/mode)
 
 
 
@@ -663,6 +672,11 @@ private:
 
         publisher_->publish(msg);
 
+        // 現在モードをGUIへ publish (偶数=Drive, 奇数=Get_eel)
+        std_msgs::msg::String mode_msg;
+        mode_msg.data = (g_mode_count.load() % 2 == 0) ? "DRIVE" : "GET_EEL";
+        mode_pub_->publish(mode_msg);
+
         #if defined(MODE_BLDC)
         std_msgs::msg::Float64 cmd_msg;
         cmd_msg.data = target_vel_;
@@ -717,6 +731,7 @@ private:
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_; // /manual/mode (GUI表示用)
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_1;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;

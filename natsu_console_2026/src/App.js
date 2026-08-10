@@ -542,6 +542,7 @@ function App() {
   const autoAbortPubRef = useRef(null);               // /auto/abort 発行
   const autoForceStatePubRef = useRef(null);          // /auto/force_state 発行(強制遷移)
   const autoStateSubRef = useRef(null);               // /auto/state 購読
+  const manualModeSubRef = useRef(null);              // /manual/mode 購読(手動操作モード)
   const autoArbitrationSubRef = useRef(null);         // /auto/arbitration 購読
   const autoArrivedSubRef = useRef(null);             // /auto/arrived 購読
   const autoArrivedTimerRef = useRef(null);           // 到達フラッシュ用タイマー
@@ -684,6 +685,7 @@ function App() {
   const [imuRpy, setImuRpy] = useState(null);     // IMU姿勢 {roll,pitch,yaw}[rad] (yawは起動時基準)
   // natsu_auto FSM 状態 (/auto/*)
   const [autoState, setAutoState] = useState("");         // /auto/state 現在の状態名
+  const [manualMode, setManualMode] = useState("");       // /manual/mode "DRIVE"/"GET_EEL"
   const [autoArbitration, setAutoArbitration] = useState(""); // /auto/arbitration "auto"/"manual"
   const [autoArrivedFlash, setAutoArrivedFlash] = useState(false); // /auto/arrived 到達通知フラッシュ
   const [autoForceUnlocked, setAutoForceUnlocked] = useState(false); // 強制遷移ボタンのロック解除フラグ
@@ -4349,6 +4351,15 @@ function App() {
     autoStateSubRef.current.subscribe((msg) => {
       setAutoState(String(msg?.data || ""));
     });
+    // 購読: 手動操作モード(mc_2026 の L1 で切替。DRIVE/GET_EEL)
+    manualModeSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/manual/mode",
+      messageType: "std_msgs/msg/String",
+    });
+    manualModeSubRef.current.subscribe((msg) => {
+      setManualMode(String(msg?.data || "").toUpperCase());
+    });
     autoArbitrationSubRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
       name: "/auto/arbitration",
@@ -4863,7 +4874,7 @@ function App() {
         clearTimeout(autoArrivedTimerRef.current);
         autoArrivedTimerRef.current = null;
       }
-      [autoStateSubRef, autoArbitrationSubRef, autoArrivedSubRef].forEach((ref) => {
+      [autoStateSubRef, manualModeSubRef, autoArbitrationSubRef, autoArrivedSubRef].forEach((ref) => {
         try {
           ref.current?.unsubscribe?.();
         } catch (error) {
@@ -5112,6 +5123,7 @@ function App() {
         applyJoyTopicName={applyJoyTopicName}
         commandValue={commandValue}
         updateCommand={updateCommand}
+        manualMode={manualMode}
         tr={tr}
       />
     );
@@ -5284,6 +5296,7 @@ function App() {
               applyJoyTopicName={applyJoyTopicName}
               commandValue={commandValue}
               updateCommand={updateCommand}
+              manualMode={manualMode}
               tr={tr}
             />
           )}
