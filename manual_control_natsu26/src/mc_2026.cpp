@@ -401,6 +401,7 @@ private:
 
         if(drive_mode)
         { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
+            static int crosskey_count = 0; // CROSSの押下回数をカウントする変数
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Drive.");
 
@@ -438,16 +439,64 @@ private:
             // =================================================================
 
             // =================================================================
-            // UP,DOWN:「昇降機構」
+            // UP,DOWN:「ピッチ軸回転」
+            static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
+            if (DOWN)
+            {
+                pitch_state = pitch_state + 3; 
+
+                if (pitch_state >270)
+                {
+                    pitch_state =270; // 上限角度は要調整
+                }
+            }
+
+            else if (UP)
+            {
+                pitch_state = pitch_state - 3;
+
+                if (pitch_state < 120)
+                {
+                    pitch_state = 120; // 下限角度は要調整
+                }
+            }
+
+            data_[11] = pitch_state;
+            
             // =================================================================
 
             // =================================================================
-            // LEFT,RIGHT:
+            // LEFT,RIGHT:「ヨー軸回転」
+                static int yaw_state=135; // ヨー軸(横回転)の角度
+            if (RIGHT)
+            {
+                yaw_state = yaw_state + 3; 
+
+                if (yaw_state >270)
+                {
+                    yaw_state =270; // 上限角度は要調整
+                }
+            }
+
+            else if (LEFT)
+            {
+                yaw_state = yaw_state - 3; 
+
+                if (yaw_state < 0)
+                {
+                    yaw_state = 0; // 下限角度は要調整
+                }
+            }
+
+            data_[12] = yaw_state; // ヨー軸の角度を配列に格納
+        
+
+            RCLCPP_INFO(this->get_logger(), 
+        "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
         } 
         else if (get_eel_mode)
         {
-            static int crosskey_count = 0; // CROSSの押下回数をカウントする変数
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
@@ -519,59 +568,11 @@ private:
             
 
             // =================================================================
-            // UP,DOWN:「ピッチ軸回転」
-            static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
-            if (DOWN)
-            {
-                pitch_state = pitch_state + 3; 
-
-                if (pitch_state >270)
-                {
-                    pitch_state =270; // 上限角度は要調整
-                }
-            }
-
-            else if (UP)
-            {
-                pitch_state = pitch_state - 3;
-
-                if (pitch_state < 120)
-                {
-                    pitch_state = 120; // 下限角度は要調整
-                }
-            }
-
-            data_[11] = pitch_state;
+            // UP,DOWN:「
             // =================================================================
 
             // =================================================================
-            // LEFT,RIGHT:「ヨー軸回転」
-            static int yaw_state=135; // ヨー軸(横回転)の角度
-            if (RIGHT)
-            {
-                yaw_state = yaw_state + 3; 
-
-                if (yaw_state >270)
-                {
-                    yaw_state =270; // 上限角度は要調整
-                }
-            }
-
-            else if (LEFT)
-            {
-                yaw_state = yaw_state - 3; 
-
-                if (yaw_state < 0)
-                {
-                    yaw_state = 0; // 下限角度は要調整
-                }
-            }
-
-            data_[12] = yaw_state; // ヨー軸の角度を配列に格納
-        
-
-            RCLCPP_INFO(this->get_logger(), 
-        "data_[1]: %d data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[1], data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+            // LEFT,RIGHT:
             // =================================================================
     }
 
