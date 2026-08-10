@@ -8,10 +8,6 @@ scan_matcher_localizer:
     ishigura_x: 3.20   # スタートゾーン中心 → 石倉手前面 の距離 [m]
     ishigura_y: 0.00   # 石倉中心の左右オフセット [m]（左が正）
 
-    # LiDAR(LD19) 取付位置: オドメトリ原点(base_link)基準、実測値 (-4.0, 46.0)cm
-    # localization.launch.py の static_transform_publisher と一致させること。
-    lidar_x: -0.04     # [m] 前方が正
-    lidar_y:  0.46     # [m] 左が正
-
     # ICP調整・トピック名などその他のパラメータはノード内デフォルトを使用。
     # 変える必要が出たらここに追記すれば上書きできる（scan_matcher_localizer.cpp 参照）。
+    #LiDARは(x,y) = (-4.0, 46.0)

@@ -17,8 +17,30 @@ export function PS4ControllerPanel({
   applyJoyTopicName,
   commandValue,
   updateCommand,
+  manualMode,
   tr,
 }) {
+  // /manual/mode (mc_2026 の L1 で切替) を人が読める形に
+  const modeInfo = (() => {
+    if (manualMode === "DRIVE") return { label: tr("走行 (Drive)", "Drive"), color: "#58a6ff" };
+    if (manualMode === "GET_EEL") return { label: tr("捕獲 (Get eel)", "Get eel"), color: "#3fb950" };
+    return { label: tr("未受信", "No signal"), color: "#8b949e" };
+  })();
+  const modeBadge = (
+    <div
+      className="manual-mode-badge"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 8,
+        padding: "4px 12px", borderRadius: 999, fontWeight: 700,
+        color: modeInfo.color, border: `1px solid ${modeInfo.color}`,
+        background: "rgba(255,255,255,0.05)",
+      }}
+    >
+      <span style={{ fontSize: 11, opacity: 0.7 }}>{tr("モード", "MODE")}</span>
+      {modeInfo.label}
+      <span style={{ fontSize: 11, opacity: 0.6 }}>L1{tr("で切替", " to toggle")}</span>
+    </div>
+  );
   const ps4Buttons = (
     <>
       <div className="ps-shoulder-row">
@@ -148,6 +170,7 @@ export function PS4ControllerPanel({
             {tr("✕ 通常表示に戻る", "✕ Back to Normal")}
           </button>
           <div className="ps4-panel-fullscreen">
+            <div style={{ textAlign: "center", marginBottom: 12 }}>{modeBadge}</div>
             {ps4Buttons}
           </div>
         </main>
@@ -203,7 +226,10 @@ export function PS4ControllerPanel({
           </section>
 
           <section className="ps4-panel">
-            <h2>{tr("PS4 コントローラーボタン", "PS4 Controller Buttons")}</h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <h2 style={{ margin: 0 }}>{tr("PS4 コントローラーボタン", "PS4 Controller Buttons")}</h2>
+              {modeBadge}
+            </div>
             {ps4Buttons}
           </section>
         </div>
