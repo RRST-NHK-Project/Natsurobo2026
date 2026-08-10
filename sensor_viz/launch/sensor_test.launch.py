@@ -42,6 +42,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_imu', default_value='false',
             description='WT901C IMU を起動するか'),
+        DeclareLaunchArgument(
+            'use_rviz', default_value='true',
+            description='RViz2 を起動するか (GUIから呼ぶ時は false)'),
 
         # ── LiDAR（LD19）─ ldlidar_component をコンテナで直接起動 ────
         ComposableNodeContainer(
@@ -179,11 +182,13 @@ def generate_launch_description():
         ),
 
         # ── RViz2 ───────────────────────────────────────────
+        # use_rviz:=false のとき起動しない (GUI併用時は不要)
         Node(
             package='rviz2',
             executable='rviz2',
             name='rviz2',
             arguments=['-d', rviz_cfg],
             output='screen',
+            condition=IfCondition(LaunchConfiguration('use_rviz')),
         ),
     ])

@@ -16,24 +16,43 @@ BRIDGE_PID=""
 CONSOLE_BACKEND_PORT="${CONSOLE_BACKEND_PORT:-3031}"
 BACKEND_PID=""
 
+# センサノード(sensor_test.launch.py, RVizなし)をGUIと一緒に起動する。
+# START_SENSORS=0 で無効化、SENSOR_USE_IMU=true でIMUも起動。
+START_SENSORS="${START_SENSORS:-1}"
+SENSOR_USE_IMU="${SENSOR_USE_IMU:-false}"
+SENSOR_PID=""
+
+# ros2 をシステムPython環境で(仮想環境を避けて)バックグラウンド起動する共通ヘルパ。
+# 使い方: run_ros2_bg <logfile> <ros2 引数...>
+run_ros2_bg() {
+  local logfile="$1"; shift
+  if [ -n "${VIRTUAL_ENV:-}" ]; then
+    local CLEAN_PATH="${PATH}"
+    CLEAN_PATH="${CLEAN_PATH#"${VIRTUAL_ENV}/bin:"}"
+    (
+      unset VIRTUAL_ENV
+      export PATH="${CLEAN_PATH}"
+      exec ros2 "$@"
+    ) >"${logfile}" 2>&1 &
+  else
+    ros2 "$@" >"${logfile}" 2>&1 &
+  fi
+}
+
 start_rosbridge() {
   if [ -n "${VIRTUAL_ENV:-}" ]; then
     echo "Python仮想環境を検出: ${VIRTUAL_ENV}"
     echo "rosbridge はシステムPython環境で起動します"
-
-    local CLEAN_PATH="${PATH}"
-    CLEAN_PATH="${CLEAN_PATH#"${VIRTUAL_ENV}/bin:"}"
-
-    (
-      unset VIRTUAL_ENV
-      export PATH="${CLEAN_PATH}"
-      exec ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=${BRIDGE_PORT}
-    ) >/tmp/r2_console_rosbridge.log 2>&1 &
-  else
-    ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=${BRIDGE_PORT} >/tmp/r2_console_rosbridge.log 2>&1 &
   fi
-
+  run_ros2_bg /tmp/r2_console_rosbridge.log \
+    launch rosbridge_server rosbridge_websocket_launch.xml port:=${BRIDGE_PORT}
   BRIDGE_PID=$!
+}
+
+start_sensors() {
+  run_ros2_bg /tmp/r2_console_sensors.log \
+    launch sensor_viz sensor_test.launch.py use_rviz:=false use_imu:=${SENSOR_USE_IMU}
+  SENSOR_PID=$!
 }
 
 cleanup() {
@@ -42,6 +61,13 @@ cleanup() {
     echo "console backend を停止しています..."
     kill "${BACKEND_PID}" >/dev/null 2>&1 || true
     wait "${BACKEND_PID}" 2>/dev/null || true
+  fi
+
+  if [ -n "${SENSOR_PID}" ] && kill -0 "${SENSOR_PID}" >/dev/null 2>&1; then
+    echo ""
+    echo "センサノードを停止しています..."
+    kill "${SENSOR_PID}" >/dev/null 2>&1 || true
+    wait "${SENSOR_PID}" 2>/dev/null || true
   fi
 
   if [ -n "${BRIDGE_PID}" ] && kill -0 "${BRIDGE_PID}" >/dev/null 2>&1; then
@@ -72,6 +98,20 @@ else
   exit 1
 fi
 
+if [ "${START_SENSORS}" = "1" ]; then
+  echo "センサノードを起動中... (RVizなし, use_imu:=${SENSOR_USE_IMU})"
+  start_sensors
+  sleep 1
+
+  if ! kill -0 "${SENSOR_PID}" >/dev/null 2>&1; then
+    echo "センサノードの起動に失敗しました。ログ: /tmp/r2_console_sensors.log"
+    echo "(センサ無しでGUIだけ動かすには START_SENSORS=0 ./start.sh)"
+    exit 1
+  fi
+else
+  echo "センサノードの起動はスキップします (START_SENSORS=0)"
+fi
+
 if command -v node >/dev/null 2>&1; then
   if command -v ss >/dev/null 2>&1 && ss -ltn "sport = :${CONSOLE_BACKEND_PORT}" | grep -q ":${CONSOLE_BACKEND_PORT}"; then
     echo "console backend は既にポート ${CONSOLE_BACKEND_PORT} で起動中です"
@@ -97,8 +137,11 @@ echo "=================================="
 echo ""
 echo "rosbridge: ws://localhost:${BRIDGE_PORT}"
 echo "console backend: http://localhost:${CONSOLE_BACKEND_PORT}"
+if [ "${START_SENSORS}" = "1" ]; then
+  echo "センサノード: 起動済み (ログ: /tmp/r2_console_sensors.log)"
+fi
 echo "ブラウザで http://localhost:3000 を開いてください"
-echo "終了するには Ctrl+C を押してください"
+echo "終了するには Ctrl+C を押してください (センサノードも一緒に停止します)"
 echo ""
 
 npm start
