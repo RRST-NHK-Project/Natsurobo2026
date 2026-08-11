@@ -34,11 +34,15 @@ def generate_launch_description():
     wall_cfg = os.path.join(pkg_wall, 'config', 'wall_detection.yaml')
 
     imu_port = LaunchConfiguration('imu_port')
+    lidar_port = LaunchConfiguration('lidar_port')
 
     return LaunchDescription([
         DeclareLaunchArgument(
             'imu_port', default_value='/dev/wt901',
             description='WT901C のシリアルポート'),
+        DeclareLaunchArgument(
+            'lidar_port', default_value='/dev/ldlidar',
+            description='LD19 のシリアルポート (sensor_supervisor が自動検知して上書き)'),
         DeclareLaunchArgument(
             'use_imu', default_value='false',
             description='WT901C IMU を起動するか'),
@@ -59,7 +63,7 @@ def generate_launch_description():
                     name='ld19_lidar',
                     parameters=[{
                         'general.debug_mode': False,
-                        'comm.serial_port': '/dev/ldlidar',
+                        'comm.serial_port': lidar_port,
                         'comm.baudrate': 230400,
                         'comm.timeout_msec': 1000,
                         'lidar.model': 'LD19',
