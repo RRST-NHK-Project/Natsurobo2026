@@ -347,10 +347,13 @@ private:
         //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
+        static int L2_count = 0; // L2の押下回数をカウントする変数
+        static int R1_count = 0; // R1の押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_L2 = false; // L2の前回状態を保持する変数
         static bool last_L3 = false; // L3の前回状態を保持する変数
+        static bool last_R1 = false; // R1の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
         static bool rightrolling = false; // 右回転モードのフラグ
         static bool leftrolling = false; // 左回転モードのフラグ
@@ -475,7 +478,7 @@ private:
         
 
             RCLCPP_INFO(this->get_logger(), 
-        "triangle: %d cross: %d data_[13-15]: %d,%d,%d",triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+        "triangle: %d cross: %d ",triangle_count, crosskey_count); // サーボの角度を表示
             // =================================================================
         } 
         else if (get_eel_mode)
@@ -507,6 +510,52 @@ private:
         // {
         //     data_[2] = 0;
         // }
+
+        // =================================================================
+             //L2: 小うなぎ回収ボタン
+             if (L2 && !last_L2)
+             {
+                 // L2が押された瞬間の処理
+                 L2_count++; // 押下回数をインクリメント
+             }
+             
+             if(L2_count % 2 == 1)
+             {
+                 // 奇数回目の押下時の処理（例: 開く）
+                 data_[13] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                 data_[14] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                 data_[15] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+             }
+             else if(L2_count % 2 == 0)
+             {
+                 // 偶数回目の押下時の処理（例: 閉じる）
+                 data_[13] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                 data_[14] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                 data_[15] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+             }
+        // =================================================================
+
+            //R1: 大うなぎ回収ボタン
+            if(R1&& !last_R1)
+            {
+                // R1が押された瞬間の処理
+                R1_count++; // 押下回数をインクリメント
+            }
+
+            if(R1_count % 2 == 1)
+            {
+                // 奇数回目の押下時の処理（例: 開く）
+                data_[13] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                data_[14] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                data_[15] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+            }
+            else if(R1_count % 2 == 0)
+            {
+                // 偶数回目の押下時の処理（例: 閉じる）
+                data_[13] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                data_[14] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                data_[15] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+            }
         // =================================================================
         // TRIANGLE:「ハンドアームのワークを掴む機構の開閉」
 
@@ -583,7 +632,7 @@ private:
     }
 
         RCLCPP_INFO(this->get_logger(), 
-        "data_[2]: %d, data_[9]: %d, data_[10]: %d, data_[16]: %d", data_[2], data_[9], data_[10], data_[16]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
+        "data_[2,9,10,16]: %d, %d, %d, %d, data_[13,14,15]: %d, %d, %d", data_[2], data_[9], data_[10], data_[16], data_[13], data_[14], data_[15]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
     last_L1 = L1; // L1の状態を更新
     last_L2 = L2; // L2の状態を更新
@@ -592,6 +641,7 @@ private:
     last_CROSS = CROSS; // CROSSの状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
+    last_R1 = R1; // R1の状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
     }
