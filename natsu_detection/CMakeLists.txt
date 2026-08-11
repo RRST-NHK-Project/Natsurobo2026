@@ -9,6 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp      REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs    REQUIRED)
+find_package(visualization_msgs REQUIRED)
 # std_srvs はリトライリセットサービスを将来追加するときのために残す
 # find_package(std_srvs REQUIRED)
 
@@ -27,6 +28,7 @@ ament_target_dependencies(wall_detection_node
   rclcpp
   sensor_msgs
   std_msgs
+  visualization_msgs
 )
 
 install(TARGETS wall_detection_node
@@ -37,8 +39,7 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY config
-  DESTINATION share/${PROJECT_NAME}
-)
+# パラメータは src/wall_detection_node.cpp の declare_parameter デフォルトに
+# 一元化したため、config(yaml) の install は廃止。
 
 ament_package()

@@ -17,23 +17,16 @@ LiDARドライバは別途起動済みの前提で、wall_detectionノードだ�
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from ament_index_python.packages import get_package_share_directory
-import os
 
 
 def generate_launch_description():
-    config = os.path.join(
-        get_package_share_directory("wall_detection"),
-        "config",
-        "wall_detection.yaml",
-    )
-
+    # パラメータは src/wall_detection_node.cpp の declare_parameter デフォルトに
+    # 一元化した。調整はソース側を編集して colcon build すること(yamlは廃止)。
     wall_detection_node = Node(
         package="wall_detection",
         executable="wall_detection_node",
         name="wall_detection_node",
         output="screen",
-        parameters=[config],
         # LiDARトピック名がドライバによって違う場合はここでremapする
         # 例: STL-19Pのドライバが /stl19p/scan を出す場合
         # remappings=[("/scan", "/stl19p/scan")],

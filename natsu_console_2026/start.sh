@@ -18,10 +18,12 @@ BACKEND_PID=""
 
 # センサを sensor_supervisor 経由でGUIと一緒に起動する。
 # supervisor が lidar/IMU のポートを自動検知し、データ停止時は自動復旧する。
-# START_SENSORS=0 で無効化、SENSOR_USE_IMU=true でIMUも起動、
+# START_SENSORS=0 で無効化、SENSOR_USE_IMU=false でIMUを起動しない、
 # SENSOR_USE_RVIZ=false で RViz(点群表示)を出さない。
+# LiDARとIMUは基本的に常時接続しているのでIMUもデフォルトで起動する。
+# IMU未接続で試すときだけ SENSOR_USE_IMU=false を渡す。
 START_SENSORS="${START_SENSORS:-1}"
-SENSOR_USE_IMU="${SENSOR_USE_IMU:-false}"
+SENSOR_USE_IMU="${SENSOR_USE_IMU:-true}"
 SENSOR_USE_RVIZ="${SENSOR_USE_RVIZ:-true}"
 SENSOR_PID=""
 

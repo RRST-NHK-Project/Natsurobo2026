@@ -10,6 +10,7 @@
 //  /wall_detection/distance : 壁までの距離（単位はメートル）
 //  /wall_detection/filtered_points : フィルタ後の点群(GUI/RViz用)
 //  /wall_detection/ransac_params   : 採用した直線 [a,b,c,inliers,total]
+//  /wall_detection/roi_marker      : ROI矩形マスクの可視化(RViz Marker)
 //
 //  石倉は凹形なので、FOV内には「左の側面・奥の面・右の側面」が同時に入る。
 //  単一直線のRANSACだと点数の多い側面に引っかかって明後日の方向に平行判定が
@@ -32,6 +33,7 @@
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "std_msgs/msg/bool.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 // ──────────────────────────────────────────────
 //  内部データ型
@@ -52,7 +54,7 @@ public:
     WallDetectionNode() : Node("wall_detection_node"), rng_(std::random_device{}())
     {
         // ── パラメータ宣言 ──────────────────────────
-        declare_parameter<double>("fov_half_deg",60.0);
+        declare_parameter<double>("fov_half_deg",180.0);
         declare_parameter<double>("aiming_fov_half_deg",20.0);
         declare_parameter<bool>  ("aiming_mode",false);
         declare_parameter<double>("max_angle_step_deg",5.0);
@@ -61,7 +63,7 @@ public:
         declare_parameter<int>   ("ransac_iterations",50);
         declare_parameter<double>("ransac_threshold",0.03);
         declare_parameter<int>   ("ransac_min_inliers",8);
-        declare_parameter<double>("min_inlier_ratio",0.5);
+        declare_parameter<double>("min_inlier_ratio",0.3);
         declare_parameter<double>("line_lpf_alpha",0.3);
         declare_parameter<double>("angle_lpf_alpha",0.2);
         declare_parameter<double>("dist_lpf_alpha",0.2);
@@ -73,17 +75,17 @@ public:
         // LiDAR原点から見て x=前方[m], y=左方向[m]。この箱の中の点だけ残す。
         // 石倉正対シーケンス前提なので、石倉が来る前方範囲を決め打ちできる。
         // use_roi=false で従来通り(マスク無効)。実測して4辺を詰めること。
-        declare_parameter<bool>  ("use_roi", false);
-        declare_parameter<double>("roi_x_min", 0.10);   // 前方 近い側 [m]
-        declare_parameter<double>("roi_x_max", 1.50);   // 前方 遠い側 [m]
-        declare_parameter<double>("roi_y_min",-0.80);   // 右端 [m]
-        declare_parameter<double>("roi_y_max", 0.80);   // 左端 [m]
+        declare_parameter<bool>  ("use_roi", true);
+        declare_parameter<double>("roi_x_min", -1.0);   // 前方 近い側 [m]
+        declare_parameter<double>("roi_x_max", 0.9);   // 前方 遠い側 [m]
+        declare_parameter<double>("roi_y_min", 0.3);   // 右端 [m]
+        declare_parameter<double>("roi_y_max", 1.50);   // 左端 [m]
 
         // 凹形対応: 逐次RANSACで抜き出す面の最大数
-        declare_parameter<int>   ("max_wall_candidates",3);
+        declare_parameter<int>   ("max_wall_candidates",1);
         // 法線の偏角がこれを超える面は「正面の壁ではない」として捨てる [deg]
         // 石倉の側面(≒±90°)を弾くための本命パラメータ
-        declare_parameter<double>("wall_angle_max_deg",40.0);
+        declare_parameter<double>("wall_angle_max_deg",100.0);
         // ウォームスタートを連続で使う上限フレーム数(誤ロックの固定化を防ぐ)
         declare_parameter<int>   ("warm_start_max_frames",20);
 
@@ -99,6 +101,9 @@ public:
             "/wall_detection/filtered_points",10);
         ransac_params_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
             "/wall_detection/ransac_params",10);
+        // ROI矩形の可視化(RViz Marker用)。use_roi=true のときだけ枠を出す。
+        roi_marker_pub_ = create_publisher<visualization_msgs::msg::Marker>(
+            "/wall_detection/roi_marker",10);
 
         //Subscriber
         scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
@@ -154,6 +159,8 @@ private:
 
         // フィルタ後の点群を常時 publish（壁が見つからなくても点は出す）
         publish_filtered_points(pts, scan->header);
+        // ROI矩形を常時 publish（点群と同じLiDARフレームに重ねて調整しやすくする）
+        publish_roi_marker(scan->header);
 
         if (static_cast<int>(pts.size()) < ransac_min_inliers_) {
             RCLCPP_DEBUG(get_logger(), "Not enough points in FOV: %zu", pts.size());
@@ -283,6 +290,39 @@ private:
             ++ix; ++iy; ++iz;
         }
         filtered_points_pub_->publish(cloud);
+    }
+
+    // ── ROI矩形をRViz用Markerとして publish ─────
+    // roi_x_min/max, roi_y_min/max で決まる箱をLINE_STRIPで囲む。
+    // 点群(filtered_points)と同じLiDARフレーム(z=0)に描くので、
+    // RVizで箱と石倉側面点群を見比べながら4辺を追い込める。
+    void publish_roi_marker(const std_msgs::msg::Header& header)
+    {
+        visualization_msgs::msg::Marker m;
+        m.header = header;                 // frame_id=ldlidar_link, stamp はスキャン由来
+        m.ns = "roi";
+        m.id = 0;
+        m.type = visualization_msgs::msg::Marker::LINE_STRIP;
+        // use_roi=false のときは枠を消す（マスク無効を一目で分かるように）
+        m.action = use_roi_ ? visualization_msgs::msg::Marker::ADD
+                            : visualization_msgs::msg::Marker::DELETE;
+        m.scale.x = 0.02;                  // 線幅 [m]
+        m.color.r = 1.0f; m.color.g = 0.6f; m.color.b = 0.0f; m.color.a = 1.0f;  // オレンジ
+        m.pose.orientation.w = 1.0;
+
+        auto add = [&m](double x, double y) {
+            geometry_msgs::msg::Point p;
+            p.x = x; p.y = y; p.z = 0.0;
+            m.points.push_back(p);
+        };
+        // 4隅を一周して閉じる
+        add(roi_x_min_, roi_y_min_);
+        add(roi_x_max_, roi_y_min_);
+        add(roi_x_max_, roi_y_max_);
+        add(roi_x_min_, roi_y_max_);
+        add(roi_x_min_, roi_y_min_);
+
+        roi_marker_pub_->publish(m);
     }
 
     // ── FOVフィルタ + 距離ゲート ────────────────
@@ -496,6 +536,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr   distance_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        filtered_points_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr     ransac_params_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr      roi_marker_pub_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr         aiming_sub_;
 
