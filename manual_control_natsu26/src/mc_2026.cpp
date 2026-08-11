@@ -410,7 +410,7 @@ private:
             if (TRIANGLE)
             {
                 data_[1] = injection_speed;
-                data_[2] = injection_speed;
+                data_[3] = injection_speed;
                 data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
@@ -481,7 +481,7 @@ private:
         
 
             RCLCPP_INFO(this->get_logger(), 
-        "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+        "triangle: %d cross: %d data_[13-15]: %d,%d,%d",triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
             // =================================================================
         } 
         else if (get_eel_mode)
@@ -586,7 +586,7 @@ private:
     }
 
         RCLCPP_INFO(this->get_logger(), 
-        "Speed of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
+        "data_[2]: %d, data_[9]: %d, data_[10]: %d, data_[16]: %d", data_[2], data_[9], data_[10], data_[16]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
     last_L1 = L1; // L1の状態を更新
     last_L2 = L2; // L2の状態を更新
