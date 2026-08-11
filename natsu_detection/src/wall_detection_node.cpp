@@ -67,6 +67,18 @@ public:
         declare_parameter<double>("dist_lpf_alpha",0.2);
         declare_parameter<double>("warm_start_threshold_deg",3.0);
         declare_parameter<double>("angle_offset_deg",0.0);
+
+        // ── [ROI追加] 矩形マスク（ロボット基準・LiDAR座標系）──────
+        // 石倉の側面以外(フィールドの木枠など)を空間で除外する。
+        // LiDAR原点から見て x=前方[m], y=左方向[m]。この箱の中の点だけ残す。
+        // 石倉正対シーケンス前提なので、石倉が来る前方範囲を決め打ちできる。
+        // use_roi=false で従来通り(マスク無効)。実測して4辺を詰めること。
+        declare_parameter<bool>  ("use_roi", false);
+        declare_parameter<double>("roi_x_min", 0.10);   // 前方 近い側 [m]
+        declare_parameter<double>("roi_x_max", 1.50);   // 前方 遠い側 [m]
+        declare_parameter<double>("roi_y_min",-0.80);   // 右端 [m]
+        declare_parameter<double>("roi_y_max", 0.80);   // 左端 [m]
+
         // 凹形対応: 逐次RANSACで抜き出す面の最大数
         declare_parameter<int>   ("max_wall_candidates",3);
         // 法線の偏角がこれを超える面は「正面の壁ではない」として捨てる [deg]
@@ -113,6 +125,12 @@ private:
         max_angle_step_rad_  = get_parameter("max_angle_step_deg").as_double()  * M_PI / 180.0;
         distance_gate_min_   = get_parameter("distance_gate_min").as_double();
         distance_gate_max_   = get_parameter("distance_gate_max").as_double();
+        // [ROI追加]
+        use_roi_             = get_parameter("use_roi").as_bool();
+        roi_x_min_           = get_parameter("roi_x_min").as_double();
+        roi_x_max_           = get_parameter("roi_x_max").as_double();
+        roi_y_min_           = get_parameter("roi_y_min").as_double();
+        roi_y_max_           = get_parameter("roi_y_max").as_double();
         ransac_iterations_   = get_parameter("ransac_iterations").as_int();
         ransac_threshold_    = get_parameter("ransac_threshold").as_double();
         ransac_min_inliers_  = get_parameter("ransac_min_inliers").as_int();
@@ -289,7 +307,19 @@ private:
             // FOVフィルタ（前方 ±fov_half_rad）
             if (std::abs(angle) > fov_half_rad) continue;
 
-            pts.push_back({r * std::cos(angle), r * std::sin(angle)});
+            const double px = r * std::cos(angle);   // 前方[m]
+            const double py = r * std::sin(angle);   // 左方向[m]
+
+            // [ROI追加] 矩形マスク: 石倉周辺の箱の中だけ残す。
+            // フィールドの木枠など、箱の外にある壁をここで捨てる。
+            if (use_roi_) {
+                if (px < roi_x_min_ || px > roi_x_max_ ||
+                    py < roi_y_min_ || py > roi_y_max_) {
+                    continue;
+                }
+            }
+
+            pts.push_back({px, py});
         }
         return pts;
     }
@@ -442,6 +472,10 @@ private:
     bool   aiming_mode_;
     double max_angle_step_rad_;
     double distance_gate_min_, distance_gate_max_;
+    // [ROI追加] 矩形マスク（ロボット基準）
+    bool   use_roi_ = false;
+    double roi_x_min_ = 0.10, roi_x_max_ = 1.50;
+    double roi_y_min_ = -0.80, roi_y_max_ = 0.80;
     int    ransac_iterations_, ransac_min_inliers_;
     double ransac_threshold_, min_inlier_ratio_;
     double line_lpf_alpha_, angle_lpf_alpha_, dist_lpf_alpha_;
