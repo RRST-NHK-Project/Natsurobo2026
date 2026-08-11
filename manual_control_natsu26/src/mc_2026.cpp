@@ -325,7 +325,7 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        //bool R1 = msg->buttons[5];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -488,7 +488,7 @@ private:
             // 捕獲モードの処理をここに記述
 
             // =================================================================
-　　　　　　// L2:「ローリング機構」オミットされたやつ。一応コメントアウトしておきます。
+        // L2:「ローリング機構」オミットされたやつ。一応コメントアウトしておきます。
         // if (L2 && !last_L2)
         // {
         //     isrolling = !isrolling; // 押した瞬間だけ状態を反転
