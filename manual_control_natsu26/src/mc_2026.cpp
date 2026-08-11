@@ -355,12 +355,6 @@ private:
         static bool rightrolling = false; // 右回転モードのフラグ
         static bool leftrolling = false; // 左回転モードのフラグ
         static bool reverserolling = false; // 逆回転モードのフラグ
-
-        // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
-        // static int d2 = 0; // 小アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
-
-        // data_[9] = d1;  // 大アームのサーボ角度を配列に格納
-        // data_[10] = d2; // 小アームのサーボ角度を配列に格納
         // static bool last_share = false;
         // static bool share_latch = false;
 
@@ -410,7 +404,7 @@ private:
             if (TRIANGLE)
             {
                 data_[1] = injection_speed;
-                data_[3] = injection_speed;
+                data_[2] = injection_speed;
                 data_[4] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
             }
             else
@@ -491,30 +485,30 @@ private:
             // 捕獲モードの処理をここに記述
 
             // =================================================================
-            //circle:大小合体アームの「開閉」
-            //ハンドアームの内、ワークを掴むサーボの開閉。角度は要調整
-
-        if (L2 && !last_L2)
-        {
-            isrolling = !isrolling; // 押した瞬間だけ状態を反転
-        }
-        if(L3&&!last_L3) // L3が押された瞬間にモード切替
-        {
-            reverserolling = !reverserolling; // 逆回転モードの切り替え
-        }
+　　　　　　// L2:「ローリング機構」オミットされたやつ。一応コメントアウトしておきます。
+        // if (L2 && !last_L2)
+        // {
+        //     isrolling = !isrolling; // 押した瞬間だけ状態を反転
+        // }
+        // if(L3&&!last_L3) // L3が押された瞬間にモード切替
+        // {
+        //     reverserolling = !reverserolling; // 逆回転モードの切り替え
+        // }
         
-        if(isrolling == true)
-        {
-            data_[2] = 20;
-        }
-        else if(reverserolling == true)
-        {
-            data_[2] = -20;
-        }
-        else
-        {
-            data_[2] = 0;
-        }
+        // if(isrolling == true)
+        // {
+        //     data_[2] = 20;
+        // }
+        // else if(reverserolling == true)
+        // {
+        //     data_[2] = -20;
+        // }
+        // else
+        // {
+        //     data_[2] = 0;
+        // }
+        // =================================================================
+        // TRIANGLE:「ハンドアームのワークを掴む機構の開閉」
 
             if (TRIANGLE && !last_TRIANGLE)
             {
@@ -554,26 +548,29 @@ private:
         
             // =================================================================
             //ハンドアームの根元部分のモーター回転機構の制御
-            // if (SQUARE&& !last_SQUARE)
-            // {
-            //     rightrolling = !rightrolling; // 右回転モードの切り替え
-            // }
-            // if (CIRCLE&& !last_CIRCLE)
-            // {
-            //     leftrolling = !leftrolling; // 左回転モードの切り替え
-            // }
-            // if(rightrolling == true)
-            // {
-            //     data_[1] = 50;
-            // }
-            // else if(leftrolling == true)
-            // {
-            //     data_[1] = -50;
-            // }
-            // else
-            // {
-            //     data_[1] = 0;
-            // }
+
+            if (SQUARE&& !last_SQUARE)
+            {
+                rightrolling = !rightrolling; // 右回転モードの切り替え
+            }
+
+            if (CIRCLE&& !last_CIRCLE)
+            {
+                leftrolling = !leftrolling; // 左回転モードの切り替え
+            }
+
+            if(rightrolling == true)
+            {
+                data_[2] = 50;
+            }
+            else if(leftrolling == true)
+            {
+                data_[2] = -50;
+            }
+            else
+            {
+                data_[2] = 0;
+            }
             
 
             // =================================================================
