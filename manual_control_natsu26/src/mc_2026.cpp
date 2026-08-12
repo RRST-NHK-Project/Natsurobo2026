@@ -226,7 +226,7 @@ private:
 
         if(drive_mode)
         { // ドライブモード時の処理（捕獲モードと間違えて書かないこと）
-            static int crosskey_count = 0; // CROSSの押下回数をカウントする変数
+            
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Drive.");
 
@@ -382,7 +382,7 @@ private:
             }
 
         RCLCPP_INFO(this->get_logger(), 
-        "data_[18,19]: %d, %d.triangle: %d.cross: %d data[11]: %d. data[17]: %d", data_[18], data_[19], triangle_count, cross_count, data_[11], data_[17]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
+        "data_[18,19]: %d, %d.triangle: %d.cross: %d data[11]: %d. data[17]: %d. data[4]: %d", data_[18], data_[19], triangle_count, cross_count, data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
     last_L1 = L1; // L1の状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
