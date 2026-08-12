@@ -25,8 +25,8 @@
 
 //=======動かす機体の設定========================
 
-//#define SHIVANGELION_MARK_3 // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
-#define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
+#define SHIVANGELION_MARK_3 // これを有効にするとシヴァンゲリオンのオドメトリ設定になる
+//#define MINI_AT // これを有効にするとミニ自動機のオドメトリ設定になる
 
 #if (defined(SHIVANGELION_MARK_3) + defined(MINI_AT)) !=1
 #error "Please define only one of SHIVANGELION_MARK_3 or MINI_AT."
