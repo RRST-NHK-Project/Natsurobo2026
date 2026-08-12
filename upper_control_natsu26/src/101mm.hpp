@@ -27,8 +27,8 @@
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (L1_count % 2 == 0)       // L1を押していないときはドライブモード
-#define get_eel_mode (L1_count % 2 == 1) // L1を押しているときは捕獲モード
+#define drive_mode (SHARE_count % 2 == 0)       // SHAREを押していないときはドライブモード
+#define get_eel_mode (SHARE_count % 2 == 1) // SHAREを押しているときは捕獲モード
 
 class unaginobori2026 : public rclcpp::Node
 {
@@ -51,7 +51,7 @@ private:
 
     uint8_t tx_device_id_;
     uint8_t rx_device_id_;
-    int L1_count = 0;
+    int SHARE_count = 0;
     int CIRCLE_count = 0;
     
     int CROSS_count = 0;
@@ -90,7 +90,7 @@ private:
         // bool UP = msg->axes[7] == 1.0;
         // bool DOWN = msg->axes[7] == -1.0;
 
-        bool L1;
+        bool SHARE;
         // bool R1 = msg->buttons[5];
 
         float L2_DIGITAL;
@@ -112,7 +112,7 @@ private:
         // static bool last_share = false;
         // static bool share_latch = false;
         bool last_CIRCLE = false;
-        bool last_L1 = false;
+        bool last_SHARE = false;
         // bool last_R1 = false;
 
         #if defined(CRANEGAME)

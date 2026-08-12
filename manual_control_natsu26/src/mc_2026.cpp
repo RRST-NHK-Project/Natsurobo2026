@@ -51,7 +51,7 @@ const int servo_init_deg = 0; //サーボ初期角度（仮）
 const int servo_move_deg = 90; //サーボ展開角度（仮）
 const int motor_pow = 70; //当然仮の値
 
-// 現在の操作モード(L1で切替)。GUI表示用に /manual/mode へ publish する。
+// 現在の操作モード(SHAREで切替)。GUI表示用に /manual/mode へ publish する。
 // 偶数=Drive(走行), 奇数=Get_eel(捕獲)。ps4コールバックとpublishタイマで共有するため atomic。
 std::atomic<int> g_mode_count{0};
 
@@ -162,7 +162,7 @@ private:
         // float RS_X = -1 * msg->axes[3];
         // float RS_Y = msg->axes[4];
 
-        bool CROSS = msg->buttons[0];
+        // bool CROSS = msg->buttons[0];
         bool CIRCLE = msg->buttons[1];
         bool TRIANGLE = msg->buttons[2];
         bool SQUARE = msg->buttons[3];
@@ -173,7 +173,7 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        // bool R1 = msg->buttons[5];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -181,7 +181,7 @@ private:
         // bool L2 = msg->buttons[6];
         //bool R2 = msg->buttons[7];
 
-        // bool SHARE = msg->buttons[8];
+        bool SHARE = msg->buttons[8];
         // bool OPTION = msg->buttons[9];
         // bool PS = msg->buttons[10];
 
@@ -192,11 +192,11 @@ private:
         static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
         static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
         static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
-        static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
-        static int cross_count = 0; // CROSSの押下回数をカウントする変数
+        static int last_L1 = false; // L1の前回状態を保持する変数
+        static int L1_count = 0; 
 
-        static bool last_L1 = false; // L1の前回状態を保持する変数
+        static bool last_SHARE = false; // SHAREの前回状態を保持する変数
         // static bool last_share = false;
         // static bool share_latch = false;
 
@@ -214,7 +214,7 @@ private:
 
         
         static int mode_count = 0; // モード切替のカウンター
-        if(L1 && !last_L1) // L1が押された瞬間にモード切替
+        if(SHARE && !last_SHARE) // SHAREが押された瞬間にモード切替
         {
             mode_count++;
         }
@@ -240,21 +240,8 @@ private:
             // =================================================================
 
             // =================================================================
-            // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）
-            static int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
+            // TRIANGLE:　「小鰻射出機構」（ブラシレスモーター使用？）//<-移動
 
-            if (TRIANGLE)
-            {
-                data_[1] = injection_speed;
-                data_[2] = injection_speed;
-                data_[3] = injection_speed; // 射出部分　出力は一旦50にしておく　要調整
-            }
-            else
-            {
-                data_[1] = 0;
-                data_[2] = 0;
-                data_[3] = 0; // 射出部分　出力は一旦50にしておく　要調整
-            }
             RCLCPP_INFO(this->get_logger(),
                                     "motor[1,2,3]: %d,%d,%d", data_[1], data_[2], data_[3]); 
             // =================================================================
@@ -325,7 +312,18 @@ private:
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
-                if(TRIANGLE && !last_TRIANGLE)
+
+                if(L1 && !last_L1){
+                    if(L1_count % 2 == 0){
+                        data_[19] = 0; // L1が押された場合、TR1を0に設定
+                    }
+                    else if(L1_count % 2 == 1){
+                        data_[19] = 1; // L1が押された場合、TR1を1に設定
+                    }
+                    L1_count++;
+                }
+
+                if(TRIANGLE && !last_TRIANGLE)//詰まり防止（リロード）
                 {
                     triangle_count++;
                 }
@@ -338,19 +336,6 @@ private:
                     data_[18] = 0; // TRIANGLEが奇数回押された場合、TR2を1に設定
                 }
 
-                if(CROSS && !last_CROSS)
-                {
-                    cross_count++;
-                }
-                if(cross_count % 2 == 1)
-                {
-                    data_[19] = 1; // CROSSが偶数回押された場合、TR3を0に設定
-                }
-                else if(cross_count % 2 == 0)
-                {
-                    data_[19] = 0; // CROSSが奇数回押された場合、TR3を1に設定
-                }
-
                 if(SQUARE && last_SQUARE){
                     if(SQUARE_count % 2== 0){
                         data_[11] = servo_init_deg;
@@ -360,9 +345,6 @@ private:
                     }
                     SQUARE_count++;
                     }
-                    
-                    
-
                 if(CIRCLE && !last_CIRCLE){
                     if(CIRCLE_count % 2 == 0){
                         data_[17] = 1;
@@ -379,16 +361,26 @@ private:
                 if(DOWN){
                     data_[4] = motor_pow; // 下降
                 }
+                if(R1){
+
+                    data_[1] = injection_speed;
+                    data_[2] = injection_speed;
+                    data_[3] = injection_speed; // 射出部分　出力は一旦150にしておく　要調整
+                }else{
+                    data_[1] = 0;
+                    data_[2] = 0;
+                    data_[3] = 0; // 射出部分　出力は一旦150にしておく　要調整
+                }
             }
 
         RCLCPP_INFO(this->get_logger(), 
         "data_[9,10,16]:, %d, %d, %d, data_[13,14,15]: %d, %d, %d, data_[4]: %d, data_[11]: %d,data_[17]: %d]", data_[9], data_[10], data_[16], data_[13], data_[14], data_[15], data_[4], data_[11], data_[17]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
-    last_L1 = L1; // L1の状態を更新
+    last_SHARE = SHARE; // SHAREの状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
-    last_CROSS = CROSS; // CROSSの状態を更新
+    last_L1 = L1; // L1の状態を更新
         // 配列操作ここまで
     }
 
@@ -432,6 +424,7 @@ private:
     void publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
+    static int injection_speed = -150; // 射出速度(おそらく
 
         //以下追加
         if (auto_collect_active_){
@@ -492,7 +485,7 @@ private:
 
     // デバッグ: マイクロスイッチの受信値を確認
     // RCLCPP_INFO(get_logger(),
-    //             "[マイクロSW] 上(L1禁止用)=%s  下(R1禁止用)=%s",
+    //             "[マイクロSW] 上(SHARE禁止用)=%s  下(R1禁止用)=%s",
     //             micro1_sw_ ? "★押されている" : "　押されていない",
     //             micro2_sw_ ? "★押されている" : "　押されていない");
 
@@ -514,6 +507,8 @@ private:
 
     int SQUARE_count = 0; 
     int CIRCLE_count = 0;
+
+    int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;

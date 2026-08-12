@@ -101,7 +101,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // bool UP = msg->axes[7] == 1.0;
         // bool DOWN = msg->axes[7] == -1.0;
 
-        bool L1 = msg->buttons[4];
+        // bool L1 = msg->buttons[4];
         // bool R1 = msg->buttons[5];
 
         float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
@@ -110,24 +110,18 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // bool L2 = msg->buttons[6];
         // bool R2 = msg->buttons[7];
 
-        // bool SHARE = msg->buttons[8];
+        bool SHARE = msg->buttons[8];
         // bool OPTION = msg->buttons[9];
         // bool PS = msg->buttons[10];
 
         // bool L3 = msg->buttons[11];
         // bool R3 = msg->buttons[12];
 
-        #if defined(CRANEGAME)
-            bool TRIANGLE = msg->buttons[2];
-            bool CROSS = msg->buttons[0];
-            bool SQUARE = msg->buttons[3];
-        #endif
-
         // 以降、配列data_を操作する
 
-        if (L1 && !last_L1)
+        if (SHARE && !last_SHARE)
         {
-            L1_count++;
+            SHARE_count++;
         }
 
         if (drive_mode)
@@ -202,7 +196,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             //     data_[1], data_[2], data_[3], data_[4],
             //     data_[9], data_[10], data_[11], data_[12]);
             last_CIRCLE = CIRCLE;
-            last_L1 = L1;
+            last_SHARE = SHARE;
 
         }
         else if (get_eel_mode)
@@ -262,7 +256,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         RCLCPP_INFO(
             this->get_logger(),
             "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",
-            L1_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+            SHARE_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
