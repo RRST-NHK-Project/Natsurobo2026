@@ -191,8 +191,10 @@ private:
         // static bool option_latch = false;
         static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
         static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
-        //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
+        static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
+        static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
+        static int cross_count = 0; // CROSSの押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
         // static bool last_share = false;
@@ -323,7 +325,32 @@ private:
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
-                
+                if(TRIANGLE && !last_TRIANGLE)
+                {
+                    triangle_count++;
+                }
+                if(triangle_count % 2 == 1)
+                {
+                    data_[18] = 1; // TRIANGLEが偶数回押された場合、TR2を0に設定
+                }
+                else if(triangle_count % 2 == 0)
+                {
+                    data_[18] = 0; // TRIANGLEが奇数回押された場合、TR2を1に設定
+                }
+
+                if(CROSS && !last_CROSS)
+                {
+                    cross_count++;
+                }
+                if(cross_count % 2 == 1)
+                {
+                    data_[19] = 1; // CROSSが偶数回押された場合、TR3を0に設定
+                }
+                else if(cross_count % 2 == 0)
+                {
+                    data_[19] = 0; // CROSSが奇数回押された場合、TR3を1に設定
+                }
+
                 if(SQUARE && last_SQUARE){
                     if(SQUARE_count % 2== 0){
                         data_[11] = servo_init_deg;
@@ -360,6 +387,8 @@ private:
     last_L1 = L1; // L1の状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
+    last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
+    last_CROSS = CROSS; // CROSSの状態を更新
         // 配列操作ここまで
     }
 
