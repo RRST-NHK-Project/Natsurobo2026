@@ -15,9 +15,6 @@
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 
-//クレーンゲームパッチ(小うなぎ捕獲機構パッチ)を当てるかどうか
-// #define CRANEGAME
-
 // 以下マイコンに合わせて設定
 #define TX_DEVICE_ID 2 // 送信先マイコンのID
 
@@ -126,8 +123,6 @@ private:
 
 };
 
-#if defined(CRANEGAME)
-    #include "cranegame.hpp"
-#endif
+
 
 #endif 

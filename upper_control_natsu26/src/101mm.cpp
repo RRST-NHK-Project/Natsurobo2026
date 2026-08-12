@@ -207,24 +207,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         }
         else if (get_eel_mode)
         {
-            #if defined(CRANEGAME)
-                if(SQUARE && last_SQUARE){
-                    if(SQUARE_count % 4 == 0){
-                        //data_[9から16のどっか] = cranegame_servo();
-                    }
-                    else if(SQUARE_count % 4 == 1){
-                        //data_[9から16のどっか] = cranegame_tr();
-                    }else if(SQUARE_count % 4 == 2){
-                        //data_[9から16のどっか] = cranegame_tr();
-                    }
-                    else if(SQUARE_count % 4 == 3){
-                        //data_[9から16のどっか] = cranegame_servo();
-                    }
-                    SQUARE_count++;
-                }
-                // data_[1から8のどっか] = cranegame_motor();
-                
-            #endif
+            
         }
 
         
