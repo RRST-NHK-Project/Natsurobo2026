@@ -43,6 +43,8 @@ private:
     void publisher_timer_callback();
     // natsu_auto の CLIMB 状態から /climb/start を受けて自動昇降を実行する
     void climb_start_callback(const std_msgs::msg::Bool::SharedPtr msg);
+    // 実行ノードからシリンダ状態を個別指令する受け口([front, rear] 各 0/1)
+    void climb_cylinder_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg);
 
     #if defined(CRANEGAME)
         int cranegame_servo();
@@ -67,6 +69,8 @@ private:
     // 自動昇降(CLIMB): /climb/start 受信でシリンダ上げ、raise_sec_ 秒後に /climb/done を返す
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr climb_start_sub_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr climb_done_pub_;
+    // シリンダ個別指令(/climb/cylinder [front, rear])。自動登坂シーケンスが使う
+    rclcpp::Subscription<std_msgs::msg::Int16MultiArray>::SharedPtr climb_cylinder_sub_;
     bool climbing_ = false;                 // 自動昇降シーケンス実行中か
     rclcpp::Time climb_start_time_;         // シーケンス開始時刻
     double raise_sec_ = 2.0;                // シリンダ上げ保持時間[s](param)

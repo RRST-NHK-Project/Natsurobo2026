@@ -177,6 +177,12 @@ public:
             "/climb/done", 10,
             [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) climb_.done = true; });
 
+        // 実行ノード(natsu_climb_seq_node)からのフェーズ完了通知。
+        // DETECT_STEP/ALIGN/CLIMB の遷移はこの信号で行う(センサ直読み判定はしない)。
+        phase_done_sub_ = create_subscription<std_msgs::msg::String>(
+            "/auto/phase_done", 10,
+            [this](std_msgs::msg::String::SharedPtr m){ on_phase_done(m->data); });
+
         // ── 制御ループ ───────────────────────────────
         const int ms = static_cast<int>(1000.0 / rate_hz_);
         timer_ = create_wall_timer(
@@ -239,6 +245,24 @@ private:
         publish_arbitration(*s == State::MANUAL_COLLECT ? "manual" : "auto");
     }
 
+    // 実行ノードからのフェーズ完了通知で遷移する。現在状態に対応する完了だけ受理し、
+    // 古い/別フェーズのdoneでの誤遷移を防ぐ。
+    void on_phase_done(const std::string& phase)
+    {
+        auto s = state_from_name(phase);
+        if (!s || *s != state_) {
+            RCLCPP_WARN(get_logger(), "phase_done '%s' を無視(現在 %s)",
+                        phase.c_str(), state_name(state_));
+            return;
+        }
+        switch (state_) {
+            case State::DETECT_STEP: transit(State::ALIGN);          break;
+            case State::ALIGN:       transit(State::CLIMB);          break;
+            case State::CLIMB:       transit(State::MANUAL_COLLECT); break;
+            default: break;   // 他状態の完了通知は無視
+        }
+    }
+
     // ── メインループ ────────────────────────────
     void loop()
     {
@@ -268,89 +292,14 @@ private:
 
     // ── 各ステート処理 ──────────────────────────
 
-    // 段差検知: 石倉に向かって前進し、壁距離が閾値以下になったら停止
-    void do_detect_step()
-    {
-        const double elapsed = (now() - state_entered_).seconds();
-
-        if (use_wall_detection_ && wall_dist_fresh() && wall_dist_ <= step_dist_) {
-            RCLCPP_INFO(get_logger(), "段差検知: dist=%.2fm (%.1fs)", wall_dist_, elapsed);
-            stop_robot();
-            transit(State::ALIGN);
-            return;
-        }
-
-        // 壁検知が出ない/閾値に届かないまま走り続けないための打ち切り。
-        // approach_v × approach_timeout がそのまま前進距離の上限になる。
-        if (elapsed > approach_timeout_) {
-            const std::string d = wall_dist_fresh()
-                                ? std::to_string(wall_dist_) : std::string("無効");
-            RCLCPP_WARN(get_logger(),
-                        "前進を打ち切り (%.1fs経過, dist=%s) → ALIGNへ",
-                        elapsed, d.c_str());
-            stop_robot();
-            transit(State::ALIGN);
-            return;
-        }
-
-        geometry_msgs::msg::Twist t;
-        t.linear.x = approach_v_;
-        cmd_vel_pub_->publish(t);
-    }
-
-    // 平行旋回: wall_angle が 0 付近になるまで ω を出す
-    void do_align()
-    {
-        const double elapsed = (now() - state_entered_).seconds();
-
-        // 壁検知が死んでいる/平行が出せないまま回り続けるのを防ぐ
-        if (elapsed > align_timeout_) {
-            RCLCPP_WARN(get_logger(), "平行旋回を打ち切り (%.1fs経過) → CLIMBへ", elapsed);
-            stop_robot();
-            transit(State::CLIMB);
-            return;
-        }
-
-        if (!use_wall_detection_ || !wall_angle_fresh()) {
-            stop_robot();   // 検知値が無い間は止めて待つ(打ち切りまで)
-            return;
-        }
-
-        if (std::abs(wall_angle_) < align_tol_) {
-            stop_robot();
-            RCLCPP_INFO(get_logger(), "平行完了: angle=%.3f", wall_angle_);
-            transit(State::CLIMB);
-            return;
-        }
-        // P制御で旋回（並進はゼロ）
-        geometry_msgs::msg::Twist t;
-        double omega = -align_kp_ * wall_angle_;
-        omega = clamp(omega, -align_omega_max_, align_omega_max_);
-        t.angular.z = omega;
-        cmd_vel_pub_->publish(t);
-    }
-
-    // 昇降: /climb/start を1回発行して /climb/done を待つ
-    void do_climb()
-    {
-        if (!climb_.started) {
-            std_msgs::msg::Bool b; b.data = true;
-            climb_pub_->publish(b);
-            climb_.started = true;
-            climb_.start_time = now();
-            RCLCPP_INFO(get_logger(), "昇降を開始します /climb/start");
-            return;
-        }
-        // タイムアウト保険
-        if ((now() - climb_.start_time).seconds() > climb_timeout_) {
-            RCLCPP_WARN(get_logger(), "昇降タイムアウト → 次へ強制に遷移します！！！");
-            climb_.done = true;
-        }
-        if (climb_.done) {
-            RCLCPP_INFO(get_logger(), "昇降が完了しました。その場で手動回収に移ります。");
-            transit(State::MANUAL_COLLECT);
-        }
-    }
+    // DETECT_STEP / ALIGN / CLIMB の実際の制御(走行・昇降起動)と完了判定は
+    // 実行ノード natsu_climb_seq_node が担当する。ここ(司令塔)は状態を保持して
+    // /auto/state を出し、/auto/phase_done を受けて遷移するだけ。
+    // (/auto/arbitration=auto は loop() が毎周期publishするので、実行ノードの
+    //  /cmd_vel が zakiomni に効く)
+    void do_detect_step() {}
+    void do_align()       {}
+    void do_climb()       {}
 
     // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ。
     // 昇降した位置のまま回収するので移動は挟まず、完了したら直接 FIRE へ。
@@ -464,7 +413,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_pub_, arb_pub_;
 
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_, phase_done_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
 
     rclcpp::TimerBase::SharedPtr timer_;
