@@ -323,7 +323,7 @@ private:
             RCLCPP_INFO(this->get_logger(), 
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
-
+                
                 if(SQUARE && last_SQUARE){
                     if(SQUARE_count % 2== 0){
                         data_[11] = servo_init_deg;
@@ -346,10 +346,10 @@ private:
                     CIRCLE_count++;
                 
                 }
-                if(TRIANGLE){
+                if(UP){
                     data_[4] = -motor_pow; // 上昇
                 }
-                if(CROSS){
+                if(DOWN){
                     data_[4] = motor_pow; // 下降
                 }
             }
