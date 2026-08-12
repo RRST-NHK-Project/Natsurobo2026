@@ -16,10 +16,15 @@ BRIDGE_PID=""
 CONSOLE_BACKEND_PORT="${CONSOLE_BACKEND_PORT:-3031}"
 BACKEND_PID=""
 
-# センサノード(sensor_test.launch.py, RVizなし)をGUIと一緒に起動する。
-# START_SENSORS=0 で無効化、SENSOR_USE_IMU=true でIMUも起動。
+# センサを sensor_supervisor 経由でGUIと一緒に起動する。
+# supervisor が lidar/IMU のポートを自動検知し、データ停止時は自動復旧する。
+# START_SENSORS=0 で無効化、SENSOR_USE_IMU=false でIMUを起動しない、
+# SENSOR_USE_RVIZ=false で RViz(点群表示)を出さない。
+# LiDARとIMUは基本的に常時接続しているのでIMUもデフォルトで起動する。
+# IMU未接続で試すときだけ SENSOR_USE_IMU=false を渡す。
 START_SENSORS="${START_SENSORS:-1}"
-SENSOR_USE_IMU="${SENSOR_USE_IMU:-false}"
+SENSOR_USE_IMU="${SENSOR_USE_IMU:-true}"
+SENSOR_USE_RVIZ="${SENSOR_USE_RVIZ:-true}"
 SENSOR_PID=""
 
 # ros2 をシステムPython環境で(仮想環境を避けて)バックグラウンド起動する共通ヘルパ。
@@ -51,7 +56,8 @@ start_rosbridge() {
 
 start_sensors() {
   run_ros2_bg /tmp/r2_console_sensors.log \
-    launch sensor_viz sensor_test.launch.py use_rviz:=false use_imu:=${SENSOR_USE_IMU}
+    run sensor_viz sensor_supervisor --ros-args \
+      -p use_imu:=${SENSOR_USE_IMU} -p use_rviz:=${SENSOR_USE_RVIZ}
   SENSOR_PID=$!
 }
 
@@ -99,7 +105,7 @@ else
 fi
 
 if [ "${START_SENSORS}" = "1" ]; then
-  echo "センサノードを起動中... (RVizなし, use_imu:=${SENSOR_USE_IMU})"
+  echo "センサを起動中... (sensor_supervisor: ポート自動検知/自動復旧, use_imu:=${SENSOR_USE_IMU}, use_rviz:=${SENSOR_USE_RVIZ})"
   start_sensors
   sleep 1
 

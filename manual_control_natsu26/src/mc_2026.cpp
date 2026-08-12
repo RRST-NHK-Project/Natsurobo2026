@@ -325,7 +325,7 @@ private:
         bool DOWN = msg->axes[7] == -1.0;
 
         bool L1 = msg->buttons[4];
-        //bool R1 = msg->buttons[5];
+        bool R1 = msg->buttons[5];
 
         // float L2_DIGITAL = (-1 * msg->axes[2] + 1) / 2;
         // float R2_DIGITAL = (-1 * msg->axes[5] + 1) / 2;
@@ -347,20 +347,17 @@ private:
         //static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
         static bool last_CROSS = false; // CROSSの前回状態を保持する変数
         static int triangle_count = 0; // TRIANGLEの押下回数をカウントする変数
+        static int L2_count = 0; // L2の押下回数をカウントする変数
+        static int R1_count = 0; // R1の押下回数をカウントする変数
 
         static bool last_L1 = false; // L1の前回状態を保持する変数
         static bool last_L2 = false; // L2の前回状態を保持する変数
         static bool last_L3 = false; // L3の前回状態を保持する変数
+        static bool last_R1 = false; // R1の前回状態を保持する変数
         static bool isrolling = false; // ローリング中かどうかのフラグ
         static bool rightrolling = false; // 右回転モードのフラグ
         static bool leftrolling = false; // 左回転モードのフラグ
         static bool reverserolling = false; // 逆回転モードのフラグ
-
-        // static int d1 = 0; // 大アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
-        // static int d2 = 0; // 小アームのサーボの初期角度。初期値の設定は必要に応じて変更してください
-
-        // data_[9] = d1;  // 大アームのサーボ角度を配列に格納
-        // data_[10] = d2; // 小アームのサーボ角度を配列に格納
         // static bool last_share = false;
         // static bool share_latch = false;
 
@@ -375,27 +372,7 @@ private:
         // 以降、配列data_を操作する
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
-        if (L2 && !last_L2)
-        {
-            isrolling = !isrolling; // 押した瞬間だけ状態を反転
-        }
-        if(L3&&!last_L3) // L3が押された瞬間にモード切替
-        {
-            reverserolling = !reverserolling; // 逆回転モードの切り替え
-        }
-        
-        if(isrolling == true)
-        {
-            data_[2] = 20;
-        }
-        else if(reverserolling == true)
-        {
-            data_[2] = -20;
-        }
-        else
-        {
-            data_[2] = 0;
-        }
+
         
         static int mode_count = 0; // モード切替のカウンター
         if(L1 && !last_L1) // L1が押された瞬間にモード切替
@@ -501,7 +478,7 @@ private:
         
 
             RCLCPP_INFO(this->get_logger(), 
-        "data_[9~11]: %d,%d,%d data_[12]: %d triangle: %d cross: %d data_[13-15]: %d,%d,%d", data_[9], data_[10], data_[16], data_[12], triangle_count, crosskey_count, data_[13], data_[14], data_[15]); // サーボの角度を表示
+        "triangle: %d cross: %d ",triangle_count, crosskey_count); // サーボの角度を表示
             // =================================================================
         } 
         else if (get_eel_mode)
@@ -511,10 +488,76 @@ private:
             // 捕獲モードの処理をここに記述
 
             // =================================================================
-            //circle:大小合体アームの「開閉」
-            //ハンドアームの内、ワークを掴むサーボの開閉。角度は要調整
+        // L2:「ローリング機構」オミットされたやつ。一応コメントアウトしておきます。
+        // if (L2 && !last_L2)
+        // {
+        //     isrolling = !isrolling; // 押した瞬間だけ状態を反転
+        // }
+        // if(L3&&!last_L3) // L3が押された瞬間にモード切替
+        // {
+        //     reverserolling = !reverserolling; // 逆回転モードの切り替え
+        // }
+        
+        // if(isrolling == true)
+        // {
+        //     data_[2] = 20;
+        // }
+        // else if(reverserolling == true)
+        // {
+        //     data_[2] = -20;
+        // }
+        // else
+        // {
+        //     data_[2] = 0;
+        // }
 
-            
+        // =================================================================
+             //L2: 小うなぎ回収ボタン
+             if (L2 && !last_L2)
+             {
+                 // L2が押された瞬間の処理
+                 L2_count++; // 押下回数をインクリメント
+             }
+             
+             if(L2_count % 2 == 1)
+             {
+                 // 奇数回目の押下時の処理（例: 開く）
+                 data_[13] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                 data_[14] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                 data_[15] = 40; // 小うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+             }
+             else if(L2_count % 2 == 0)
+             {
+                 // 偶数回目の押下時の処理（例: 閉じる）
+                 data_[13] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                 data_[14] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                 data_[15] = 0; // 小うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+             }
+        // =================================================================
+
+            //R1: 大うなぎ回収ボタン
+            if(R1&& !last_R1)
+            {
+                // R1が押された瞬間の処理
+                R1_count++; // 押下回数をインクリメント
+            }
+
+            if(R1_count % 2 == 1)
+            {
+                // 奇数回目の押下時の処理（例: 開く）
+                data_[13] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                data_[14] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+                data_[15] = 40; // 大うなぎ回収機構のサーボの開く角度に設定。必要に応じて調整してください
+            }
+            else if(R1_count % 2 == 0)
+            {
+                // 偶数回目の押下時の処理（例: 閉じる）
+                data_[13] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                data_[14] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+                data_[15] = 0; // 大うなぎ回収機構のサーボの閉じる角度に設定。必要に応じて調整してください
+            }
+        // =================================================================
+        // TRIANGLE:「ハンドアームのワークを掴む機構の開閉」
 
             if (TRIANGLE && !last_TRIANGLE)
             {
@@ -554,26 +597,29 @@ private:
         
             // =================================================================
             //ハンドアームの根元部分のモーター回転機構の制御
-            // if (SQUARE&& !last_SQUARE)
-            // {
-            //     rightrolling = !rightrolling; // 右回転モードの切り替え
-            // }
-            // if (CIRCLE&& !last_CIRCLE)
-            // {
-            //     leftrolling = !leftrolling; // 左回転モードの切り替え
-            // }
-            // if(rightrolling == true)
-            // {
-            //     data_[1] = 50;
-            // }
-            // else if(leftrolling == true)
-            // {
-            //     data_[1] = -50;
-            // }
-            // else
-            // {
-            //     data_[1] = 0;
-            // }
+
+            if (SQUARE&& !last_SQUARE)
+            {
+                rightrolling = !rightrolling; // 右回転モードの切り替え
+            }
+
+            if (CIRCLE&& !last_CIRCLE)
+            {
+                leftrolling = !leftrolling; // 左回転モードの切り替え
+            }
+
+            if(rightrolling == true)
+            {
+                data_[2] = 50;
+            }
+            else if(leftrolling == true)
+            {
+                data_[2] = -50;
+            }
+            else
+            {
+                data_[2] = 0;
+            }
             
 
             // =================================================================
@@ -586,7 +632,7 @@ private:
     }
 
         RCLCPP_INFO(this->get_logger(), 
-        "Speed of the loading mechanism motor: %d", data_[2]); // 装填機構のモーターの速度を表示
+        "data_[2,9,10,16]: %d, %d, %d, %d, data_[13,14,15]: %d, %d, %d", data_[2], data_[9], data_[10], data_[16], data_[13], data_[14], data_[15]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
     last_L1 = L1; // L1の状態を更新
     last_L2 = L2; // L2の状態を更新
@@ -595,6 +641,7 @@ private:
     last_CROSS = CROSS; // CROSSの状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
+    last_R1 = R1; // R1の状態を更新
     //last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
         // 配列操作ここまで
     }

@@ -4,6 +4,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /LaserScan1
+        - /FilteredPoints1
         - /MarkerArray1
         - /TF1
         - /Odometry1
@@ -53,6 +54,24 @@ Visualization Manager:
       Style: Squares
       Value: true
 
+    # ── 壁検出フィルタ後の点群（PointCloud2） ────────
+    - Class: rviz_default_plugins/PointCloud2
+      Name: FilteredPoints
+      Enabled: true
+      Topic:
+        Value: /wall_detection/filtered_points
+        Depth: 5
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Color Transformer: FlatColor
+      Color: 0; 255; 0
+      Size (m): 0.03
+      Style: Flat Squares
+      Selectable: true
+      Use Fixed Frame: true
+      Value: true
+
     # ── 壁検出 + IMU マーカー ──────────────────────
     - Class: rviz_default_plugins/MarkerArray
       Name: MarkerArray
@@ -64,6 +83,20 @@ Visualization Manager:
       Topic:
         Value: /sensor_viz/markers
         Depth: 10
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+
+    # ── wall_detection ROI矩形(オレンジ枠) ─────────
+    - Class: rviz_default_plugins/Marker
+      Name: WallDetectionROI
+      Enabled: true
+      Namespaces:
+        roi: true
+      Topic:
+        Value: /wall_detection/roi_marker
+        Depth: 5
         Reliability Policy: Reliable
         Durability Policy: Volatile
         History Policy: Keep Last

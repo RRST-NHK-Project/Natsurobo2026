@@ -63,6 +63,13 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             std::bind(&unaginobori2026::climb_start_callback, this, std::placeholders::_1));
         climb_done_pub_ = this->create_publisher<std_msgs::msg::Bool>("/climb/done", 10);
 
+        // 実行ノード(natsu_climb_seq_node)からのシリンダ個別指令。
+        // data=[front, rear] (各 0/1) をそのまま data_[17]/data_[18] に反映する。
+        // 自動登坂シーケンス(上げ→前進→前輪格納→前進→後輪格納)を外から順次組むための受け口。
+        climb_cylinder_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
+            "/climb/cylinder", 10,
+            std::bind(&unaginobori2026::climb_cylinder_callback, this, std::placeholders::_1));
+
         // timer_callbackを呼び出すタイマーを作成
         timer_ = create_wall_timer(
             std::chrono::milliseconds(PUBLISH_RATE_MS),
@@ -237,6 +244,19 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         climbing_ = true;
         climb_start_time_ = this->now();
         RCLCPP_INFO(get_logger(), "自動昇降を開始します: シリンダ上げ (raise_sec=%.1fs)", raise_sec_);
+    }
+
+    // シリンダ個別指令: [front, rear] (各 0/1) を data_[17]/data_[18] に反映。
+    // 自動登坂シーケンスの格納タイミング制御を実行ノード側から行うための入口。
+    void unaginobori2026::climb_cylinder_callback(const std_msgs::msg::Int16MultiArray::SharedPtr msg)
+    {
+        if (msg->data.size() < 2) {
+            RCLCPP_WARN(get_logger(), "/climb/cylinder は [front, rear] の2要素が必要");
+            return;
+        }
+        data_[17] = (msg->data[0] != 0) ? 1 : 0;  // 前輪シリンダ
+        data_[18] = (msg->data[1] != 0) ? 1 : 0;  // 後輪シリンダ
+        RCLCPP_INFO(get_logger(), "cylinder指令: front=%d rear=%d", data_[17], data_[18]);
     }
 
     // publish

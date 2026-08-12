@@ -28,20 +28,24 @@ import os
 
 def generate_launch_description():
     pkg_sensor_viz = get_package_share_directory('sensor_viz')
-    pkg_wall       = get_package_share_directory('wall_detection')
 
     rviz_cfg = os.path.join(pkg_sensor_viz, 'rviz', 'sensor_test.rviz')
-    wall_cfg = os.path.join(pkg_wall, 'config', 'wall_detection.yaml')
+    # wall_detection のパラメータは src の declare_parameter デフォルトに一元化
+    # したため yaml は読み込まない(廃止)。
 
     imu_port = LaunchConfiguration('imu_port')
+    lidar_port = LaunchConfiguration('lidar_port')
 
     return LaunchDescription([
         DeclareLaunchArgument(
             'imu_port', default_value='/dev/wt901',
             description='WT901C のシリアルポート'),
         DeclareLaunchArgument(
-            'use_imu', default_value='false',
-            description='WT901C IMU を起動するか'),
+            'lidar_port', default_value='/dev/ldlidar',
+            description='LD19 のシリアルポート (sensor_supervisor が自動検知して上書き)'),
+        DeclareLaunchArgument(
+            'use_imu', default_value='true',
+            description='WT901C IMU を起動するか (IMU未接続で試すときは use_imu:=false)'),
         DeclareLaunchArgument(
             'use_rviz', default_value='true',
             description='RViz2 を起動するか (GUIから呼ぶ時は false)'),
@@ -59,7 +63,7 @@ def generate_launch_description():
                     name='ld19_lidar',
                     parameters=[{
                         'general.debug_mode': False,
-                        'comm.serial_port': '/dev/ldlidar',
+                        'comm.serial_port': lidar_port,
                         'comm.baudrate': 230400,
                         'comm.timeout_msec': 1000,
                         'lidar.model': 'LD19',
@@ -170,7 +174,6 @@ def generate_launch_description():
             executable='wall_detection_node',
             name='wall_detection_node',
             output='screen',
-            parameters=[wall_cfg],
         ),
 
         # ── sensor_visualizer ───────────────────────────────
