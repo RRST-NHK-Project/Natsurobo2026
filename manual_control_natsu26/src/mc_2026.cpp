@@ -301,10 +301,11 @@ private:
             }
 
             data_[9] = yaw_state; // ヨー軸の角度を配列に格納
+
+        RCLCPP_INFO(this->get_logger(), 
+         "data[10,9]: %d,%d", data_[9], data_[10]); // サーボの角度を表示
         
 
-            RCLCPP_INFO(this->get_logger(), 
-        "data[1,2,3]: %d,%d,%d. data[10,9]: %d,%d", data_[1], data_[2], data_[3], data_[10], data_[9]); // サーボの角度を表示
             // =================================================================
         } 
         else if (get_eel_mode)
@@ -374,7 +375,8 @@ private:
             }
 
         RCLCPP_INFO(this->get_logger(), 
-        "data_[18,19]: %d, %d. data[11]: %d. data[17]: %d. data[4]: %d", data_[18], data_[19], data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
+        "data[1,2,3]: %d,%d,%d data_[18,19]: %d, %d. data[11]: %d. data[17]: %d. data[4]: %d",data_[1], data_[2], data_[3], data_[18], data_[19], data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
+
     
     last_SHARE = SHARE; // SHAREの状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
