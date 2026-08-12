@@ -374,7 +374,7 @@ private:
             }
 
         RCLCPP_INFO(this->get_logger(), 
-        "data_[18,19]: %d, %d.triangle: %d.cross: %d data[11]: %d. data[17]: %d. data[4]: %d", data_[18], data_[19], triangle_count, cross_count, data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
+        "data_[18,19]: %d, %d. data[11]: %d. data[17]: %d. data[4]: %d", data_[18], data_[19], data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
     
     last_SHARE = SHARE; // SHAREの状態を更新
     last_SQUARE = SQUARE; // SQUAREの状態を更新
