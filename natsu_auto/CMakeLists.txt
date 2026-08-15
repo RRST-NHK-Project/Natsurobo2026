@@ -16,13 +16,7 @@ add_executable(natsu_auto_node src/natsu_auto_node.cpp)
 target_compile_features(natsu_auto_node PUBLIC cxx_std_17)
 ament_target_dependencies(natsu_auto_node rclcpp std_msgs geometry_msgs)
 
-# 「昇降まで」実行ノード(executor)。/auto/state を見て各出入り口へ司令を出し、
-# LiDAR距離/IMU旋回/IMU乗り上げで完了判定して /auto/phase_done を返す。
-add_executable(natsu_climb_seq_node src/natsu_climb_seq_node.cpp)
-target_compile_features(natsu_climb_seq_node PUBLIC cxx_std_17)
-ament_target_dependencies(natsu_climb_seq_node rclcpp std_msgs geometry_msgs sensor_msgs nav_msgs)
-
-install(TARGETS natsu_auto_node natsu_climb_seq_node
+install(TARGETS natsu_auto_node
   DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME})

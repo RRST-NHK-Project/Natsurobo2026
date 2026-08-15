@@ -2,27 +2,29 @@
  * natsu_auto_node.cpp
  *
  * 夏ロボ2026 自律シーケンスFSM(有限オートマトン遷移図)
- * 
+ *
+ * 簡素化版: 昇降(CLIMB)と平行合わせ(ALIGN)、および実行ノード natsu_climb_seq_node
+ * への phase_done 受け渡しを廃止。DETECT_STEP は司令塔自身が /wall_detection を
+ * 直読みして「検知した場所へ向かう(前進＋壁偏角で操舵)」制御を行い、段まで詰めたら
+ * そのまま手動回収へ移る。
+ *
+ *   IDLE ─(/auto/start)→ DETECT_STEP ─(到達)→ MANUAL_COLLECT ─(回収完了)→ FIRE → DONE
+ *
  * subscribe:
  *   /auto/start            [std_msgs/Bool]      シーケンス開始(GUI)
  *   /auto/collect_done     [std_msgs/Bool]      手動回収完了(GUI)
  *   /auto/abort            [std_msgs/Bool]      緊急中断(GUI/PS4)
  *   /auto/force_state      [std_msgs/String]    任意状態へ強制遷移(GUI, 動作完了を待たない)
- *   /wall_detection/angle [std_msgs/Float64]   壁偏角[rad]
- *   /wall_detection/distance [std_msgs/Float64] 壁距離[m]
- *   /climb/done           [std_msgs/Bool]      昇降完了
+ *   /wall_detection/angle    [std_msgs/Float64]   壁偏角[rad]
+ *   /wall_detection/distance [std_msgs/Float64]   壁距離[m]
  *
  * publish:
  *   /cmd_vel              [geometry_msgs/Twist]  走行指令(→zakiomni)
- *   /climb/start          [std_msgs/Bool]        昇降開始
  *   /collect/start        [std_msgs/Bool]        回収開始(手動運用時は未使用可)
  *   /shooter/fire_request [std_msgs/Bool]        射出要求
  *   /auto/state            [std_msgs/String]      現在状態(GUI表示)
  *   /auto/arrived          [std_msgs/Bool]        手動回収の準備完了(GUI「回収してください」通知)
  *   /auto/arbitration      [std_msgs/String]      調停指示 "auto"/"manual"
- *
- * 昇降(CLIMB)後は機体を動かさない運用のため、自己位置(/localization/pose)を用いた
- * 移動状態(MOVE_TO_HOME / MOVE_TO_SHOOT)は廃止した。CLIMB完了で直接その場の手動回収へ。
  */
 
 #include <cmath>
@@ -39,8 +41,6 @@
 enum class State {
     IDLE,
     DETECT_STEP,
-    ALIGN,
-    CLIMB,
     MANUAL_COLLECT,
     FIRE,
     DONE,
@@ -52,8 +52,6 @@ static const char* state_name(State s)
     switch (s) {
         case State::IDLE:           return "IDLE";
         case State::DETECT_STEP:    return "DETECT_STEP";
-        case State::ALIGN:          return "ALIGN";
-        case State::CLIMB:          return "CLIMB";
         case State::MANUAL_COLLECT: return "MANUAL_COLLECT";
         case State::FIRE:           return "FIRE";
         case State::DONE:           return "DONE";
@@ -67,8 +65,6 @@ static std::optional<State> state_from_name(const std::string& n)
 {
     if (n == "IDLE")           return State::IDLE;
     if (n == "DETECT_STEP")    return State::DETECT_STEP;
-    if (n == "ALIGN")          return State::ALIGN;
-    if (n == "CLIMB")          return State::CLIMB;
     if (n == "MANUAL_COLLECT") return State::MANUAL_COLLECT;
     if (n == "FIRE")           return State::FIRE;
     if (n == "DONE")           return State::DONE;
@@ -79,13 +75,6 @@ static std::optional<State> state_from_name(const std::string& n)
 // --- 状態ごとのフラグ束 (Google C++ Style Guide 準拠) ---
 // データを束ねるだけ(不変条件なし)なので struct を使う。
 // struct のメンバは末尾アンダースコアを付けない(class のデータメンバとは異なる)。
-
-// CLIMB 状態だけが使うフラグ
-struct ClimbState {
-    bool started = false;                       // /climb/start を発行済みか
-    bool done    = false;                       // /climb/done を受信したか
-    rclcpp::Time start_time{0,0,RCL_ROS_TIME};  // 昇降開始時刻(タイムアウト用)
-};
 
 // MANUAL_COLLECT 状態だけが使うフラグ
 struct CollectState {
@@ -106,7 +95,7 @@ public:
     NatsuAutoNode() : Node("natsu_auto_node")
     {
         //　パラメータ（全て仮お気なので実測すること）
-        // 段差検知: 壁距離がこれ以下なら石倉前とみなす [m]
+        // 段差検知: 壁距離がこれ以下なら石倉前(到達)とみなす [m]
         declare_parameter<double>("step_detect_distance", 0.30);
         // 石倉に向かって詰めるときの前進速度 [m/s]
         declare_parameter<double>("approach_v", 0.15);
@@ -114,20 +103,14 @@ public:
         declare_parameter<double>("approach_timeout", 8.0);
         // 壁検知値をこの秒数より古ければ「無効」とみなす [s]
         declare_parameter<double>("wall_data_timeout", 0.5);
-        // false にすると壁検知を待たず approach_timeout だけで次へ進む
+        // false にすると壁検知を待たず、前進のみ＋approach_timeout だけで次へ進む
         declare_parameter<bool>("use_wall_detection", true);
 
-        // 平行判定: 壁偏角の許容 [rad]
-        declare_parameter<double>("align_angle_tol", 0.05);
-        // 平行旋回の角速度ゲイン
-        declare_parameter<double>("align_kp", 1.5);
-        declare_parameter<double>("align_omega_max", 1.0);   // [rad/s]
-        // 平行が出せないまま回り続けるのを防ぐ打ち切り [s]
-        declare_parameter<double>("align_timeout", 6.0);
+        // 接近中の操舵: 壁偏角に比例したyawで正面を向けながら詰める
+        declare_parameter<double>("approach_kp", 1.5);        // 旋回Pゲイン
+        declare_parameter<double>("approach_omega_max", 1.0); // 最大角速度 [rad/s]
+        declare_parameter<double>("approach_angle_sign", 1.0);// 偏角の符号(実機で±調整)
 
-        // 昇降完了のタイムアウト保険 [s]
-        declare_parameter<double>("climb_timeout", 20.0);
-        
         // 射出パルスの長さ [s]
         declare_parameter<double>("fire_hold", 1.0);
 
@@ -138,7 +121,6 @@ public:
 
         // ── Publisher ───────────────────────────────
         cmd_vel_pub_   = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
-        climb_pub_     = create_publisher<std_msgs::msg::Bool>("/climb/start", 10);
         collect_pub_   = create_publisher<std_msgs::msg::Bool>("/collect/start", 10);
         fire_pub_      = create_publisher<std_msgs::msg::Bool>("/shooter/fire_request", 10);
         state_pub_     = create_publisher<std_msgs::msg::String>("/auto/state", 10);
@@ -173,16 +155,6 @@ public:
             [this](std_msgs::msg::Float64::SharedPtr m){
                 wall_dist_ = m->data; wall_dist_stamp_ = now(); });
 
-        climb_done_sub_ = create_subscription<std_msgs::msg::Bool>(
-            "/climb/done", 10,
-            [this](std_msgs::msg::Bool::SharedPtr m){ if (m->data) climb_.done = true; });
-
-        // 実行ノード(natsu_climb_seq_node)からのフェーズ完了通知。
-        // DETECT_STEP/ALIGN/CLIMB の遷移はこの信号で行う(センサ直読み判定はしない)。
-        phase_done_sub_ = create_subscription<std_msgs::msg::String>(
-            "/auto/phase_done", 10,
-            [this](std_msgs::msg::String::SharedPtr m){ on_phase_done(m->data); });
-
         // ── 制御ループ ───────────────────────────────
         const int ms = static_cast<int>(1000.0 / rate_hz_);
         timer_ = create_wall_timer(
@@ -203,11 +175,9 @@ private:
         approach_timeout_ = get_parameter("approach_timeout").as_double();
         wall_data_timeout_ = get_parameter("wall_data_timeout").as_double();
         use_wall_detection_ = get_parameter("use_wall_detection").as_bool();
-        align_tol_     = get_parameter("align_angle_tol").as_double();
-        align_kp_      = get_parameter("align_kp").as_double();
-        align_omega_max_ = get_parameter("align_omega_max").as_double();
-        align_timeout_ = get_parameter("align_timeout").as_double();
-        climb_timeout_ = get_parameter("climb_timeout").as_double();
+        approach_kp_       = get_parameter("approach_kp").as_double();
+        approach_omega_max_ = get_parameter("approach_omega_max").as_double();
+        approach_angle_sign_ = get_parameter("approach_angle_sign").as_double();
         fire_hold_     = get_parameter("fire_hold").as_double();
         rate_hz_       = get_parameter("rate_hz").as_double();
     }
@@ -245,34 +215,14 @@ private:
         publish_arbitration(*s == State::MANUAL_COLLECT ? "manual" : "auto");
     }
 
-    // 実行ノードからのフェーズ完了通知で遷移する。現在状態に対応する完了だけ受理し、
-    // 古い/別フェーズのdoneでの誤遷移を防ぐ。
-    void on_phase_done(const std::string& phase)
-    {
-        auto s = state_from_name(phase);
-        if (!s || *s != state_) {
-            RCLCPP_WARN(get_logger(), "phase_done '%s' を無視(現在 %s)",
-                        phase.c_str(), state_name(state_));
-            return;
-        }
-        switch (state_) {
-            case State::DETECT_STEP: transit(State::ALIGN);          break;
-            case State::ALIGN:       transit(State::CLIMB);          break;
-            case State::CLIMB:       transit(State::MANUAL_COLLECT); break;
-            default: break;   // 他状態の完了通知は無視
-        }
-    }
-
     // ── メインループ ────────────────────────────
     void loop()
     {
         switch (state_) {
             case State::IDLE:           break;  // /auto/start 待ち
-            case State::DETECT_STEP:    do_detect_step(); break;
-            case State::ALIGN:          do_align();       break;
-            case State::CLIMB:          do_climb();       break;
+            case State::DETECT_STEP:    do_detect_step();   break;
             case State::MANUAL_COLLECT: do_manual_collect(); break;
-            case State::FIRE:           do_fire();        break;
+            case State::FIRE:           do_fire();          break;
             case State::DONE:           break;
             case State::ABORTED:        break;
         }
@@ -286,29 +236,67 @@ private:
     // 自動走行側が機体を持つべき状態か（それ以外はjoy専属＝手動）
     static bool state_is_auto(State s)
     {
-        return s == State::DETECT_STEP || s == State::ALIGN ||
-               s == State::CLIMB       || s == State::FIRE;
+        return s == State::DETECT_STEP || s == State::FIRE;
     }
 
     // ── 各ステート処理 ──────────────────────────
 
-    // DETECT_STEP / ALIGN / CLIMB の実際の制御(走行・昇降起動)と完了判定は
-    // 実行ノード natsu_climb_seq_node が担当する。ここ(司令塔)は状態を保持して
-    // /auto/state を出し、/auto/phase_done を受けて遷移するだけ。
-    // (/auto/arbitration=auto は loop() が毎周期publishするので、実行ノードの
-    //  /cmd_vel が zakiomni に効く)
-    void do_detect_step() {}
-    void do_align()       {}
-    void do_climb()       {}
+    // DETECT_STEP: 検知した場所(石倉/段)へ向かう。
+    //   ・/wall_detection/distance で前進し、step_dist_ 以下まで詰めたら到達=手動回収へ
+    //   ・/wall_detection/angle に比例したyawで正面を向けながら接近(前進＋操舵)
+    //   ・検知が古い/来ない時は安全のため停止し、approach_timeout で打ち切って次へ
+    void do_detect_step()
+    {
+        const double elapsed = (now() - state_entered_).seconds();
+
+        // 打ち切り保険: 検知の有無に関わらず規定時間で必ず止めて次へ進む
+        if (elapsed >= approach_timeout_) {
+            stop_robot();
+            RCLCPP_WARN(get_logger(), "approach_timeout(%.1fs) → 手動回収へ", approach_timeout_);
+            transit(State::MANUAL_COLLECT);
+            return;
+        }
+
+        // 壁検知を使わない運用: まっすぐ前進のみ(打ち切りは上のtimeout)
+        if (!use_wall_detection_) {
+            geometry_msgs::msg::Twist t;
+            t.linear.x = approach_v_;
+            cmd_vel_pub_->publish(t);
+            return;
+        }
+
+        // 検知値が古い/未受信: 古い値で誤って到達判定しないよう停止して待つ
+        if (!wall_dist_fresh()) {
+            stop_robot();
+            return;
+        }
+
+        // 到達判定: 段まで step_dist_ 以下に詰めたら完了
+        if (wall_dist_ <= step_dist_) {
+            stop_robot();
+            RCLCPP_INFO(get_logger(), "検知場所に到達 (dist=%.2fm) → 手動回収へ", wall_dist_);
+            transit(State::MANUAL_COLLECT);
+            return;
+        }
+
+        // 前進しつつ、壁偏角に比例したyawで正面を向ける(角度が新しい時のみ操舵)
+        geometry_msgs::msg::Twist t;
+        t.linear.x = approach_v_;
+        if (wall_angle_fresh()) {
+            const double omega = approach_angle_sign_ * approach_kp_ * wall_angle_;
+            t.angular.z = clamp(omega, -approach_omega_max_, approach_omega_max_);
+        }
+        cmd_vel_pub_->publish(t);
+    }
 
     // 手動回収: 調停を手動に明け渡し /auto/collect_done を待つ。
-    // 昇降した位置のまま回収するので移動は挟まず、完了したら直接 FIRE へ。
+    // 到達した位置のまま回収するので移動は挟まず、完了したら直接 FIRE へ。
     void do_manual_collect()
     {
         if (!collect_.handover) {
             publish_arbitration("manual");
             stop_robot();
-            // 昇降後の停止位置＝回収位置。GUIへ「回収してください」を通知(旧・定位置到達の代替)
+            // 到達位置＝回収位置。GUIへ「回収してください」を通知
             std_msgs::msg::Bool b; b.data = true;
             arrived_pub_->publish(b);
             collect_.handover = true;
@@ -364,10 +352,8 @@ private:
         state_ = s;
         state_entered_ = now();
         // ステート入口のフラグリセット
-        climb_.started = false;
         collect_.handover = false;
         fire_.started = false;
-        if (s == State::CLIMB) climb_.done = false;
         if (s == State::MANUAL_COLLECT) collect_.done = false;
         RCLCPP_INFO(get_logger(), "→ state: %s", state_name(s));
     }
@@ -392,8 +378,8 @@ private:
     // ── パラメータ ─────────────────────────────
     double step_dist_, approach_v_, approach_timeout_, wall_data_timeout_;
     bool   use_wall_detection_;
-    double align_tol_, align_kp_, align_omega_max_, align_timeout_;
-    double climb_timeout_, fire_hold_, rate_hz_;
+    double approach_kp_, approach_omega_max_, approach_angle_sign_;
+    double fire_hold_, rate_hz_;
 
     // ── 状態 ───────────────────────────────────
     State state_ = State::IDLE;
@@ -403,17 +389,16 @@ private:
     double wall_dist_  = 0.0;   rclcpp::Time wall_dist_stamp_{0,0,RCL_ROS_TIME};
 
     // 状態ごとのフラグ束(struct のメンバは末尾_なし)
-    ClimbState   climb_;
     CollectState collect_;
     FireState    fire_;
 
     // ── ROS ────────────────────────────────────
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr   climb_pub_, collect_pub_, fire_pub_, arrived_pub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr   collect_pub_, fire_pub_, arrived_pub_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr state_pub_, arb_pub_;
 
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_, climb_done_sub_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_, phase_done_sub_;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr start_sub_, collect_done_sub_, abort_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr force_state_sub_;
     rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr angle_sub_, dist_sub_;
 
     rclcpp::TimerBase::SharedPtr timer_;
