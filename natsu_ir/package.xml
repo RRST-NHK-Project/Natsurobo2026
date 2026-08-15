@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>natsu_ir</name>
+  <version>0.1.0</version>
+  <description>赤外線(NEC)受信ブリッジ。フィールドのIR-LEDをESP32で受信し、大漁/状態を topic 化。状態表示LEDへの色指示も中継する（Natsurobo2026）</description>
+  <maintainer email="you@example.com">RRST-NHK-Project</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <!-- pyserial は pip で入れるため、ここには書かない -->
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

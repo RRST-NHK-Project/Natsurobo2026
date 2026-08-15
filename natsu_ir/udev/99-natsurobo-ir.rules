@@ -1,0 +1,4 @@
+# ESP32(IR受信)のUSBを serial 番号で固定する。
+# LD19 の「ポート番号が変わる/消える」対策と同じ発想。
+# ATTRS{serial} は `udevadm info -a -n /dev/ttyUSB0 | grep serial` で確認して置換。
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{serial}=="REPLACE_WITH_ESP32_SERIAL", SYMLINK+="natsurobo_ir"
