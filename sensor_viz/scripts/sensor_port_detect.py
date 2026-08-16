@@ -22,7 +22,7 @@ import termios
 import time
 
 # VID(ベンダID) → デバイス種別のヒント（/dev/serial/by-id 名で判定）
-_LIDAR_NAME_HINTS = ("CP210", "Silicon_Labs")   # CP2102 / CP2102N
+_LIDAR_NAME_HINTS = ("CP2102_",)   # LD19 の CP2102(無印)のみ。CP2102N(モタドラ)は除外
 _IMU_NAME_HINTS   = ("1a86", "CH340", "QinHeng")
 
 _LD19_BAUD = termios.B230400

@@ -63,9 +63,11 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
         std::bind(&Zakicar::publisher_timer_callback, this)); // マイコンと基板の関係でpublisher_とsensor_sub_のトピックは別です(pub:serial_tx_2 , sub:serial_rx_1にする予定)
 
     // マイコンからトピック（エンコーダの値）を受信
+    // serial_bridge 側が Best-Effort(SensorDataQoS)で publish するので、購読側も合わせる
+    // （RELIABLE のままだとQoS不一致で接続せず、エンコーダを一切受信できなくなる）
     sensor_sub_ = this->create_subscription<std_msgs::msg::Int16MultiArray>(
         "serial_rx_" + std::to_string(rx_device_id_),
-        10,
+        rclcpp::SensorDataQoS(),
         std::bind(&Zakicar::sensor_callback,
                   this,
                   std::placeholders::_1));
