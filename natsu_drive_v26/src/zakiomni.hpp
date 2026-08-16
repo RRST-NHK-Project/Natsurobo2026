@@ -56,8 +56,8 @@ const float Ki = 1.35;                   // I制御
 const float Kd = 0.1;                   // D制御(ただしめっちゃ振動するから封印中)
 const float filter = 0.2;               // フィルタ係数（小さいほどスムーズらしい）
 const float Imax = 45.0;                // I制御の蓄積の上限（必要に応じて調整）
-const float motor_limit = 75.0;         // モーターの出力の上限（0~100で）
-const int delta_power_limit = 20;       // 出力変化の上限
+const float motor_limit = 100.0;         // モーターの出力の上限（0~100で）
+const int delta_power_limit = 40;       // 出力変化の上限
 const float timeout = 1.0;
 
 //ホイールごとの個別設定（customモード有効時）
@@ -99,8 +99,8 @@ private:
    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
    std::atomic<bool> cmd_vel_received_{false};
    rclcpp::Time last_cmd_vel_time_;
-   double cmd_vel_v_ref_ = 4.0;   // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
-   double cmd_vel_w_ref_ = 16.0;  // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
+   double cmd_vel_v_ref_ = 0.8;   // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
+   double cmd_vel_w_ref_ = 2.0;  // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
    double cmd_vel_min_ratio_v_ = 0.08;
    double cmd_vel_min_ratio_w_ = 0.035;
    double joy_override_th_ = 0.6;

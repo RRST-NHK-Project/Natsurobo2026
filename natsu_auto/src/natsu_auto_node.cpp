@@ -96,11 +96,11 @@ public:
     {
         //　パラメータ（全て仮お気なので実測すること）
         // 段差検知: 壁距離がこれ以下なら石倉前(到達)とみなす [m]
-        declare_parameter<double>("step_detect_distance", 0.30);
+        declare_parameter<double>("step_detect_distance", 0.10);
         // 石倉に向かって詰めるときの前進速度 [m/s]
-        declare_parameter<double>("approach_v", 0.15);
+        declare_parameter<double>("approach_v", 0.2);
         // 前進の打ち切り [s]。壁検知が出ない/閾値に届かない場合の走行距離上限を決める
-        declare_parameter<double>("approach_timeout", 8.0);
+        declare_parameter<double>("approach_timeout", 12.0);
         // 壁検知値をこの秒数より古ければ「無効」とみなす [s]
         declare_parameter<double>("wall_data_timeout", 0.5);
         // false にすると壁検知を待たず、前進のみ＋approach_timeout だけで次へ進む
@@ -108,7 +108,7 @@ public:
 
         // 接近中の操舵: 壁偏角に比例したyawで正面を向けながら詰める
         declare_parameter<double>("approach_kp", 1.5);        // 旋回Pゲイン
-        declare_parameter<double>("approach_omega_max", 1.0); // 最大角速度 [rad/s]
+        declare_parameter<double>("approach_omega_max", 2.0); // 最大角速度 [rad/s]
         declare_parameter<double>("approach_angle_sign", 1.0);// 偏角の符号(実機で±調整)
 
         // 射出パルスの長さ [s]

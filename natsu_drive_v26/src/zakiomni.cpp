@@ -81,8 +81,8 @@ Zakicar::Zakicar(uint8_t tx_device_id, uint8_t rx_device_id)
     last_cmd_vel_time_ = this->now();
 
     // /cmd_vel のスケール基準と、静止摩擦を超えるための出力下限。
-    cmd_vel_v_ref_     = this->declare_parameter<double>("cmd_vel_v_ref", 4.0); // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
-    cmd_vel_w_ref_     = this->declare_parameter<double>("cmd_vel_w_ref", 16.0); // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
+    cmd_vel_v_ref_     = this->declare_parameter<double>("cmd_vel_v_ref", 0.8); // [m/s] ≒ 車輪周長×max_target_move_rps。要実測調整
+    cmd_vel_w_ref_     = this->declare_parameter<double>("cmd_vel_w_ref", 2.0); // [rad/s] 全輪max_target_yaw_rpsで回った時の機体角速度。要実測調整
     cmd_vel_min_ratio_v_ = this->declare_parameter<double>("cmd_vel_min_ratio_v", 0.08); // 並進: 12.5rps × ratio × cos(π/4)=0.707 が 0.3rps を超える必要がある
     cmd_vel_min_ratio_w_ = this->declare_parameter<double>("cmd_vel_min_ratio_w", 0.035); // 旋回: 15.0rps × ratio が 0.3rps を超える必要がある
     joy_override_th_   = this->declare_parameter<double>("joy_override_threshold", 0.6); // AUTO中にスティックが倒されたら手動へ割り込み。それ以外のjoyは無視する

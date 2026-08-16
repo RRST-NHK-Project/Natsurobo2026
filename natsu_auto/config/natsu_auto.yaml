@@ -5,17 +5,17 @@ natsu_auto_node:
     # ── 段差検知 / 石倉への接近 (DETECT_STEP) ───────────────
     # /wall_detection/distance がこれ以下なら「石倉前」とみなす [m]
     # ※LiDARの取り付け位置からの距離。機体前端からではないので実測すること
-    step_detect_distance: 0.30
+    step_detect_distance: 0.10
 
     # 石倉に詰めるときの前進速度 [m/s]
     # 機体の最低速度が約0.32m/s (zakiomniのcmd_vel_min_ratio_v)なので
     # これより小さい値を入れても0.32m/sで動く。creepさせたいならzakiomni側を下げる
-    approach_v: 0.30
+    approach_v: 0.40
     # 前進の打ち切り [s]。実速度 × これ が前進距離の上限になる
-    # (0.32 × 4.0 ≒ 1.3m)。壁検知が出なくてもここで必ず止まって次へ進む
-    approach_timeout: 4.0
+    # (0.4 × 12.0 ≒ 4.8m)。壁検知が出なくてもここで必ず止まって次へ進む
+    approach_timeout: 12.0
     # 壁検知値がこの秒数より古ければ無効扱い [s]
-    wall_data_timeout: 0.5
+    wall_data_timeout: 2.0
     # false: 壁検知を一切待たず前進のみ＋approach_timeout だけで進む(検知が死んでる時の逃げ道)
 
     use_wall_detection: true
@@ -23,7 +23,7 @@ natsu_auto_node:
     # ── 接近中の操舵 (DETECT_STEP) ──────────────────────────
     # 前進しながら壁偏角に比例したyawで正面を向ける。
     # 機体の最低角速度が約0.56rad/s = 32°/s、制御20Hzなので1周期で約1.6°回る。
-    approach_kp: 1.5           # 偏角→旋回のP制御ゲイン
+    approach_kp: 0.0           # 偏角→旋回のP制御ゲイン (診断用: 一時的に0=旋回オフ、直進のみでテスト)
     approach_omega_max: 1.0    # 最大角速度 [rad/s]
     approach_angle_sign: 1.0   # 偏角の符号。逆に曲がるなら -1.0 にする(実機で確認)
 

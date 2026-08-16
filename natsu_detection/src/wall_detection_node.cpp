@@ -77,9 +77,9 @@ public:
         // use_roi=false で従来通り(マスク無効)。実測して4辺を詰めること。
         declare_parameter<bool>  ("use_roi", true);
         declare_parameter<double>("roi_x_min", -1.0);   // 前方 近い側 [m]
-        declare_parameter<double>("roi_x_max", 0.9);   // 前方 遠い側 [m]
-        declare_parameter<double>("roi_y_min", 0.3);   // 右端 [m]
-        declare_parameter<double>("roi_y_max", 1.50);   // 左端 [m]
+        declare_parameter<double>("roi_x_max", 1.5);   // 前方 遠い側 [m]
+        declare_parameter<double>("roi_y_min", 0.2);   // 右端 [m]
+        declare_parameter<double>("roi_y_max", 1.80);   // 左端 [m]
 
         // 凹形対応: 逐次RANSACで抜き出す面の最大数
         declare_parameter<int>   ("max_wall_candidates",1);
