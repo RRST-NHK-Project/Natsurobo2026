@@ -3,6 +3,10 @@
 # R2 Console - 起動スクリプト
 # rosbridge と GUI を起動します
 
+# FastDDSのSHM transport崩壊(open_and_lock_file failed)を避け、UDP loopbackに統一する。
+# これがないと古い端末から起動した時にSHMになり、UDPの他ノードと分断する。
+export FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+
 set -e
 
 # スクリプトの場所を取得
