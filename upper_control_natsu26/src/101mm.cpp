@@ -157,8 +157,8 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 
             if(L2_DIGITAL > 0.1){ 
                 // 前進用ホイールのモータの番号data_[1~2];
-                data_[1] = -95 * L2_DIGITAL; 
-                data_[2] = 95 * L2_DIGITAL;
+                data_[1] = 95 * L2_DIGITAL; 
+                data_[2] = -95 * L2_DIGITAL;
             
             }else {
                 data_[1] = 0;

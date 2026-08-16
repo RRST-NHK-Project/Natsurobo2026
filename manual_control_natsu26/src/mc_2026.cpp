@@ -48,7 +48,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #endif
 
 const int servo_init_deg = 0; //サーボ初期角度（仮）
-const int servo_move_deg = 90; //サーボ展開角度（仮）
+const int servo_move_deg = servo_init_deg + 170; //サーボ展開角度（仮）
 const int motor_pow = 70; //当然仮の値
 
 // 現在の操作モード(SHAREで切替)。GUI表示用に /manual/mode へ publish する。
@@ -162,7 +162,7 @@ private:
         // float RS_X = -1 * msg->axes[3];
         // float RS_Y = msg->axes[4];
 
-        // bool CROSS = msg->buttons[0];
+        bool CROSS = msg->buttons[0];
         bool CIRCLE = msg->buttons[1];
         bool TRIANGLE = msg->buttons[2];
         bool SQUARE = msg->buttons[3];
@@ -189,6 +189,8 @@ private:
         // bool R3 = msg->buttons[12];
         // static bool last_option = false;
         // static bool option_latch = false;
+        static bool last_CROSS = false; // CROSSの前回状態を保持する変数
+        static int CROSS_count = 0; // CROSSの押下回数をカウントする変数
         static bool last_SQUARE = false; // SQUAREの前回状態を保持する変数
         static bool last_CIRCLE = false; // CIRCLEの前回状態を保持する変数
         static bool last_TRIANGLE = false; // TRIANGLEの前回状態を保持する変数
@@ -212,6 +214,12 @@ private:
         // ボタン設定は適当に借り決め　必要に応じて変更予定
 
 
+        static bool topic_received = false;
+
+        if(!topic_received){
+            data_[11] = servo_init_deg;
+            topic_received = true;
+        }
         
         static int mode_count = 0; // モード切替のカウンター
         if(SHARE && !last_SHARE) // SHAREが押された瞬間にモード切替
@@ -337,7 +345,7 @@ private:
                     data_[18] = 0; // TRIANGLEが奇数回押された場合、TR2を1に設定
                 }
 
-                if(SQUARE && last_SQUARE){
+                if(SQUARE && !last_SQUARE){
                     if(SQUARE_count % 2== 0){
                         data_[11] = servo_init_deg;
                     }
@@ -346,21 +354,15 @@ private:
                     }
                     SQUARE_count++;
                     }
-                if(CIRCLE && !last_CIRCLE){
-                    if(CIRCLE_count % 2 == 0){
-                        data_[17] = 1;
-                    }
-                    else if(CIRCLE_count % 2 == 1){
-                        data_[17] = 0;
-                    }
-                    CIRCLE_count++;
                 
-                }
                 if(UP){
                     data_[4] = -motor_pow; // 上昇
                 }
-                if(DOWN){
+                else if(DOWN){
                     data_[4] = motor_pow; // 下降
+                }
+                else{
+                    data_[4] = 0;
                 }
                 if(R1){
 
@@ -371,6 +373,15 @@ private:
                     data_[1] = 0;
                     data_[2] = 0;
                     data_[3] = 0; // 射出部分　出力は一旦150にしておく　要調整
+                }
+                if(CROSS && !last_CROSS){
+                    if(CROSS_count %2 == 0){
+                        data_[17] = 0;
+                    }
+                    else if(CROSS_count %2 == 1){
+                        data_[17] = 1;
+                    }
+                    CROSS_count++;
                 }
             }
 
@@ -383,6 +394,7 @@ private:
     last_CIRCLE = CIRCLE; // CIRCLEの状態を更新
     last_TRIANGLE = TRIANGLE; // TRIANGLEの状態を更新
     last_L1 = L1; // L1の状態を更新
+    last_CROSS =CROSS;
         // 配列操作ここまで
     }
 

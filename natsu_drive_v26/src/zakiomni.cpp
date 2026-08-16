@@ -573,7 +573,7 @@ void Zakicar::about_PID()
 
     for (int n = 0; n < 4; n++)
     {
-        data_[n + 1] = std::clamp(motor_power[n], -motor_limit, motor_limit);                                                   // モーターの出力を制限
+        data_[n + 1] = std::clamp(target_v[n] *6, -motor_limit, motor_limit);                                                   // モーターの出力を制限
         data_[n + 1] = std::clamp<int16_t>(data_[n + 1], last_data_[n] - delta_power_limit, last_data_[n] + delta_power_limit); // 出力の変化を制限)
 
         last_data_[n] = data_[n + 1];
