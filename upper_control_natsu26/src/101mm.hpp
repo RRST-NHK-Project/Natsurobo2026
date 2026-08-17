@@ -59,6 +59,9 @@ private:
     bool last_CROSS = false;
     bool last_SQUARE = false;
 
+    const int motor_pow = 70; //当然仮の値
+    const int motor_pow2 = 50; //当然仮の値
+
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
@@ -85,10 +88,10 @@ private:
         // bool TRIANGLE = msg->buttons[2];
         // bool SQUARE = msg->buttons[3];
 
-        // bool LEFT = msg->axes[6] == 1.0;
-        // bool RIGHT = msg->axes[6] == -1.0;
-        // bool UP = msg->axes[7] == 1.0;
-        // bool DOWN = msg->axes[7] == -1.0;
+        bool LEFT;
+        bool RIGHT;
+        bool UP;
+        bool DOWN;
 
         bool SHARE;
         // bool R1 = msg->buttons[5];

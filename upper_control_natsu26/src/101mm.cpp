@@ -96,10 +96,10 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // bool TRIANGLE = msg->buttons[2];
         // bool SQUARE = msg->buttons[3];
 
-        // bool LEFT = msg->axes[6] == 1.0;
-        // bool RIGHT = msg->axes[6] == -1.0;
-        // bool UP = msg->axes[7] == 1.0;
-        // bool DOWN = msg->axes[7] == -1.0;
+        bool LEFT = msg->axes[6] == 1.0;
+        bool RIGHT = msg->axes[6] == -1.0;
+        bool UP = msg->axes[7] == 1.0;
+        bool DOWN = msg->axes[7] == -1.0;
 
         // bool L1 = msg->buttons[4];
         // bool R1 = msg->buttons[5];
@@ -201,9 +201,32 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         }
         else if (get_eel_mode)
         {
-            
+        // =================================================================
+        // UP,DOWN:   
+            if(UP){
+                data_[4] = -motor_pow; // 上昇
+                }
+            else if(DOWN){
+                data_[4] = motor_pow; // 下降
+                }
+            else{
+                    data_[4] = 0;
+                }
         }
+        // =================================================================
 
+        // =================================================================
+        // LEFT,RIGHT:「横方向ラック＆ピニオン」
+        if(LEFT){
+            data_[3] = -motor_pow2; // 左回転
+        }
+        else if(RIGHT){
+            data_[3] = motor_pow2; // 右回転
+        }
+        else{
+            data_[3] = 0;
+        }
+        // =================================================================
         
 
         // 配列操作ここまで

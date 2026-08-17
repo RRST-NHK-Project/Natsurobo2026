@@ -50,6 +50,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 const int servo_init_deg = 0; //サーボ初期角度（仮）
 const int servo_move_deg = servo_init_deg + 170; //サーボ展開角度（仮）
 const int motor_pow = 70; //当然仮の値
+const int motor_pow2 = 50; //当然仮の値
 
 // 現在の操作モード(SHAREで切替)。GUI表示用に /manual/mode へ publish する。
 // 偶数=Drive(走行), 奇数=Get_eel(捕獲)。ps4コールバックとpublishタイマで共有するため atomic。
@@ -344,26 +345,8 @@ private:
                 {
                     data_[18] = 0; // TRIANGLEが奇数回押された場合、TR2を1に設定
                 }
-
-                if(SQUARE && !last_SQUARE){
-                    if(SQUARE_count % 2== 0){
-                        data_[11] = servo_init_deg;
-                    }
-                    else if(SQUARE_count % 2 == 1){
-                        data_[11] = servo_move_deg;
-                    }
-                    SQUARE_count++;
-                    }
                 
-                if(UP){
-                    data_[4] = -motor_pow; // 上昇
-                }
-                else if(DOWN){
-                    data_[4] = motor_pow; // 下降
-                }
-                else{
-                    data_[4] = 0;
-                }
+
                 if(R1){
 
                     data_[1] = injection_speed;
