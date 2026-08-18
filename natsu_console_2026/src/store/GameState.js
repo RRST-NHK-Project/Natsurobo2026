@@ -25,7 +25,7 @@ export class GameState {
     ];
 
     // カゴ情報（7個）
-    this.shoot_modes = [
+    this.baskets = [
       { id: "green_a", name: "緑 A", type: "green", our_count: 0, their_count: 0, isTarget: true },
       { id: "green_b", name: "緑 B", type: "green", our_count: 0, their_count: 0, isTarget: true },
       { id: "farthest_blue", name: "最遠青（対角）", type: "blue_farthest", our_count: 0, their_count: 0, isTarget: true },
@@ -110,29 +110,29 @@ export class GameState {
   /**
    * 占有状況を計算（is_occupiedフラグ）
    */
-  updateshoot_modeOccupancy() {
-    this.shoot_modes.forEach(shoot_mode => {
-      shoot_mode.is_occupied = shoot_mode.our_count > shoot_mode.their_count;
+  updateBasketOccupancy() {
+    this.baskets.forEach(basket => {
+      basket.is_occupied = basket.our_count > basket.their_count;
     });
   }
 
   /**
    * 占有カゴ数を計算
    */
-  getOccupiedshoot_modesCount() {
-    this.updateshoot_modeOccupancy();
-    return this.shoot_modes.filter(b => b.is_occupied).length;
+  getOccupiedbasketsCount() {
+    this.updateBasketOccupancy();
+    return this.baskets.filter(b => b.is_occupied).length;
   }
 
   /**
    * V-Goal条件をチェック
    */
   isReadyForVGoal() {
-    this.updateshoot_modeOccupancy();
+    this.updateBasketOccupancy();
     return (
       this.bigUnagiCaptured &&
       this.isOnishigura &&
-      this.getOccupiedshoot_modesCount() >= 5
+      this.getOccupiedbasketsCount() >= 5
     );
   }
 
@@ -169,15 +169,15 @@ export class GameState {
   /**
    * カゴの our_count を変更
    */
-  updateshoot_modeOurCount(shoot_modeId, delta) {
-    const shoot_mode = this.shoot_modes.find(b => b.id === shoot_modeId);
-    if (shoot_mode) {
-      shoot_mode.our_count = Math.max(0, shoot_mode.our_count + delta);
+  updateBasketOurCount(basketId, delta) {
+    const basket = this.baskets.find(b => b.id === basketId);
+    if (basket) {
+      basket.our_count = Math.max(0, basket.our_count + delta);
       if (delta > 0 && this.ammoRemaining > 0) {
         this.ammoRemaining -= delta;
         this.ammoDeployed += delta;
       }
-      this.updateshoot_modeOccupancy();
+      this.updateBasketOccupancy();
       this.notifyListeners();
     }
   }
@@ -185,11 +185,11 @@ export class GameState {
   /**
    * カゴの their_count を変更
    */
-  updateshoot_modeTheirCount(shoot_modeId, delta) {
-    const shoot_mode = this.shoot_modes.find(b => b.id === shoot_modeId);
-    if (shoot_mode) {
-      shoot_mode.their_count = Math.max(0, shoot_mode.their_count + delta);
-      this.updateshoot_modeOccupancy();
+  updateBasketTheirCount(basketId, delta) {
+    const basket = this.baskets.find(b => b.id === basketId);
+    if (basket) {
+      basket.their_count = Math.max(0, basket.their_count + delta);
+      this.updateBasketOccupancy();
       this.notifyListeners();
     }
   }
@@ -197,8 +197,8 @@ export class GameState {
   /**
    * ターゲットを選択
    */
-  setCurrentTarget(shoot_modeId) {
-    this.currentTargetId = shoot_modeId;
+  setCurrentTarget(basketId) {
+    this.currentTargetId = basketId;
     this.notifyListeners();
   }
 
@@ -219,16 +219,16 @@ export class GameState {
     }
 
     // カゴ別スコア計算
-    this.shoot_modes.forEach(shoot_mode => {
-      if (shoot_mode.type === "blue_farthest") {
+    this.baskets.forEach(basket => {
+      if (basket.type === "blue_farthest") {
         // 最遠青カゴ: 1本につき 25点
-        score += shoot_mode.our_count * 25;
-      } else if (shoot_mode.type === "green") {
+        score += basket.our_count * 25;
+      } else if (basket.type === "green") {
         // 緑カゴ: 1本につき 20点
-        score += shoot_mode.our_count * 20;
-      } else if (shoot_mode.type === "blue_nearby" || shoot_mode.type === "blue_other") {
+        score += basket.our_count * 20;
+      } else if (basket.type === "blue_nearby" || basket.type === "blue_other") {
         // その他青カゴ: 1本につき 10点
-        score += shoot_mode.our_count * 10;
+        score += basket.our_count * 10;
       }
     });
 
@@ -280,7 +280,7 @@ export class GameState {
       is_running: this.isRunning,
       current_phase: this.getCurrentPhase().id,
       fallback_mode: this.fallbackMode,
-      shoot_modes: this.shoot_modes.map(b => ({
+      baskets: this.baskets.map(b => ({
         id: b.id,
         our_count: b.our_count,
         their_count: b.their_count,

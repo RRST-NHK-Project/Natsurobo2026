@@ -20,6 +20,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #include "sensor_msgs/msg/joy.hpp"
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -57,6 +58,35 @@ const int motor_pow2 = 50; //当然仮の値
 // 現在の操作モード(SHAREで切替)。GUI表示用に /manual/mode へ publish する。
 // 偶数=Drive(走行), 奇数=Get_eel(捕獲)。ps4コールバックとpublishタイマで共有するため atomic。
 std::atomic<int> g_mode_count{0};
+
+// =================================================================
+// SHOOTモード用: カゴ照準プリセット(仮値)
+//   3x3グリッド(H字型, 欠番=[0][1],[2][1])の各セルに yaw/pitch を割り当てる。
+//   参照は [y][x]。欠番セルの値は未使用。
+//     (0,0) [欠] (0,2)
+//     (1,0) (1,1) (1,2)
+//     (2,0) [欠] (2,2)
+// =================================================================
+// ヨー角
+static const int kYawPreset[3][3] = {
+    { 45,   0, 225}, // 行0: [0][1]は欠番
+    { 90, 135, 180}, // 行1
+    {100,   0, 200}, // 行2: [2][1]は欠番
+};
+
+// ピッチ角
+static const int kPitchPreset[3][3] = {
+    {200,   0, 200}, // 行0
+    {160, 160, 160}, // 行1
+    {120,   0, 120}, // 行2
+};
+
+// GUIから /manual/basket で届くセル番号(0〜6) → (x,y)。
+// 有効セルのみを読み順に並べたもの。GUI(CAGE_DEFS)側の番号と対応させること。
+//   0:G0(0,0) 1:G1(2,0) 2:B0(0,1) 3:B1(1,1) 4:B2(2,1) 5:B3(0,2) 6:B4(2,2)  ※対応は仮
+static const int kBasketCellXy[7][2] = {
+    {0, 0}, {2, 0}, {0, 1}, {1, 1}, {2, 1}, {0, 2}, {2, 2},
+};
 
 // =================================================================
 // HardWareControlノード: ID=3のESP32へモーター指令を送信する
@@ -152,6 +182,13 @@ public:
           std::bind(&HardWareControl::collect_done_callback, this,
                     std::placeholders::_1));
       //ここまで
+
+        // GUI(コンソール)からのカゴ直接指定。セル番号(0〜6)を受け取り、SHOOT中のみ
+        // 該当セルのyaw/pitchをサーボへ反映する。dpadカーソルと同じ shoot_x_/shoot_y_ を動かす。
+        basket_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+          "/manual/basket", 10,
+          std::bind(&HardWareControl::BasketCallback, this,
+                    std::placeholders::_1));
 
     }
 
@@ -380,54 +417,42 @@ private:
             //   (2,0) [欠] (2,2)
             //   ※[1][1]は横方向のみ通過可(縦移動は不可)
             //   90度回転した工の字をイメージしてください。
-
-            // [2][0]から開始
-            static int x = 2, y = 0;
+            //   カーソル位置 shoot_x_/shoot_y_ はメンバ変数。dpad(このコールバック)と
+            //   GUIカゴ選択(/manual/basket コールバック)の両方から動かせる。
 
             static bool last_LEFT = false, last_RIGHT = false, last_UP = false, last_DOWN = false;
 
-            // ヨー角
-            static const int yaw_preset[3][3] = {
-                {  45,   0, 225 }, // 行0: [0][1]は欠番
-                {  90, 135, 180 }, // 行1
-                { 100,   0, 200 }, // 行2: [2][1]は欠番
-            };
-
-            // ピッチ角
-            static const int pitch_preset[3][3] = {
-                { 200,   0, 200 }, // 行0
-                { 160, 160, 160 }, // 行1
-                { 120,   0, 120 }, // 行2
-            };
-
             // 左右入力(押した瞬間のみ1マス): RIGHT=x+1, LEFT=x-1
             if ((RIGHT && !last_RIGHT) || (LEFT && !last_LEFT)) {
-                int nx = std::clamp(x + (RIGHT ? 1 : -1), 0, 2);
+                int nx = std::clamp(shoot_x_ + (RIGHT ? 1 : -1), 0, 2);
                 // 移動先が欠番([0][1],[2][1])でなければ確定
-                if (!(nx == 1 && (y == 0 || y == 2))) x = nx;
+                if (!(nx == 1 && (shoot_y_ == 0 || shoot_y_ == 2))) shoot_x_ = nx;
                 // 欠番なら動かない(中央行[1][*]は列1も含めて自由)
             }
 
             // 上下入力(押した瞬間のみ1マス): DOWN=y+1, UP=y-1
             if ((DOWN && !last_DOWN) || (UP && !last_UP)) {
-                if (y == 1) {
+                if (shoot_y_ == 1) {
                     // 中央行: 列0,2はそのまま縦移動、列1([1][1])は欠番方向なので何もしない
-                    if (x != 1) y = std::clamp(y + (DOWN ? 1 : -1), 0, 2);
+                    if (shoot_x_ != 1) shoot_y_ = std::clamp(shoot_y_ + (DOWN ? 1 : -1), 0, 2);
                 } else {
                     // 行0 or 行2 → 中央行へ
-                    y = 1;
+                    shoot_y_ = 1;
                 }
             }
 
             // 選択セルの角度を即サーボへ反映
-            data_[9]  = yaw_preset[y][x];
-            data_[10] = pitch_preset[y][x];
+            data_[9]  = kYawPreset[shoot_y_][shoot_x_];
+            data_[10] = kPitchPreset[shoot_y_][shoot_x_];
 
-            last_LEFT = LEFT; last_RIGHT = RIGHT; last_UP = UP; last_DOWN = DOWN;
+            last_LEFT = LEFT;
+            last_RIGHT = RIGHT;
+            last_UP = UP;
+            last_DOWN = DOWN;
 
             RCLCPP_INFO(this->get_logger(),
                 "shoot_mode cursor=(x%d,y%d) yaw(data[9])=%d pitch(data[10])=%d",
-                x, y, data_[9], data_[10]);
+                shoot_x_, shoot_y_, data_[9], data_[10]);
         }
 
         RCLCPP_INFO(this->get_logger(), 
@@ -479,6 +504,29 @@ private:
     {
     }
 
+    // GUIからのカゴ直接指定(/manual/basket, セル番号0〜6)。
+    // SHOOTモード中のみ有効。カーソル(shoot_x_/shoot_y_)を該当セルへ移動し、
+    // 角度を data_[9](yaw)/data_[10](pitch) に反映する(次のtimerで送信される)。
+    void BasketCallback(const std_msgs::msg::Int32::SharedPtr msg)
+    {
+        const int idx = msg->data;
+        if (idx < 0 || idx >= 7) {
+            RCLCPP_WARN(this->get_logger(), "/manual/basket: 範囲外のセル番号 %d (0〜6)", idx);
+            return;
+        }
+        if (g_mode_count.load() % 3 != 2) {
+            RCLCPP_WARN(this->get_logger(), "/manual/basket: SHOOTモードでないため無視 (idx=%d)", idx);
+            return;
+        }
+        shoot_x_ = kBasketCellXy[idx][0];
+        shoot_y_ = kBasketCellXy[idx][1];
+        data_[9]  = kYawPreset[shoot_y_][shoot_x_];
+        data_[10] = kPitchPreset[shoot_y_][shoot_x_];
+        RCLCPP_INFO(this->get_logger(),
+            "/manual/basket: cell=%d -> (x%d,y%d) yaw=%d pitch=%d",
+            idx, shoot_x_, shoot_y_, data_[9], data_[10]);
+    }
+
     // publish
     void publisher_timer_callback()
     {
@@ -501,7 +549,7 @@ private:
         switch (g_mode_count.load() % 3) {
             case 0:  mode_msg.data = "DRIVE";   break;
             case 1:  mode_msg.data = "GET_EEL"; break;
-            default: mode_msg.data = "shoot_mode";  break;
+            default: mode_msg.data = "SHOOT";  break;
         }
         mode_pub_->publish(mode_msg);
 
@@ -564,6 +612,11 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_1;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr basket_sub_; // /manual/basket (GUIカゴ指定)
+
+    // SHOOTモードのカーソル位置([2][0]から開始)。dpadとGUIカゴ指定で共有。
+    int shoot_x_ = 2;
+    int shoot_y_ = 0;
 
     bool auto_collect_active_ = false;
     bool auto_collect_abort_ = false;

@@ -5,6 +5,7 @@ import { getLocalizedText, translateRuntimeText as translateRuntimeByLanguage } 
 import { LANGUAGE_OPTIONS } from "./i18n";
 import appPackage from "../package.json";
 import { CageViz } from "./components/CageViz";
+import { BasketSelectPanel } from "./components/BasketSelectPanel";
 import { GamePanel } from "./components/GamePanel";
 import { OdomMap } from "./components/OdomMap";
 import { PS4ControllerPanel } from "./components/PS4ControllerPanel";
@@ -419,6 +420,21 @@ const CAGE_TOPIC_CAGES  = "/cage_detection/cages";
 const CAGE_TOPIC_TARGET = "/cage_detection/target";
 const CAGE_TOPIC_ENABLE = "/cage_detection/enable";
 
+// SHOOTモード: GUIからカゴ(セル番号0〜6)を直接指定して mc_2026 へ送る
+const MANUAL_BASKET_TOPIC = "/manual/basket";
+
+// CageViz の CAGE_DEFS と同じ並び。各カゴを mc_2026 のセル番号(0〜6)に対応させる。
+// ※角度プリセットは mc_2026 側(kBasketCellXY / kYawPreset / kPitchPreset)にあり、ここは番号のみ。
+const BASKET_SELECT_DEFS = [
+  { id: "green_0", label: "G0", color: 0, cell: 0 },
+  { id: "green_1", label: "G1", color: 0, cell: 1 },
+  { id: "blue_0",  label: "B0", color: 1, cell: 2 },
+  { id: "blue_1",  label: "B1", color: 1, cell: 3 },
+  { id: "blue_2",  label: "B2", color: 1, cell: 4 },
+  { id: "blue_3",  label: "B3", color: 1, cell: 5 },
+  { id: "blue_4",  label: "B4", color: 1, cell: 6 },
+];
+
 const parseMffPathInput = (rawInput) => {
   const mapping = { "1E": 13, "2E": 14, "3E": 15, "1X": 16, "2X": 17, "3X": 18 };
   return String(rawInput || "")
@@ -511,6 +527,7 @@ function App() {
   const cageArraySubRef = useRef(null);
   const cageTargetSubRef = useRef(null);
   const cageEnablePubRef = useRef(null);
+  const basketCmdPubRef = useRef(null);               // /manual/basket 発行(SHOOTモードのカゴ指定)
   const wallAngleSubRef = useRef(null);
   const arucoPoseSubRef = useRef(null);
   const arucoIdSubRef = useRef(null);
@@ -707,6 +724,7 @@ function App() {
   const [cages, setCages] = useState([]);
   const [cageTarget, setCageTarget] = useState(null);
   const [cageEnabled, setCageEnabled] = useState(true);
+  const [selectedBasketCell, setSelectedBasketCell] = useState(null); // SHOOTモードで選択中のカゴ(セル番号)
   const [cageUpdatedAt, setCageUpdatedAt] = useState("");
   const [wallAngleTopicInput, setWallAngleTopicInput] = useState("/wall_detection/angle");
   const [wallAngleTopicName, setWallAngleTopicName] = useState("/wall_detection/angle");
@@ -1151,6 +1169,21 @@ function App() {
     if (!autoStartPubRef.current) return;
     autoStartPubRef.current.publish({ data: true });
     console.info("[auto] /auto/start 発行");
+  };
+
+  // SHOOTモード: 選択したカゴ(セル番号0〜6)を /manual/basket へ発行。mc_2026が角度を決める。
+  const publishBasketTarget = (cell) => {
+    if (!operationArmed) {
+      setSerialPublishInfo("操作許可がOFFのためカゴ指定を送信できません");
+      return;
+    }
+    if (!basketCmdPubRef.current) {
+      setSerialPublishInfo("ROS未接続のためカゴ指定を送信できません");
+      return;
+    }
+    basketCmdPubRef.current.publish({ data: Number(cell) });
+    setSelectedBasketCell(Number(cell));
+    console.info("[shoot] /manual/basket 発行 cell=", cell);
   };
   const publishAutoCollectDone = () => {
     if (!autoCollectDonePubRef.current) return;
@@ -4577,6 +4610,13 @@ function App() {
     });
     cageEnablePubRef.current.advertise?.();
 
+    basketCmdPubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: MANUAL_BASKET_TOPIC,
+      messageType: "std_msgs/msg/Int32",
+    });
+    basketCmdPubRef.current.advertise?.();
+
     odomResetCmdRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
       name: "odom_reset",
@@ -4977,9 +5017,15 @@ function App() {
       } catch (error) {
         console.warn("Error unadvertising cage enable topic:", error);
       }
+      try {
+        basketCmdPubRef.current?.unadvertise?.();
+      } catch (error) {
+        console.warn("Error unadvertising manual basket topic:", error);
+      }
       cageArraySubRef.current = null;
       cageTargetSubRef.current = null;
       cageEnablePubRef.current = null;
+      basketCmdPubRef.current = null;
       stopCameraStream();
       stopTopicEcho();
       plannerRosoutSubRef.current = null;
@@ -5277,7 +5323,20 @@ function App() {
             </section>
           )}
 
-          {isPageActive("controller") && (
+          {isPageActive("controller") && manualMode === "SHOOT" && (
+            <BasketSelectPanel
+              defs={BASKET_SELECT_DEFS}
+              cages={cages}
+              cageTarget={cageTarget}
+              wallAngle={wallAngleRad}
+              selectedCell={selectedBasketCell}
+              onSelect={publishBasketTarget}
+              operationArmed={operationArmed}
+              tr={tr}
+            />
+          )}
+
+          {isPageActive("controller") && manualMode !== "SHOOT" && (
             <PS4ControllerPanel
               fullscreen={false}
               buttons={buttons}
