@@ -415,7 +415,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ─── Basket Grid (right) ─────────────────────── */
+/* ─── shoot_mode Grid (right) ─────────────────────── */
 .section-label {
   font-size: 11px;
   font-weight: 700;
@@ -426,14 +426,14 @@
   margin-top: 2px;
 }
 
-.basket-grid {
+.shoot_mode-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 8px;
   margin-bottom: 4px;
 }
 
-.basket-card {
+.shoot_mode-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -446,36 +446,36 @@
   user-select: none;
 }
 
-.basket-card:hover { border-color: var(--blue-border); }
+.shoot_mode-card:hover { border-color: var(--blue-border); }
 
-.basket-card.occupied {
+.shoot_mode-card.occupied {
   background: var(--green-bg);
   border-color: var(--green-border);
 }
 
-.basket-card.selected {
+.shoot_mode-card.selected {
   outline: 1px solid var(--magenta);
   outline-offset: -1px;
 }
 
-.basket-top-row {
+.shoot_mode-top-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.basket-name {
+.shoot_mode-name {
   font-size: 12px;
   font-weight: 700;
   color: var(--text);
 }
 
-.basket-star {
+.shoot_mode-star {
   font-size: 10px;
   color: var(--yellow);
 }
 
-.basket-counts {
+.shoot_mode-counts {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -513,7 +513,7 @@
   align-self: center;
 }
 
-.basket-btns {
+.shoot_mode-btns {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
@@ -549,16 +549,16 @@
 
 .bbt-their:hover { background: rgba(248, 81, 73, 0.22); }
 
-.basket-status {
+.shoot_mode-status {
   font-size: 10px;
   font-weight: 600;
   text-align: center;
 }
 
-.basket-status.occupied { color: var(--green); }
-.basket-status.empty    { color: var(--text-muted); }
+.shoot_mode-status.occupied { color: var(--green); }
+.shoot_mode-status.empty    { color: var(--text-muted); }
 
-.basket-grid-hint {
+.shoot_mode-grid-hint {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 6px;

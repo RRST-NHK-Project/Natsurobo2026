@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { GameState } from "../store/GameState";
 import { TimerPhaseController } from "./TimerPhaseController";
-import { BasketMonitor } from "./BasketMonitor";
+import { shoot_modeMonitor } from "./shoot_modeMonitor";
 import { VGoalChecker } from "./VGoalChecker";
 import { AmmoScoreCounter } from "./AmmoScoreCounter";
 import "./GamePanel.css";
@@ -81,7 +81,7 @@ export function GamePanel() {
             <VGoalChecker gameState={gameState} />
           </aside>
           <section className="c-right">
-            <BasketMonitor gameState={gameState} />
+            <shoot_modeMonitor gameState={gameState} />
           </section>
         </main>
 

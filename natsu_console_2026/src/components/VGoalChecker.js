@@ -2,7 +2,7 @@ import React from "react";
 
 export const VGoalChecker = ({ gameState }) => {
   const isReady      = gameState.isReadyForVGoal();
-  const occupiedCount = gameState.getOccupiedBasketsCount();
+  const occupiedCount = gameState.getOccupiedshoot_modesCount();
 
   const targetTime = gameState.getVGoalTargetTime();
   const targetMins = Math.floor(targetTime / 60);

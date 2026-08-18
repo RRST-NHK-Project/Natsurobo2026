@@ -6,6 +6,7 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 // まだ未確認なので絶対に許可なしに起動しないこと！！
 // 破壊しても自己責任！！
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -40,8 +41,9 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (mode_count % 2 == 0)  
-#define get_eel_mode (mode_count % 2 == 1)
+#define drive_mode (mode_count % 3 == 0)
+#define get_eel_mode (mode_count % 3 == 1)
+#define shoot_mode (mode_count % 3 == 2)
 
 #if defined(MODE_BLDC)
 #define CMD_TOPIC "/odrv_a/axis0/velocity_cmd"
@@ -367,6 +369,66 @@ private:
                     CROSS_count++;
                 }
             }
+            
+        else if (shoot_mode) // シュートモード
+        {
+            RCLCPP_INFO(this->get_logger(),
+                                 "Now, you are on Mode:Shoot.");
+
+            //   (0,0) [欠] (0,2)
+            //   (1,0) (1,1) (1,2)
+            //   (2,0) [欠] (2,2)
+            //   ※[1][1]は横方向のみ通過可(縦移動は不可)
+            //   90度回転した工の字をイメージしてください。
+
+            // [2][0]から開始
+            static int x = 2, y = 0;
+
+            static bool last_LEFT = false, last_RIGHT = false, last_UP = false, last_DOWN = false;
+
+            // ヨー角
+            static const int yaw_preset[3][3] = {
+                {  45,   0, 225 }, // 行0: [0][1]は欠番
+                {  90, 135, 180 }, // 行1
+                { 100,   0, 200 }, // 行2: [2][1]は欠番
+            };
+
+            // ピッチ角
+            static const int pitch_preset[3][3] = {
+                { 200,   0, 200 }, // 行0
+                { 160, 160, 160 }, // 行1
+                { 120,   0, 120 }, // 行2
+            };
+
+            // 左右入力(押した瞬間のみ1マス): RIGHT=x+1, LEFT=x-1
+            if ((RIGHT && !last_RIGHT) || (LEFT && !last_LEFT)) {
+                int nx = std::clamp(x + (RIGHT ? 1 : -1), 0, 2);
+                // 移動先が欠番([0][1],[2][1])でなければ確定
+                if (!(nx == 1 && (y == 0 || y == 2))) x = nx;
+                // 欠番なら動かない(中央行[1][*]は列1も含めて自由)
+            }
+
+            // 上下入力(押した瞬間のみ1マス): DOWN=y+1, UP=y-1
+            if ((DOWN && !last_DOWN) || (UP && !last_UP)) {
+                if (y == 1) {
+                    // 中央行: 列0,2はそのまま縦移動、列1([1][1])は欠番方向なので何もしない
+                    if (x != 1) y = std::clamp(y + (DOWN ? 1 : -1), 0, 2);
+                } else {
+                    // 行0 or 行2 → 中央行へ
+                    y = 1;
+                }
+            }
+
+            // 選択セルの角度を即サーボへ反映
+            data_[9]  = yaw_preset[y][x];
+            data_[10] = pitch_preset[y][x];
+
+            last_LEFT = LEFT; last_RIGHT = RIGHT; last_UP = UP; last_DOWN = DOWN;
+
+            RCLCPP_INFO(this->get_logger(),
+                "shoot_mode cursor=(x%d,y%d) yaw(data[9])=%d pitch(data[10])=%d",
+                x, y, data_[9], data_[10]);
+        }
 
         RCLCPP_INFO(this->get_logger(), 
         "data[1,2,3]: %d,%d,%d data_[18,19]: %d, %d. data[11]: %d. data[17]: %d. data[4]: %d",data_[1], data_[2], data_[3], data_[18], data_[19], data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
@@ -434,9 +496,13 @@ private:
 
         publisher_->publish(msg);
 
-        // 現在モードをGUIへ publish (偶数=Drive, 奇数=Get_eel)
+        // 現在モードをGUIへ publish (0=Drive, 1=Get_eel, 2=shoot_mode)
         std_msgs::msg::String mode_msg;
-        mode_msg.data = (g_mode_count.load() % 2 == 0) ? "DRIVE" : "GET_EEL";
+        switch (g_mode_count.load() % 3) {
+            case 0:  mode_msg.data = "DRIVE";   break;
+            case 1:  mode_msg.data = "GET_EEL"; break;
+            default: mode_msg.data = "shoot_mode";  break;
+        }
         mode_pub_->publish(mode_msg);
 
         #if defined(MODE_BLDC)
