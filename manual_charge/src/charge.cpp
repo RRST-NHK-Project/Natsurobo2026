@@ -11,20 +11,19 @@
 #include <std_msgs/msg/int16_multi_array.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #define OUTPUT_DEVICE_ID 0x04 // 出力マイコン（モーター制御）のID
-#define INPUT_DEVICE_ID 0x04 // 入力マイコン（マイクロスイッチやエンコーダ）のID
+#define INPUT_DEVICE_ID 0x04  // 入力マイコン（マイクロスイッチやエンコーダ）のID
 #define TX16NUM 24            // 送信データ数
 #define RX16NUM 17            // 受信データ数
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
-//使用するモーターの選択
+// 使用するモーターの選択
 #define MODE_MABUCHI
-//#define MODE_BLDC
+// #define MODE_BLDC
 
 class ChargeNode : public rclcpp::Node
 {
@@ -51,20 +50,27 @@ public:
 private:
   void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
   {
-    if (msg->buttons.size() <= 9) {
-      return;
+
+    bool option = msg->buttons[9] != 0;
+    static bool last_option_ = false;
+    static int option_count_ = 0;
+
+    if (option && !last_option_)
+    {
+      option_count_++;
+    }
+    
+    if(option_count_ % 2 == 0)
+    {
+      data_[1] = 0; // OPTIONが偶数回押された場合、data_[1]を0に設定
+    }
+    else
+    {
+      data_[1] = 50; // OPTIONが奇数回押された場合、data_[1]を50に設定
     }
 
-    const bool option = msg->buttons[9] != 0;
+    RCLCPP_INFO(this->get_logger(), "OPTION : %d", data_[1]);
 
-    if (option && !last_option_) 
-    {
-      data_[1] = 50; 
-    } 
-    else if (!option) 
-    {
-      data_[1] = 0;
-    }
     last_option_ = option;
   }
 

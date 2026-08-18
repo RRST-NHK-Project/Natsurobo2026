@@ -30,5 +30,12 @@ def generate_launch_description():
             name="t101mm",
             output="screen"
         ),
+                Node(
+            package='manual_charge',
+            executable='charge',
+            name='charge_node',
+            output='screen',
+            parameters=[{'param_name': 'param_value'}]
+        ),
         
     ])
