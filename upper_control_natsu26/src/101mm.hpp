@@ -27,8 +27,9 @@
 #define DEADZONE_L 0.3
 #define DEADZONE_R 0.3
 
-#define drive_mode (SHARE_count % 2 == 0)       // SHAREを押していないときはドライブモード
-#define get_eel_mode (SHARE_count % 2 == 1) // SHAREを押しているときは捕獲モード
+#define drive_mode (SHARE_count % 3 == 0)       // SHAREを押していないときはドライブモード
+#define get_eel_mode (SHARE_count % 3 == 1) // SHAREを押しているときは捕獲モード
+#define shoot_mode (SHARE_count % 3 == 2)   // SHAREをもっかい押しているときは射出モード
 
 class unaginobori2026 : public rclcpp::Node
 {

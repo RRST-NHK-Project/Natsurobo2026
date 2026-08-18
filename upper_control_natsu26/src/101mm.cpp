@@ -195,8 +195,6 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             //     "data_[1-4]=[%d,%d,%d,%d], data_[9-12]=[%d,%d,%d,%d]"
             //     data_[1], data_[2], data_[3], data_[4],
             //     data_[9], data_[10], data_[11], data_[12]);
-            last_CIRCLE = CIRCLE;
-            last_SHARE = SHARE;
 
         }
         else if (get_eel_mode)
@@ -212,7 +210,6 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             else{
                     data_[4] = 0;
                 }
-        }
         // =================================================================
 
         // =================================================================
@@ -227,6 +224,13 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             data_[3] = 0;
         }
         // =================================================================
+    }else if (shoot_mode)
+        {
+            // シュートモードの処理
+        }   
+
+        last_CIRCLE = CIRCLE;
+        last_SHARE = SHARE;
         
 
         // 配列操作ここまで
