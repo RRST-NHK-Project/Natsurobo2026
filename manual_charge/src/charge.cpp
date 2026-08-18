@@ -59,13 +59,13 @@ private:
   void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
   {
 
-    bool option = msg->buttons[9];
+    bool OPTION= msg->buttons[9];
     bool R1 = msg->buttons[5];
     static bool last_option = false;
     static int option_count = 0;
     
 
-    if (option && !last_option)
+    if (OPTION && !last_option)
     {
       option_count++;
     }
@@ -85,9 +85,9 @@ private:
     }
 
 
-    RCLCPP_INFO(this->get_logger(), "OPTION : %d ", data_[1]);
+    RCLCPP_INFO(this->get_logger(), "OPTION : %d option_count: %d", data_[1], option_count);
 
-    last_option_ = option;
+    last_option = OPTION;
   }
 
   void led_callback(const std_msgs::msg::Int16::SharedPtr msg)
