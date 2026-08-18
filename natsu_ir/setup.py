@@ -14,13 +14,15 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="RRST-NHK-Project",
-    maintainer_email="you@example.com",
+    maintainer_email="riko26maeda@gmail.com",
     description="IR (NEC) receiver bridge for Natsurobo2026",
     license="MIT",
     entry_points={
         "console_scripts": [
             # ros2 run natsu_ir ir_node
             "ir_node = natsu_ir.ir_node:main",
+            # ros2 run natsu_ir ir_led_policy
+            "ir_led_policy = natsu_ir.ir_led_policy:main",
         ],
     },
 )

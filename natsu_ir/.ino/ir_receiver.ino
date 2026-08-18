@@ -1,6 +1,7 @@
 // Natsurobo IR receiver (NEC) -> serial + status NeoPixel
 // フィールドのIR-LED(38kHz変調)をESP32で受信し、上位へ1行ずつ送る。
 // 上位は "IR addr cmd repeat" / "IR LOST" / "HB" の3種だけをパースすればよい。
+// 色のフォーマットはNEC。アドレスの一覧はNotionの"テープLEDの赤外線解析結果一覧"か99-natsurobo-ir.rulesを参照。
 
 #include <IRremote.hpp>
 #include <Adafruit_NeoPixel.h>
