@@ -51,16 +51,18 @@ private:
   void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
   {
 
-    bool option = msg->buttons[9] != 0;
-    static bool last_option_ = false;
-    static int option_count_ = 0;
+    bool option = msg->buttons[9];
+    bool R1 = msg->buttons[5];
+    static bool last_option = false;
+    static int option_count = 0;
+    
 
-    if (option && !last_option_)
+    if (option && !last_option)
     {
-      option_count_++;
+      option_count++;
     }
     
-    if(option_count_ % 2 == 0)
+    if(option_count % 2 == 0)
     {
       data_[1] = 0; // OPTIONが偶数回押された場合、data_[1]を0に設定
     }
@@ -69,7 +71,13 @@ private:
       data_[1] = 50; // OPTIONが奇数回押された場合、data_[1]を50に設定
     }
 
-    RCLCPP_INFO(this->get_logger(), "OPTION : %d", data_[1]);
+    if(R1)
+    {
+        data_[1] = 0; // R1が押された場合、data_[1]を0に設定
+    }
+
+
+    RCLCPP_INFO(this->get_logger(), "OPTION : %d ", data_[1]);
 
     last_option_ = option;
   }
