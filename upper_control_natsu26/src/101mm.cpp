@@ -293,7 +293,6 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
 
         std_msgs::msg::Int16MultiArray msg;
 
-<<<<<<< HEAD
         // 一応...
         const char *mode_name = drive_mode ? "Drive" : (get_eel_mode ? "Get_Eel" : "Shoot");
         RCLCPP_INFO(
@@ -306,8 +305,6 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             data_[1],
             data_[2]); // data_[1~4], data_[1~4]);
 
-=======
->>>>>>> 011ed4b (プログラムの調整)
         msg.data = data_;
 
         publisher_->publish(msg);
