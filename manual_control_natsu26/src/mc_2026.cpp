@@ -404,7 +404,6 @@ private:
                 
 
                 if(R1){
-<<<<<<< HEAD
                     // 射出部分。速度はSHOOTモードで選択中のカゴ(shoot_x_/shoot_y_)の
                     // プリセット値を使う。カゴを変えれば射出速度も自動で切り替わる。
                     const int spd = current_injection_speed();
@@ -414,12 +413,6 @@ private:
                     RCLCPP_INFO(this->get_logger(),
                         "射出: cell=[%d][%d](x,y) injection_speed=%d",
                         shoot_x_, shoot_y_, spd);
-=======
-
-                    data_[1] = -injection_speed;
-                    data_[2] = injection_speed;
-                    data_[3] = injection_speed; // 射出部分　出力は一旦150にしておく　要調整
->>>>>>> 011ed4b (プログラムの調整)
                 }else{
                     data_[1] = 0;
                     data_[2] = 0;
