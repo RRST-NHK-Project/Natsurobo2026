@@ -1,11 +1,13 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 package_name = "natsu_ir"
 
 setup(
     name=package_name,
     version="0.1.0",
-    packages=find_packages(exclude=["test"]),
+    # ソースは src/ 直下にフラットに置き、それを natsu_ir パッケージとして入れる
+    packages=[package_name],
+    package_dir={package_name: "src"},
     data_files=[
         ("share/ament_index/resource_index/packages",
             ["resource/" + package_name]),

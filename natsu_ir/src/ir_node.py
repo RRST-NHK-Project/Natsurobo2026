@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Natsurobo IR node -- ROS2 との出入り口だけを持つ薄いブリッジ。
+"""Natsurobo IR node -- IR受信ESP32 を ROS2 に載せるだけの薄いブリッジ。
 
 入口 (ESP32 -> ROS):
   ir/state    std_msgs/String     確定した状態コード(16進)。ラッチ。
   ir/tairyo   std_msgs/Bool       大漁フラグ。ラッチ。
   ir/link_ok  std_msgs/Bool       ESP32リンク死活(HB監視)。ラッチ。
 
-出口 (ROS -> ESP32):
-  ir/led_cmd  std_msgs/ColorRGBA  状態表示LEDの色指示。ここに publish されたら
-                                   "LED r g b\n" にして ESP32 へ素通しする。
-                                   いつ/どの色にするかの判断はこのノードでは持たない。
+出口は持たない。状態表示LEDは ir_led_policy.py が上記トピックを見て色を決め、
+serial_bridge 経由で LED 用マイコン(DEVICE_ID=4)へ直接送る。
+このノードは IR 受信専用。
 
 ラッチは QoS(TRANSIENT_LOCAL)で実現。後から起動した購読側も最後の値を受け取れる。
 """
@@ -20,7 +19,7 @@ import rclpy
 import serial
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
-from std_msgs.msg import Bool, ColorRGBA, String
+from std_msgs.msg import Bool, String
 
 SERIAL_PORT = "/dev/natsurobo_ir"   # udev symlink で固定
 BAUD = 115200
@@ -39,13 +38,10 @@ class IrNode(Node):
         super().__init__("ir_node")
         self.ser = serial.Serial(SERIAL_PORT, BAUD, timeout=0.1)
 
-        # --- 入口: publishers (ラッチ) ---
+        # --- publishers (ラッチ) ---
         self.pub_state = self.create_publisher(String, "ir/state", latched_qos())
         self.pub_tairyo = self.create_publisher(Bool, "ir/tairyo", latched_qos())
         self.pub_link = self.create_publisher(Bool, "ir/link_ok", latched_qos())
-
-        # --- 出口: subscriber (LED表示コマンドを素通し) ---
-        self.create_subscription(ColorRGBA, "ir/led_cmd", self.on_led_cmd, 10)
 
         self.last_hb = time.time()
         self.link_ok = None      # None から始めて初回で必ず publish
@@ -55,7 +51,7 @@ class IrNode(Node):
         self.create_timer(0.20, self.watchdog)
         self.get_logger().info(f"IR node up on {SERIAL_PORT}")
 
-    # ========== 入口: ESP32 -> ROS ==========
+    # ========== ESP32 -> ROS ==========
     def spin_serial(self):
         try:
             line = self.ser.readline().decode(errors="ignore").strip()
@@ -102,16 +98,6 @@ class IrNode(Node):
             self.pub_link.publish(Bool(data=ok))
             if not ok:
                 self.get_logger().warn("IR link lost (HB timeout)")
-
-    # ========== 出口: ROS -> ESP32 ==========
-    def on_led_cmd(self, msg: ColorRGBA):
-        r = max(0, min(255, int(msg.r * 255)))
-        g = max(0, min(255, int(msg.g * 255)))
-        b = max(0, min(255, int(msg.b * 255)))
-        try:
-            self.ser.write(f"LED {r} {g} {b}\n".encode())
-        except serial.SerialException as e:
-            self.get_logger().error(f"serial write failed: {e}")
 
 
 def main():

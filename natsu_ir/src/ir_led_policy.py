@@ -8,6 +8,12 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
     受信IRコード / 他トピック --(このノードで判断)--> serial_tx_4.data[9] = RGB565
                                                         --(serial_bridge)--> ID=4 MCU --> WS2812B
 
+今の表示仕様:
+  通常時 (manual_control_natsu26 が走っている間)  白
+  大漁時                                          青
+  エラー時 (IRリンク断)                           赤のゆっくり点滅
+  上記いずれでもない (manual 未起動など)          消灯
+
 色の送り方 (RGB565, 1スロット):
   serial_tx は int16 の配列。フルカラー(R8G8B8=24bit)は1枠に入らないので、
   16bit の RGB565 (R5 G6 B5) に圧縮して data[9] に入れる。約6.5万色ぶん、ほぼ自由な色。
@@ -22,9 +28,11 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
   処理が要る。この serial_tx_4 は IR 専用(他ノードは publish しない)前提なので、毎回24スロット送る。
 
 購読:
-  ir/state    std_msgs/String   受信コード(16進, 例 "19")。COLOR_TABLE で色へ。ラッチ受信。
-  ir/link_ok  std_msgs/Bool     false のとき警告(橙点滅)で最優先に上書き。
-  ir/tairyo   std_msgs/Bool     true のとき大漁色で上書き。
+  /manual/mode std_msgs/String   manual_control_natsu26 の生存信号として使う(内容は見ない)。
+                                 50Hz で出続けるので、途切れたら「走っていない」と判定。
+  ir/link_ok   std_msgs/Bool     false のときエラー(赤のゆっくり点滅)で最優先に上書き。ラッチ受信。
+  ir/tairyo    std_msgs/Bool     true のとき大漁色で上書き。ラッチ受信。
+  ir/state     std_msgs/String   受信コード(16進, 例 "19")。今は未使用(下の ir_color 層を参照)。
   (LAYERS に足せば)任意トピック  値の条件で色を上書き。
 
 publish:
@@ -52,14 +60,24 @@ RGB = Tuple[int, int, int]   # 各 0..255
 # ---------- 色の定義 (r,g,b は 0..255) ----------
 OFF = (0, 0, 0)
 UNKNOWN = (40, 40, 40)     # 検出はしたが色未確定のコード(弱い白)
+WHITE = (255, 255, 255)    # 通常時(manual_control が走っている)
+TAIRYO = (0, 0, 255)       # 大漁の表示色(青)
+ERROR = (255, 0, 0)        # エラーの表示色(赤)
 RED = (255, 0, 0)
-TAIRYO = (0, 255, 0)       # 大漁の表示色(暫定・緑)
-WARN = (255, 64, 0)        # link断の警告(橙)
+
+# エラー点滅の速さ[Hz]。点滅周期 = 1/ERROR_BLINK_HZ 秒。
+# 0.7 なら約1.4秒周期(約0.7秒点灯 -> 約0.7秒消灯)の「長めの点滅」。
+ERROR_BLINK_HZ = 0.7
+
+# manual_control の生存タイムアウト[秒]。/manual/mode は 50Hz(20ms周期)で出るので、
+# 0.5秒来なければ落ちている/起動前とみなす。
+MANUAL_ALIVE_TIMEOUT_S = 0.5
 
 
 # ---------- IRコード -> 色 (16進大文字・0xなし) ----------
 # 今わかっているのは 0x19 = 赤 のみ。他コードの色は判明し次第ここに足す。
 #   例) COLOR_TABLE["16"] = (0, 0, 255)   # 0x16 = 青、など。好きなRGBでよい。
+# ※現仕様(通常=白)では下の ir_color 層を無効にしているため、この表は今は使われない。
 COLOR_TABLE = {
     "19": RED,     # 0x19 = 赤(確定)
 }
@@ -90,6 +108,9 @@ class Layer:
     # 最新メッセージ -> 出すスタイル。None なら「この層は今アクティブでない」
     style_of: Callable[[object], Optional[Style]]
     priority: int          # 大きいほど優先
+    # 最後の受信からこの秒数を過ぎたら層を無効にする。0 なら期限なし(ラッチ向け)。
+    # 「そのトピックが今も流れているか」を条件にしたい層で使う。
+    timeout: float = 0.0
 
 
 def _ir_style(msg: String) -> Optional[Style]:
@@ -99,18 +120,27 @@ def _ir_style(msg: String) -> Optional[Style]:
 
 # priority で比較するので並び順は自由。同じトピックを複数層で使ってもよい。
 LAYERS = [
-    # 通信断の警告 -- 最優先。link_ok=false のあいだ橙点滅。
+    # エラー -- 最優先。IRリンク断のあいだ赤のゆっくり点滅。
     Layer("link_lost", "ir/link_ok", Bool,
-          lambda m: Style(WARN, blink_hz=3.0) if not m.data else None,
+          lambda m: Style(ERROR, blink_hz=ERROR_BLINK_HZ) if not m.data else None,
           priority=100),
 
-    # 大漁 -- 中優先。
+    # 大漁 -- 中優先。青。
+    # ir/tairyo はラッチなので、一度 true になると次の確定コードが来るまで青のまま。
+    # 「大漁を数秒だけ光らせる」にしたければ timeout=3.0 などを足す。
     Layer("tairyo", "ir/tairyo", Bool,
           lambda m: Style(TAIRYO) if m.data else None,
           priority=50),
 
-    # ベース -- IR受信コードを色に変換。常にアクティブ(未知コードは UNKNOWN)。
-    Layer("ir_color", "ir/state", String, _ir_style, priority=0),
+    # 通常 -- ベース。manual_control_natsu26 が走っているあいだ白。
+    # /manual/mode は mc_2026 が 20ms 周期で出し続けるので、これを生存信号に使う。
+    # 中身(DRIVE/GET_EEL/SHOOT)は見ない。途切れたら timeout で層ごと無効 -> 消灯。
+    Layer("manual_alive", "/manual/mode", String,
+          lambda m: Style(WHITE),
+          priority=0, timeout=MANUAL_ALIVE_TIMEOUT_S),
+
+    # --- IR受信コードを色に変換する層(現仕様では無効。使うならコメントを外す) ---
+    # Layer("ir_color", "ir/state", String, _ir_style, priority=10),
 
     # --- 任意トピックを重ねる例(必要になったらコメントを外し、上の import に型を足す) ---
     # Layer("auto_mode", "drive/mode", String,
@@ -136,7 +166,7 @@ class IrLedPolicy(Node):
         super().__init__("ir_led_policy")
 
         self.pub = self.create_publisher(Int16MultiArray, TX_TOPIC, 10)
-        self.latest = {}          # topic -> 最新メッセージ
+        self.latest = {}          # topic -> (最新メッセージ, 受信時刻[秒])
         self.last_val = None      # 直近に送った data[9] の値。重複送信を抑制
 
         # 層が使うトピックを重複なく購読する(同じトピックを複数層が使ってもOK)。
@@ -148,17 +178,24 @@ class IrLedPolicy(Node):
             qos = latched_qos() if lyr.topic.startswith("ir/") else 10
             self.create_subscription(
                 lyr.msg_type, lyr.topic,
-                lambda m, t=lyr.topic: self.latest.__setitem__(t, m),
+                lambda m, t=lyr.topic: self.on_msg(t, m),
                 qos)
 
         # 20Hz で再評価。点滅もここで進む。色(RGB565値)が変わった時だけ送信。
         self.create_timer(0.05, self.tick)
         self.get_logger().info(f"IR LED policy up -> {TX_TOPIC}.data[{LED_SLOT}] (RGB565)")
 
+    def now_s(self) -> float:
+        return self.get_clock().now().nanoseconds / 1e9
+
+    def on_msg(self, topic: str, msg):
+        # 受信時刻も残す。timeout 付きの層(生存監視)がこれを見る。
+        self.latest[topic] = (msg, self.now_s())
+
     def tick(self):
-        style = self.decide()
-        color = style.resolve(self.get_clock().now().nanoseconds / 1e9)
-        val = to_rgb565(color)
+        now = self.now_s()
+        style = self.decide(now)
+        val = to_rgb565(style.resolve(now))
         if val == self.last_val:
             return
         self.last_val = val
@@ -167,13 +204,17 @@ class IrLedPolicy(Node):
         arr.data[LED_SLOT] = val
         self.pub.publish(arr)
 
-    def decide(self) -> Style:
+    def decide(self, now: float) -> Style:
         """アクティブな層のうち優先度が最大のスタイルを返す。無ければ消灯。"""
         best = Style(OFF)
         best_pri = None
         for lyr in LAYERS:
-            msg = self.latest.get(lyr.topic)
-            if msg is None:
+            entry = self.latest.get(lyr.topic)
+            if entry is None:
+                continue
+            msg, t_recv = entry
+            # timeout 付きの層は、最後の受信から時間が経ちすぎていたら無効。
+            if lyr.timeout > 0.0 and now - t_recv > lyr.timeout:
                 continue
             style = lyr.style_of(msg)
             if style is None:
