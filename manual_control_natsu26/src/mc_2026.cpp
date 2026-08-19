@@ -328,9 +328,9 @@ private:
             {
                 pitch_state = pitch_state - 3;
 
-                if (pitch_state < 120)
+                if (pitch_state < 90)
                 {
-                    pitch_state = 120; // 下限角度は要調整
+                    pitch_state = 90; // 下限角度は要調整
                 }
             }
 
@@ -414,6 +414,7 @@ private:
                     data_[2] = 0;
                     data_[3] = 0; // 射出部分　出力は一旦150にしておく　要調整
                 }
+                
                 if(CROSS && !last_CROSS){
                     if(CROSS_count %2 == 0){
                         data_[17] = 0;

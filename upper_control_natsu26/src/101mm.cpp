@@ -130,6 +130,11 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
             //                     "Mode:Drive.");
             // ドライブモードの処理
 
+            RCLCPP_INFO(
+            this->get_logger(),
+            "Mode:drive, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",
+             (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+
             if (CIRCLE && !last_CIRCLE)
             { // CIRCLEが押されたときに一度だけ実行される処理（CIRCLEを押すたびに段差超え処理を進める）
                 // 自動化出来るか分からんから一応完全マニュアル操作を想定
@@ -199,6 +204,11 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         }
         else if (get_eel_mode)
         {
+            RCLCPP_INFO(
+            this->get_logger(),
+            "Mode:get_eel, Phase:%d data_[3]=%d, data_[4]=%d, motor=[%d,%d]",
+         (CIRCLE_count % 3) + 1, data_[3], data_[4], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+
         // =================================================================
         // UP,DOWN:   
             if(UP){
@@ -215,10 +225,10 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // =================================================================
         // LEFT,RIGHT:「横方向ラック＆ピニオン」
         if(LEFT){
-            data_[3] = -motor_pow2; // 左回転
+            data_[3] = motor_pow2; // 左回転
         }
         else if(RIGHT){
-            data_[3] = motor_pow2; // 右回転
+            data_[3] = -motor_pow2; // 右回転
         }
         else{
             data_[3] = 0;
@@ -226,6 +236,10 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         // =================================================================
     }else if (shoot_mode)
         {
+            RCLCPP_INFO(
+            this->get_logger(),
+            "Mode:shoot, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",
+             (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
             // シュートモードの処理
         }   
 
