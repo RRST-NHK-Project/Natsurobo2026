@@ -31,10 +31,6 @@ ament_target_dependencies(guess_position_26 rclcpp std_msgs sensor_msgs geometry
 # Install
 install(TARGETS guess_position_26
   DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}
-)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
