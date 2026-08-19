@@ -5,8 +5,8 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
 受信IRコードや他トピックから色を決めて serial_bridge 経由で LED 用マイコン
 (DEVICE_ID=4) の WS2812B へ送る。
 
-    受信IRコード / 他トピック --(このノードで判断)--> serial_tx_4.data[9] = RGB565
-                                                        --(serial_bridge)--> ID=4 MCU --> WS2812B
+    受信IRコード / 他トピック --(このノードで判断)--> ir/led_color (RGB565)
+        --(manual_charge/charge_node が data_[9] に載せる)--> serial_tx_4 --> ID=4 MCU --> WS2812B
 
 今の表示仕様:
   通常時 (manual_control_natsu26 が走っている間)  白
@@ -14,18 +14,21 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
   エラー時 (IRリンク断)                           赤のゆっくり点滅
   上記いずれでもない (manual 未起動など)          消灯
 
-色の送り方 (RGB565, 1スロット):
+色の送り方 (RGB565, int16 1個):
   serial_tx は int16 の配列。フルカラー(R8G8B8=24bit)は1枠に入らないので、
-  16bit の RGB565 (R5 G6 B5) に圧縮して data[9] に入れる。約6.5万色ぶん、ほぼ自由な色。
+  16bit の RGB565 (R5 G6 B5) に圧縮して1スロットに収める。約6.5万色ぶん、ほぼ自由な色。
   RGB565 は最大 0xFFFF で符号付き int16 の範囲(-32768..32767)を超えるため、
   そのままだと負の数として格納されるが、シリアル上のバイト列は同じ。MCU 側で uint16 として
   読み、RGB888 に展開して WS2812B を光らせる。点灯/点滅の判断はすべてこのノードが持つ
   (MCU は受け取った色を出すだけ)。
 
 出力先(重要):
-  serial_tx_4 の data[9] は、標準 esp32_serial_bridge ファームでは Rx_16Data[9] = SERVO1 の枠。
-  WS2812B を光らせるには ID=4 ファーム側で「Rx_16Data[9] を RGB565 色として読み LED を出す」
-  処理が要る。この serial_tx_4 は IR 専用(他ノードは publish しない)前提なので、毎回24スロット送る。
+  このノードは serial_tx_4 に直接 publish しない。serial_bridge は publish のたびに
+  24スロット全部をマイコンへ送る(部分更新できない)ため、serial_tx_4 に複数ノードが
+  publish すると互いのスロットを潰し合う。ID=4 は manual_charge/charge_node が
+  50Hz で publish しているので、そちらに色だけ渡し、data_[9] に載せてもらう。
+  実際に光らせるには、ID=4 ファーム側に「Rx_16Data[9] を RGB565 色として読み LED を出す」
+  処理が必要(Rx_16Data[9] は標準 esp32_serial_bridge ファームでは SERVO1 の枠)。
 
 購読:
   /manual/mode std_msgs/String   manual_control_natsu26 の生存信号として使う(内容は見ない)。
@@ -36,7 +39,8 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
   (LAYERS に足せば)任意トピック  値の条件で色を上書き。
 
 publish:
-  serial_tx_4 std_msgs/Int16MultiArray   24スロット。data[9] に RGB565、他は 0。色変化時のみ送る。
+  ir/led_color std_msgs/Int16   RGB565 を int16 に畳んだ値。色が変わった時だけ送る。
+                                charge_node がこれを serial_tx_4.data[9] に載せる。
 """
 
 from dataclasses import dataclass
@@ -45,14 +49,14 @@ from typing import Callable, Optional, Tuple
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
-from std_msgs.msg import Bool, Int16MultiArray, String
+from std_msgs.msg import Bool, Int16, String
 # 任意トピックを重ねるときは、その型もここで import する(例: Int32, Float32 ...)
 
 
 # ---------- 送信先 ----------
-TX_TOPIC = "serial_tx_4"   # DEVICE_ID=4 の MCU へ
-TX_SLOTS = 24              # serial_bridge の int16 スロット数
-LED_SLOT = 9              # data[9] に RGB565 を入れる(0始まり)
+# 色だけを publish し、serial_tx_4 への実際の送信は charge_node に任せる。
+# (serial_tx_4 に publish するノードを1つに保たないとスロットを潰し合うため)
+TX_TOPIC = "ir/led_color"
 
 RGB = Tuple[int, int, int]   # 各 0..255
 
@@ -165,9 +169,9 @@ class IrLedPolicy(Node):
     def __init__(self):
         super().__init__("ir_led_policy")
 
-        self.pub = self.create_publisher(Int16MultiArray, TX_TOPIC, 10)
+        self.pub = self.create_publisher(Int16, TX_TOPIC, 10)
         self.latest = {}          # topic -> (最新メッセージ, 受信時刻[秒])
-        self.last_val = None      # 直近に送った data[9] の値。重複送信を抑制
+        self.last_val = None      # 直近に送った RGB565 値。重複送信を抑制
 
         # 層が使うトピックを重複なく購読する(同じトピックを複数層が使ってもOK)。
         seen = set()
@@ -183,7 +187,7 @@ class IrLedPolicy(Node):
 
         # 20Hz で再評価。点滅もここで進む。色(RGB565値)が変わった時だけ送信。
         self.create_timer(0.05, self.tick)
-        self.get_logger().info(f"IR LED policy up -> {TX_TOPIC}.data[{LED_SLOT}] (RGB565)")
+        self.get_logger().info(f"IR LED policy up -> {TX_TOPIC} (RGB565)")
 
     def now_s(self) -> float:
         return self.get_clock().now().nanoseconds / 1e9
@@ -199,10 +203,7 @@ class IrLedPolicy(Node):
         if val == self.last_val:
             return
         self.last_val = val
-        arr = Int16MultiArray()
-        arr.data = [0] * TX_SLOTS
-        arr.data[LED_SLOT] = val
-        self.pub.publish(arr)
+        self.pub.publish(Int16(data=val))
 
     def decide(self, now: float) -> Style:
         """アクティブな層のうち優先度が最大のスタイルを返す。無ければ消灯。"""

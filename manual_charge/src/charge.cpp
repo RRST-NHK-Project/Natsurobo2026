@@ -12,6 +12,7 @@
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int16.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #define OUTPUT_DEVICE_ID 0x04 // 出力マイコン（モーター制御）のID
@@ -21,6 +22,8 @@
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
+#define LED_SLOT 9 // LED用のスロット
+ 
 // 使用するモーターの選択
 #define MODE_MABUCHI
 // #define MODE_BLDC
@@ -41,6 +44,11 @@ public:
       "serial_tx_" + std::to_string(OUTPUT_DEVICE_ID), 10);
 
     mode_pub_ = this->create_publisher<std_msgs::msg::String>("/manual/mode", 10);
+
+    // 状態表示LEDの色 (natsu_ir/ir_led_policy が publish)
+    led_sub_ = this->create_subscription<std_msgs::msg::Int16>(
+      "ir/led_color", 10,
+      std::bind(&ChargeNode::led_callback, this, std::placeholders::_1));
 
     timer_ = this->create_wall_timer(
       std::chrono::milliseconds(PUBLISH_RATE_MS),
@@ -82,6 +90,12 @@ private:
     last_option_ = option;
   }
 
+  void led_callback(const std_msgs::msg::Int16::SharedPtr msg)
+  {
+
+    data_[LED_SLOT] = msg->data;
+  }
+
   void timer_callback()
   {
     std_msgs::msg::Int16MultiArray msg;
@@ -96,6 +110,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
   rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mode_pub_;
+  rclcpp::Subscription<std_msgs::msg::Int16>::SharedPtr led_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
   std::vector<int16_t> data_;
