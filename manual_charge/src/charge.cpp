@@ -85,7 +85,7 @@ private:
     }
 
 
-    RCLCPP_INFO(this->get_logger(), "OPTION : %d option_count: %d", data_[1], option_count);
+    RCLCPP_INFO(this->get_logger(), "motor : %d", data_[1]);
 
     last_option = OPTION;
   }
