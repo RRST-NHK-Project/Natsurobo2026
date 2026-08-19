@@ -43,7 +43,7 @@ public:
     publisher_ = this->create_publisher<std_msgs::msg::Int16MultiArray>(
       "serial_tx_" + std::to_string(OUTPUT_DEVICE_ID), 10);
 
-    mode_pub_ = this->create_publisher<std_msgs::msg::String>("/manual/mode", 10);
+    mode_pub_ = this->create_publisher<std_msgs::msg::String>("/charge/mode", 10);
 
     // 状態表示LEDの色 (natsu_ir/ir_led_policy が publish)
     led_sub_ = this->create_subscription<std_msgs::msg::Int16>(

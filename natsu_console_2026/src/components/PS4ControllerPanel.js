@@ -20,10 +20,13 @@ export function PS4ControllerPanel({
   manualMode,
   tr,
 }) {
-  // /manual/mode (mc_2026 の L1 で切替) を人が読める形に
+  // /manual/mode (mc_2026 の SHARE で切替) を人が読める形に。
+  // ここの色は機体の状態表示LED(natsu_ir/src/ir_led_policy.py の MODE_COLORS)と同じ値。
+  // 操縦者がGUIと機体で同じ色を見られるようにしてあるので、片方だけ変えないこと。
   const modeInfo = (() => {
     if (manualMode === "DRIVE") return { label: tr("走行 (Drive)", "Drive"), color: "#58a6ff" };
     if (manualMode === "GET_EEL") return { label: tr("捕獲 (Get eel)", "Get eel"), color: "#3fb950" };
+    if (manualMode === "SHOOT") return { label: tr("射出 (Shoot)", "Shoot"), color: "#f0883e" };
     return { label: tr("未受信", "No signal"), color: "#8b949e" };
   })();
   const modeBadge = (
@@ -38,7 +41,7 @@ export function PS4ControllerPanel({
     >
       <span style={{ fontSize: 11, opacity: 0.7 }}>{tr("モード", "MODE")}</span>
       {modeInfo.label}
-      <span style={{ fontSize: 11, opacity: 0.6 }}>L1{tr("で切替", " to toggle")}</span>
+      <span style={{ fontSize: 11, opacity: 0.6 }}>SHARE{tr("で切替", " to toggle")}</span>
     </div>
   );
   const ps4Buttons = (
