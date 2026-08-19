@@ -280,10 +280,16 @@ Copyright (c) 2025 RRST-NHK-Project. All rights reserved.
         std_msgs::msg::Int16MultiArray msg;
 
         // 一応...
+        const char *mode_name = drive_mode ? "Drive" : (get_eel_mode ? "Get_Eel" : "Shoot");
         RCLCPP_INFO(
             this->get_logger(),
             "Mode:%s, Phase:%d data_[17]=%d, data_[18]=%d, motor=[%d,%d]",
-            SHARE_count % 2 == 0 ? "Drive" : "Get_Eel", (CIRCLE_count % 3) + 1, data_[17], data_[18], data_[1], data_[2]); // data_[1~4], data_[1~4]);
+            mode_name,
+            (CIRCLE_count % 3) + 1,
+            data_[17],
+            data_[18],
+            data_[1],
+            data_[2]); // data_[1~4], data_[1~4]);
 
         msg.data = data_;
 
