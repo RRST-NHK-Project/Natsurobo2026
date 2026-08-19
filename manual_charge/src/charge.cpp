@@ -72,20 +72,20 @@ private:
     
     if(option_count % 2 == 0)
     {
-      data_[1] = 0; // OPTIONが偶数回押された場合、data_[1]を0に設定
+      data_[2] = 0; // OPTIONが偶数回押された場合、data_[2]を0に設定
     }
     else
     {
-      data_[1] = 50; // OPTIONが奇数回押された場合、data_[1]を50に設定
+      data_[2] = 50; // OPTIONが奇数回押された場合、data_[2]を50に設定
     }
 
     if(R1)
     {
-        data_[1] = 0; // R1が押された場合、data_[1]を0に設定
+        data_[2] = 0; // R1が押された場合、data_[2]を0に設定
     }
 
 
-    RCLCPP_INFO(this->get_logger(), "motor : %d", data_[1]);
+    RCLCPP_INFO(this->get_logger(), "motor : %d", data_[2]);
 
     last_option = OPTION;
   }

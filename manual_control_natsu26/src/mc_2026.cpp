@@ -327,7 +327,7 @@ private:
 
             // =================================================================
             // LEFT,RIGHT:「ヨー軸回転」
-                static int yaw_state=135; // ヨー軸(横回転)の角度
+                static int yaw_state=0; // ヨー軸(横回転)の角度
             if (RIGHT)
             {
                 yaw_state = yaw_state + 3; 
