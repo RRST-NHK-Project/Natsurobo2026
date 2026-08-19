@@ -351,7 +351,7 @@ private:
             data_[9] = yaw_state; // ヨー軸の角度を配列に格納
 
         RCLCPP_INFO(this->get_logger(), 
-         "data[10,9]: %d,%d", data_[9], data_[10]); // サーボの角度を表示
+         "data[9,10]: %d,%d", data_[9], data_[10]); // サーボの角度を表示
         
 
             // =================================================================
@@ -405,7 +405,7 @@ private:
                     }
                     CROSS_count++;
                 }
-            }
+        }
             
         else if (shoot_mode) // シュートモード
         {
