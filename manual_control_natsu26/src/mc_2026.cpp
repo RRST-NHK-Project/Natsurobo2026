@@ -83,6 +83,17 @@ static const int kPitchPreset[3][3] = {
     {200, 160, 120}, // x=2列: [0][2]が初期位置
 };
 
+// 射出速度(MDの出力値)。カゴ(セル)ごとに個別指定する。
+// data_[1] 〜 data_[3] へそのまま入る値で、範囲は -255 〜 255。
+// 実機では全て負の値で射出できるので、絶対値が大きいほど強く飛ぶ。
+// 参照は yaw/pitch と同じ [x][y]。y=2(奥)ほど遠いので強め、y=0(手前)は弱めが目安。
+// 値はすべて仮値なので実射して要調整。
+static const int kInjectionSpeedPreset[3][3] = {
+    {-130, -150, -180}, // x=0列: [0][0]=G0(手前左), [0][1]=B0(中央左), [0][2]=B4(奥左)
+    {-150, -150, -150}, // x=1列: [1][1]=B1(中央)のみ有効。[1][0],[1][2]は欠番(既定値)
+    {-130, -150, -180}, // x=2列: [2][0]=B3(手前右), [2][1]=B2(中央右), [2][2]=G1(奥右)
+};
+
 // GUIカゴ対応テーブル (0,1が緑カゴ、2〜6が青カゴ)
 static const int kBasketCellXy[7][2] = {
     {0, 0}, // G0 (手前左・緑)
@@ -393,10 +404,15 @@ private:
                 
 
                 if(R1){
-
-                    data_[1] = injection_speed;
-                    data_[2] = injection_speed;
-                    data_[3] = injection_speed; // 射出部分　出力は一旦150にしておく　要調整
+                    // 射出部分。速度はSHOOTモードで選択中のカゴ(shoot_x_/shoot_y_)の
+                    // プリセット値を使う。カゴを変えれば射出速度も自動で切り替わる。
+                    const int spd = current_injection_speed();
+                    data_[1] = spd;
+                    data_[2] = spd;
+                    data_[3] = spd;
+                    RCLCPP_INFO(this->get_logger(),
+                        "射出: cell=[%d][%d](x,y) injection_speed=%d",
+                        shoot_x_, shoot_y_, spd);
                 }else{
                     data_[1] = 0;
                     data_[2] = 0;
@@ -459,8 +475,8 @@ private:
             last_DOWN = DOWN;
 
             RCLCPP_INFO(this->get_logger(),
-                "shoot_mode cursor=[%d][%d](x,y) yaw(data[9])=%d pitch(data[10])=%d",
-                shoot_x_, shoot_y_, data_[9], data_[10]);
+                "shoot_mode cursor=[%d][%d](x,y) yaw(data[9])=%d pitch(data[10])=%d injection_speed=%d",
+                shoot_x_, shoot_y_, data_[9], data_[10], current_injection_speed());
         }
 
         RCLCPP_INFO(this->get_logger(), 
@@ -512,6 +528,13 @@ private:
     {
     }
 
+    // 現在選択中のカゴ(shoot_x_/shoot_y_)に対応する射出速度を返す。
+    // 実機では全て負の値で射出できたので、値の範囲は -255 〜 255(MDの指令値)。
+    int current_injection_speed() const
+    {
+        return kInjectionSpeedPreset[shoot_x_][shoot_y_];
+    }
+
     // GUIからのカゴ直接指定(/manual/basket, セル番号0〜6)。
     // SHOOTモード中のみ有効。カーソル(shoot_x_/shoot_y_)を該当セルへ移動し、
     // 角度を data_[9](yaw)/data_[10](pitch) に反映する(次のtimerで送信される)。
@@ -531,15 +554,14 @@ private:
         data_[9]  = kYawPreset[shoot_x_][shoot_y_];
         data_[10] = kPitchPreset[shoot_x_][shoot_y_];
         RCLCPP_INFO(this->get_logger(),
-            "/manual/basket: cell=%d -> [%d][%d](x,y) yaw=%d pitch=%d",
-            idx, shoot_x_, shoot_y_, data_[9], data_[10]);
+            "/manual/basket: cell=%d -> [%d][%d](x,y) yaw=%d pitch=%d injection_speed=%d",
+            idx, shoot_x_, shoot_y_, data_[9], data_[10], current_injection_speed());
     }
 
     // publish
     void publisher_timer_callback()
     {
         std_msgs::msg::Int16MultiArray msg;
-    static int injection_speed = -150; // 射出速度(おそらく
 
         //以下追加
         if (auto_collect_active_){
@@ -633,7 +655,6 @@ private:
     int SQUARE_count = 0; 
     int CIRCLE_count = 0;
 
-    int injection_speed = -150; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
