@@ -656,10 +656,6 @@ private:
     int SQUARE_count = 0; 
     int CIRCLE_count = 0;
 
-<<<<<<< HEAD
-=======
-    int injection_speed = 125; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
->>>>>>> 011ed4b (プログラムの調整)
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
