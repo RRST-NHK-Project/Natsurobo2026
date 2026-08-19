@@ -2,10 +2,10 @@
 """Natsurobo IR LED ポリシーノード -- 「何色を出すか」の判断だけを担う。
 
 ir_node.py はあえて判断を持たない素通しブリッジ。このノードがその上に乗り、
-受信IRコードや他トピックから色を決めて serial_bridge 経由で LED 用マイコン
-(DEVICE_ID=4) の WS2812B へ送る。
+操作モードや大漁フラグなどの各トピックから色を決めて serial_bridge 経由で
+LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
 
-    受信IRコード / 他トピック --(このノードで判断)--> ir/led_color (RGB565)
+    /manual/mode, ir/tairyo, ... --(このノードで判断)--> ir/led_color (RGB565)
         --(manual_charge/charge_node が data_[9] に載せる)--> serial_tx_4 --> ID=4 MCU --> WS2812B
 
 今の表示仕様:
@@ -41,8 +41,8 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
                                  「走っていない」と判定して消灯する。
   ir/link_ok   std_msgs/Bool     false のときエラー(赤のゆっくり点滅)で最優先に上書き。ラッチ受信。
   ir/tairyo    std_msgs/Bool     true のとき大漁色(虹色)で上書き。ラッチ受信。
-  ir/state     std_msgs/String   受信コード(16進, 例 "19")。今は未使用(下の ir_color 層を参照)。
-  (LAYERS に足せば)任意トピック  値の条件で色を上書き。
+  (LAYERS に足せば)任意トピック  値の条件で色を上書きできる。ir/state(受信IRコード)を
+                                 色にしたい場合も LAYERS に1行足すだけ(下の例を参照)。
 
 publish:
   ir/led_color std_msgs/Int16   RGB565 を int16 に畳んだ値。色が変わった時だけ送る。
@@ -68,23 +68,43 @@ TX_TOPIC = "ir/led_color"
 RGB = Tuple[int, int, int]   # 各 0..255
 
 
-# ---------- 色の定義 (r,g,b は 0..255) ----------
-OFF = (0, 0, 0)
-UNKNOWN = (40, 40, 40)     # 検出はしたが色未確定のコード(弱い白)
-WHITE = (255, 255, 255)    # モード不明(未知の文字列が来たとき)のフォールバック
-TAIRYO = (0, 0, 255)       # 大漁の表示色(今は虹色を使うので未使用。単色に戻すとき用に残す)
-ERROR = (255, 0, 0)        # エラーの表示色(赤)
-RED = (255, 0, 0)
+# =====================================================================
+# 色の設定 -- 表示色を変えたいときはこのブロックだけ書き換える
+#
+# 色は (R, G, B) の3つの数字。それぞれ 0〜255 で、明るさもここで決まる。
+#   (255,   0,   0) = 赤      (  0, 255,   0) = 緑      (  0,   0, 255) = 青
+#   (255, 255, 255) = 白      (255, 128,   0) = 橙      (  0,   0,   0) = 消灯
+#   (128, 128, 128) = 白の半分の明るさ (全成分を等倍で下げると暗くなる)
+# カラーピッカーの #RRGGBB をそのまま使いたいときは hex_rgb("#58a6ff") と書ける。
+# =====================================================================
 
-# ---------- 操作モード -> 色 ----------
-# mc_2026 が /manual/mode に流す文字列(SHARE で DRIVE -> GET_EEL -> SHOOT と巡回)に対応。
+OFF = (0, 0, 0)            # 消灯
+WHITE = (255, 255, 255)    # モード名が未知の文字列だった時のフォールバック
+
+
+def hex_rgb(code: str) -> "RGB":
+    """"#58a6ff" や "58a6ff" -> (88, 166, 255)。GUIの色をそのまま貼れるようにする。"""
+    c = code.lstrip("#")
+    return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16))
+
+
+# 操作モード(/manual/mode の中身) -> 色。
+# mc_2026 が SHARE で DRIVE -> GET_EEL -> SHOOT と巡回させて流してくる。
 # 値は natsu_console_2026/src/components/PS4ControllerPanel.js のモードバッジと同じ。
 # GUI と機体の LED で色がずれると操縦者が混乱するので、片方だけ変えないこと。
+# モードを増やしたら、ここに1行足すだけで色が付く(コードの変更は不要)。
 MODE_COLORS = {
-    "DRIVE":   (0x58, 0xa6, 0xff),   # #58a6ff 走行モード(青)
-    "GET_EEL": (0x3f, 0xb9, 0x50),   # #3fb950 捕獲モード(緑)
-    "SHOOT":   (0xf0, 0x88, 0x3e),   # #f0883e 射出モード(橙)
+    "DRIVE":   (88, 166, 255),   # #58a6ff 走行モード(青)
+    "GET_EEL": (63, 185, 80),    # #3fb950 捕獲モード(緑)
+    "SHOOT":   (240, 136, 62),   # #f0883e 射出モード(橙)
 }
+
+# IRリンク断のエラー色(赤)。点滅の速さは ERROR_BLINK_HZ。
+ERROR = (255, 0, 0)
+
+# 大漁を単色にしたいとき用。今は虹色(TAIRYO_RAINBOW_HZ)なので使っていない。
+# 戻すときは LAYERS の tairyo 層を Style(TAIRYO) にする。
+TAIRYO = (0, 0, 255)
 
 
 # エラー点滅の速さ[Hz]。点滅周期 = 1/ERROR_BLINK_HZ 秒。
@@ -99,14 +119,6 @@ TAIRYO_RAINBOW_HZ = 0.4
 # 0.5秒来なければ落ちている/起動前とみなす。
 MANUAL_ALIVE_TIMEOUT_S = 0.5
 
-
-# ---------- IRコード -> 色 (16進大文字・0xなし) ----------
-# 今わかっているのは 0x19 = 赤 のみ。他コードの色は判明し次第ここに足す。
-#   例) COLOR_TABLE["16"] = (0, 0, 255)   # 0x16 = 青、など。好きなRGBでよい。
-# ※現仕様(通常=操作モード色)では下の ir_color 層を無効にしているため、この表は今は使われない。
-COLOR_TABLE = {
-    "19": RED,     # 0x19 = 赤(確定)
-}
 
 
 def hue_rgb(hue: float, sat: float = 1.0, val: float = 1.0) -> RGB:
@@ -156,11 +168,6 @@ def _mode_style(msg: String) -> Optional[Style]:
     return Style(MODE_COLORS.get(msg.data.strip().upper(), WHITE))
 
 
-def _ir_style(msg: String) -> Optional[Style]:
-    color = COLOR_TABLE.get(msg.data.strip().upper())
-    return Style(color if color is not None else UNKNOWN)
-
-
 # priority で比較するので並び順は自由。同じトピックを複数層で使ってもよい。
 LAYERS = [
     # エラー -- 最優先。IRリンク断のあいだ赤のゆっくり点滅。
@@ -183,13 +190,12 @@ LAYERS = [
           _mode_style,
           priority=0, timeout=MANUAL_ALIVE_TIMEOUT_S),
 
-    # --- IR受信コードを色に変換する層(現仕様では無効。使うならコメントを外す) ---
-    # Layer("ir_color", "ir/state", String, _ir_style, priority=10),
-
-    # --- 任意トピックを重ねる例(必要になったらコメントを外し、上の import に型を足す) ---
-    # Layer("auto_mode", "drive/mode", String,
-    #       lambda m: Style((0, 0, 255)) if m.data == "auto" else None,
-    #       priority=30),
+    # --- 層を足す例(必要になったらコメントを外し、上の import に型を足す) ---
+    # 条件に合えば Style を、合わなければ None を返す関数を書くだけで層が増える。
+    # 下は「受信IRコードが 0x19 なら紫」の例。ir/state は "19" のような16進文字列。
+    # Layer("ir_code", "ir/state", String,
+    #       lambda m: Style((160, 0, 255)) if m.data.strip().upper() == "19" else None,
+    #       priority=10),
 ]
 
 
