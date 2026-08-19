@@ -19,18 +19,12 @@ def generate_launch_description():
             output="screen"
         ),
         Node(
-            package="natsu_metry26",
-            executable="guess_position_26",
-            name="natsu2026_odometry",
-            output="screen"
-        ),  
-        Node(
             package="upper_control_natsu26",
             executable="unaginobori2026",
             name="t101mm",
             output="screen"
         ),
-                Node(
+        Node(
             package='manual_charge',
             executable='charge',
             name='charge_node',
