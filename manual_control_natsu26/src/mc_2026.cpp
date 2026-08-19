@@ -56,7 +56,8 @@ const int motor_pow = 70; //当然仮の値
 const int motor_pow2 = 50; //当然仮の値
 
 // 現在の操作モード(SHAREで切替)。GUI表示用に /manual/mode へ publish する。
-// 偶数=Drive(走行), 奇数=Get_eel(捕獲)。ps4コールバックとpublishタイマで共有するため atomic。
+// mode_count%3 で 0=Drive(走行) -> 1=Get_eel(捕獲) -> 2=Shoot(射出) と巡回。
+// ps4コールバックとpublishタイマで共有するため atomic。
 std::atomic<int> g_mode_count{0};
 
 // =================================================================
@@ -273,11 +274,61 @@ private:
             data_[11] = servo_init_deg;
             topic_received = true;
         }
+
+        // 捕獲モードと射出モードで共通の「ホッパー + リロード + 射出」操作。
+        // 両モードで同じボタン・同じカウンタを使うので、モードを跨いでもシリンダーの
+        // 開閉状態が食い違わない(射出モードで開けて捕獲モードで閉じる、ができる)。
+        auto hopper_and_shoot = [&]() {
+            // L1: エアシリンダー(data_[19]) をトグル
+            if (L1 && !last_L1) {
+                if (L1_count % 2 == 0) { data_[19] = 0; }
+                else                   { data_[19] = 1; }
+                L1_count++;
+            }
+
+            // CROSS: エアシリンダー(data_[17]) をトグル
+            if (CROSS && !last_CROSS) {
+                if (CROSS_count % 2 == 0) { data_[17] = 0; }
+                else                      { data_[17] = 1; }
+                CROSS_count++;
+            }
+
+            // TRIANGLE: 詰まり防止(リロード)。data_[18] をトグル。
+            // L1/CROSSと違い、こちらは押した1回目からONになる(カウントしてから判定するため)。
+            if (TRIANGLE && !last_TRIANGLE) {
+                triangle_count++;
+            }
+            if (triangle_count % 2 == 1) {
+                data_[18] = 1;
+            } else {
+                data_[18] = 0;
+            }
+
+            // R1: 射出。速度は選択中のカゴ(shoot_x_/shoot_y_)のプリセット値を使う。
+            if (R1) {
+                const int spd = current_injection_speed();
+                data_[1] = spd;
+                data_[2] = spd;
+                data_[3] = spd;
+                RCLCPP_INFO(this->get_logger(),
+                    "射出: cell=[%d][%d](x,y) injection_speed=%d",
+                    shoot_x_, shoot_y_, spd);
+            } else {
+                data_[1] = 0;
+                data_[2] = 0;
+                data_[3] = 0;
+            }
+        };
         
         static int mode_count = 0; // モード切替のカウンター
         if(SHARE && !last_SHARE) // SHAREが押された瞬間にモード切替
         {
             mode_count++;
+            // 射出出力は捕獲/射出モードでしか書かないので、R1を握ったまま走行モードへ
+            // 切り替えると回りっぱなしになる。モードが変わった時点で必ず止める。
+            data_[1] = 0;
+            data_[2] = 0;
+            data_[3] = 0;
         }
         g_mode_count.store(mode_count); // GUI表示用にモードを共有(/manual/mode)
 
@@ -313,58 +364,54 @@ private:
 
             // =================================================================
             // UP,DOWN:「ピッチ軸回転」
-            static int pitch_state= 270 ; // ピッチ軸(縦回転)の角度
+            // 角度はメンバ pitch_deg_ が持つ。射出モードで選んだプリセット位置から
+            // そのまま続けて微調整できる(モードを跨いでも値が消えない)。
             if (DOWN)
             {
-                pitch_state = pitch_state + 3; 
+                pitch_deg_ = pitch_deg_ + 3;
 
-                if (pitch_state >270)
+                if (pitch_deg_ > 270)
                 {
-                    pitch_state =270; // 上限角度は要調整
+                    pitch_deg_ = 270; // 上限角度は要調整
                 }
             }
 
             else if (UP)
             {
-                pitch_state = pitch_state - 3;
+                pitch_deg_ = pitch_deg_ - 3;
 
-                if (pitch_state < 90)
+                if (pitch_deg_ < 90)
                 {
-                    pitch_state = 90; // 下限角度は要調整
+                    pitch_deg_ = 90; // 下限角度は要調整
                 }
             }
-
-            data_[10] = pitch_state;
             
             // =================================================================
 
             // =================================================================
             // LEFT,RIGHT:「ヨー軸回転」
-                static int yaw_state=0; // ヨー軸(横回転)の角度
             if (RIGHT)
             {
-                yaw_state = yaw_state + 3; 
+                yaw_deg_ = yaw_deg_ + 3;
 
-                if (yaw_state >270)
+                if (yaw_deg_ > 270)
                 {
-                    yaw_state =270; // 上限角度は要調整
+                    yaw_deg_ = 270; // 上限角度は要調整
                 }
             }
 
             else if (LEFT)
             {
-                yaw_state = yaw_state - 3; 
+                yaw_deg_ = yaw_deg_ - 3;
 
-                if (yaw_state < 0)
+                if (yaw_deg_ < 0)
                 {
-                    yaw_state = 0; // 下限角度は要調整
+                    yaw_deg_ = 0; // 下限角度は要調整
                 }
             }
 
-            data_[9] = yaw_state; // ヨー軸の角度を配列に格納
-
         RCLCPP_INFO(this->get_logger(), 
-         "data[9,10]: %d,%d", data_[9], data_[10]); // サーボの角度を表示
+         "微調整: yaw=%d pitch=%d", yaw_deg_, pitch_deg_); // サーボの角度を表示
         
 
             // =================================================================
@@ -375,55 +422,10 @@ private:
                                  "Now, you are on Mode:Get_eel.");
             // 捕獲モードの処理をここに記述
 
-                if(L1 && !last_L1){
-                    if(L1_count % 2 == 0){
-                        data_[19] = 0; // L1が押された場合、TR1を0に設定
-                    }
-                    else if(L1_count % 2 == 1){
-                        data_[19] = 1; // L1が押された場合、TR1を1に設定
-                    }
-                    L1_count++;
-                }
+                // L1/CROSS(エアシリンダー) / TRIANGLE(リロード) / R1(射出)。
+                // 射出モードと全く同じ操作なので共通のラムダにまとめてある。
+                hopper_and_shoot();
 
-                if(TRIANGLE && !last_TRIANGLE)//詰まり防止（リロード）
-                {
-                    triangle_count++;
-                }
-                if(triangle_count % 2 == 1)
-                {
-                    data_[18] = 1; // TRIANGLEが偶数回押された場合、TR2を0に設定
-                }
-                else if(triangle_count % 2 == 0)
-                {
-                    data_[18] = 0; // TRIANGLEが奇数回押された場合、TR2を1に設定
-                }
-                
-
-                if(R1){
-                    // 射出部分。速度はSHOOTモードで選択中のカゴ(shoot_x_/shoot_y_)の
-                    // プリセット値を使う。カゴを変えれば射出速度も自動で切り替わる。
-                    const int spd = current_injection_speed();
-                    data_[1] = spd;
-                    data_[2] = spd;
-                    data_[3] = spd;
-                    RCLCPP_INFO(this->get_logger(),
-                        "射出: cell=[%d][%d](x,y) injection_speed=%d",
-                        shoot_x_, shoot_y_, spd);
-                }else{
-                    data_[1] = 0;
-                    data_[2] = 0;
-                    data_[3] = 0; // 射出部分　出力は一旦150にしておく　要調整
-                }
-                
-                if(CROSS && !last_CROSS){
-                    if(CROSS_count %2 == 0){
-                        data_[17] = 0;
-                    }
-                    else if(CROSS_count %2 == 1){
-                        data_[17] = 1;
-                    }
-                    CROSS_count++;
-                }
         }
             
         else if (shoot_mode) // シュートモード
@@ -462,9 +464,19 @@ private:
                 }
             }
 
-            // 選択セルの角度を即サーボへ反映
-            data_[9]  = kYawPreset[shoot_x_][shoot_y_];
-            data_[10] = kPitchPreset[shoot_x_][shoot_y_];
+            // カゴを選び直した瞬間だけ、そのセルのプリセット角を現在角へ代入する。
+            // 毎回代入すると走行モードでやった微調整がここで巻き戻ってしまうため、
+            // カーソルが動いた時だけにする(GUI指定 /manual/basket も同じ扱い)。
+            if (shoot_x_ != last_cursor_x_ || shoot_y_ != last_cursor_y_) {
+                yaw_deg_   = kYawPreset[shoot_x_][shoot_y_];
+                pitch_deg_ = kPitchPreset[shoot_x_][shoot_y_];
+                last_cursor_x_ = shoot_x_;
+                last_cursor_y_ = shoot_y_;
+            }
+
+            // ホッパーのエアシリンダー(L1/CROSS)、リロード(TRIANGLE)、射出(R1)。
+            // 捕獲モードと同じ割当・同じカウンタなので、モードを跨いでも状態が食い違わない。
+            hopper_and_shoot();
 
             last_LEFT = LEFT;
             last_RIGHT = RIGHT;
@@ -472,9 +484,14 @@ private:
             last_DOWN = DOWN;
 
             RCLCPP_INFO(this->get_logger(),
-                "shoot_mode cursor=[%d][%d](x,y) yaw(data[9])=%d pitch(data[10])=%d injection_speed=%d",
-                shoot_x_, shoot_y_, data_[9], data_[10], current_injection_speed());
+                "shoot_mode cursor=[%d][%d](x,y) yaw=%d pitch=%d injection_speed=%d",
+                shoot_x_, shoot_y_, yaw_deg_, pitch_deg_, current_injection_speed());
         }
+
+        // 照準サーボへの反映はここ1箇所だけ。モードごとに書いたり書かなかったりすると
+        // モード切替のたびに角度が飛ぶので、全モード共通で最後にまとめて入れる。
+        data_[9]  = yaw_deg_;
+        data_[10] = pitch_deg_;
 
         RCLCPP_INFO(this->get_logger(), 
         "data[1,2,3]: %d,%d,%d data_[18,19]: %d, %d. data[11]: %d. data[17]: %d. data[4]: %d",data_[1], data_[2], data_[3], data_[18], data_[19], data_[11], data_[17], data_[4]); // 装填機構のモーターの速度とハンドアームのワークを掴む機構の開閉を表示
@@ -548,11 +565,16 @@ private:
         }
         shoot_x_ = kBasketCellXy[idx][0];
         shoot_y_ = kBasketCellXy[idx][1];
-        data_[9]  = kYawPreset[shoot_x_][shoot_y_];
-        data_[10] = kPitchPreset[shoot_x_][shoot_y_];
+        // 現在角へプリセットを代入し、カーソル位置も同期する(ps4側で二重に代入しないため)。
+        yaw_deg_   = kYawPreset[shoot_x_][shoot_y_];
+        pitch_deg_ = kPitchPreset[shoot_x_][shoot_y_];
+        last_cursor_x_ = shoot_x_;
+        last_cursor_y_ = shoot_y_;
+        data_[9]  = yaw_deg_;
+        data_[10] = pitch_deg_;
         RCLCPP_INFO(this->get_logger(),
             "/manual/basket: cell=%d -> [%d][%d](x,y) yaw=%d pitch=%d injection_speed=%d",
-            idx, shoot_x_, shoot_y_, data_[9], data_[10], current_injection_speed());
+            idx, shoot_x_, shoot_y_, yaw_deg_, pitch_deg_, current_injection_speed());
     }
 
     // publish
@@ -645,6 +667,19 @@ private:
     // 起動時は [0][2] から開始。dpadとGUIカゴ指定で共有。
     int shoot_x_ = 0;
     int shoot_y_ = 2;
+
+    // 照準サーボの現在角。yaw=data_[9], pitch=data_[10] に毎周期そのまま入る。
+    // 「今どこを向いているか」を持つのはこの2つだけ(射出モードや走行モードは持たない)。
+    //   射出モード : カゴを選んだ瞬間だけプリセット角を代入する
+    //   走行モード : 十字キーで ±3度ずつ微調整する
+    //   モード切替 : 誰も書かないので角度はそのまま残る
+    int yaw_deg_ = 0;     // 0〜270度
+    int pitch_deg_ = 270; // 90〜270度
+
+    // プリセット代入を「カゴを選び直した瞬間」だけにするための前回カーソル位置。
+    // -1 始まりなので、射出モードに最初に入った時は必ず一度プリセットが入る。
+    int last_cursor_x_ = -1;
+    int last_cursor_y_ = -1;
 
     bool auto_collect_active_ = false;
     bool auto_collect_abort_ = false;

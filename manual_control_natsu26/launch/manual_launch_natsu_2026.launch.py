@@ -30,7 +30,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "deadzone": 0.05,
-                "autorepeat_rate": 0.0,
+                "autorepeat_rate": 20.0,
             }],
             condition=IfCondition(use_joy),
         ),
