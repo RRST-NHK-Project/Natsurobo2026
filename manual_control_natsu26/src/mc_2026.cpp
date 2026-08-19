@@ -332,9 +332,9 @@ private:
             {
                 pitch_state = pitch_state - 3;
 
-                if (pitch_state < 120)
+                if (pitch_state < 90)
                 {
-                    pitch_state = 120; // 下限角度は要調整
+                    pitch_state = 90; // 下限角度は要調整
                 }
             }
 
@@ -404,6 +404,7 @@ private:
                 
 
                 if(R1){
+<<<<<<< HEAD
                     // 射出部分。速度はSHOOTモードで選択中のカゴ(shoot_x_/shoot_y_)の
                     // プリセット値を使う。カゴを変えれば射出速度も自動で切り替わる。
                     const int spd = current_injection_speed();
@@ -413,11 +414,18 @@ private:
                     RCLCPP_INFO(this->get_logger(),
                         "射出: cell=[%d][%d](x,y) injection_speed=%d",
                         shoot_x_, shoot_y_, spd);
+=======
+
+                    data_[1] = -injection_speed;
+                    data_[2] = injection_speed;
+                    data_[3] = injection_speed; // 射出部分　出力は一旦150にしておく　要調整
+>>>>>>> 011ed4b (プログラムの調整)
                 }else{
                     data_[1] = 0;
                     data_[2] = 0;
                     data_[3] = 0; // 射出部分　出力は一旦150にしておく　要調整
                 }
+                
                 if(CROSS && !last_CROSS){
                     if(CROSS_count %2 == 0){
                         data_[17] = 0;
@@ -655,6 +663,10 @@ private:
     int SQUARE_count = 0; 
     int CIRCLE_count = 0;
 
+<<<<<<< HEAD
+=======
+    int injection_speed = 125; // 射出速度(おそらく上のMDの値の範囲間違ってる。普通に-255~255で制御),実際に試してみると全部負の値で射出できた
+>>>>>>> 011ed4b (プログラムの調整)
 
     #if defined(MODE_BLDC)
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cmd_pub_;
