@@ -61,31 +61,37 @@ std::atomic<int> g_mode_count{0};
 
 // =================================================================
 // SHOOTモード用: カゴ照準プリセット(仮値)
-//   3x3グリッド(H字型, 欠番=[0][1],[2][1])の各セルに yaw/pitch を割り当てる。
-//   参照は [y][x]。欠番セルの値は未使用。
-//     (0,0) [欠] (0,2)
-//     (1,0) (1,1) (1,2)
-//     (2,0) [欠] (2,2)
+//   3x3グリッド(H字型, 欠番=[1][0],[1][2])の各セルに yaw/pitch を割り当てる。
+//   参照は [x][y](カーソル shoot_x_/shoot_y_ とそのままの順)。欠番セルの値は未使用。
+//   x=横方向(ヨー), y=縦方向(ピッチ)。ソース上は 1行=1つのx列。
+//            y=0    y=1    y=2
+//     x=0  (0,0)  (0,1)  (0,2)
+//     x=1  [欠]   (1,1)  [欠]
+//     x=2  (2,0)  (2,1)  (2,2)   ← 起動時のカーソルは [0][2]
 // =================================================================
 // ヨー角
 static const int kYawPreset[3][3] = {
-    { 45,   0, 225}, // 行0: [0][1]は欠番
-    { 90, 135, 180}, // 行1
-    {100,   0, 200}, // 行2: [2][1]は欠番
+    { 45,  90, 100}, // x=0列
+    {  0, 135,   0}, // x=1列: [1][0],[1][2]は欠番
+    {225, 180, 200}, // x=2列: [0][2]が初期位置
 };
 
 // ピッチ角
 static const int kPitchPreset[3][3] = {
-    {200,   0, 200}, // 行0
-    {160, 160, 160}, // 行1
-    {120,   0, 120}, // 行2
+    {200, 160, 120}, // x=0列
+    {  0, 160,   0}, // x=1列: [1][0],[1][2]は欠番
+    {200, 160, 120}, // x=2列: [0][2]が初期位置
 };
 
-// GUIから /manual/basket で届くセル番号(0〜6) → (x,y)。
-// 有効セルのみを読み順に並べたもの。GUI(CAGE_DEFS)側の番号と対応させること。
-//   0:G0(0,0) 1:G1(2,0) 2:B0(0,1) 3:B1(1,1) 4:B2(2,1) 5:B3(0,2) 6:B4(2,2)  ※対応は仮
+// GUIカゴ対応テーブル (0,1が緑カゴ、2〜6が青カゴ)
 static const int kBasketCellXy[7][2] = {
-    {0, 0}, {2, 0}, {0, 1}, {1, 1}, {2, 1}, {0, 2}, {2, 2},
+    {0, 0}, // G0 (手前左・緑)
+    {2, 2}, // G1 (奥右・緑)
+    {0, 1}, // B0 (中央左・青)
+    {1, 1}, // B1 (中央・青)
+    {2, 1}, // B2 (中央右・青)
+    {2, 0}, // B3 (手前右・青)
+    {0, 2}, // B4 (奥左・青)
 };
 
 // =================================================================
@@ -412,9 +418,11 @@ private:
             RCLCPP_INFO(this->get_logger(),
                                  "Now, you are on Mode:Shoot.");
 
-            //   (0,0) [欠] (0,2)
-            //   (1,0) (1,1) (1,2)
-            //   (2,0) [欠] (2,2)
+            //   参照は [x][y]。
+            //          y=0    y=1    y=2
+            //   x=0  (0,0)  (0,1)  (0,2)
+            //   x=1  [欠]   (1,1)  [欠]
+            //   x=2  (2,0)  (2,1)  (2,2)
             //   ※[1][1]は横方向のみ通過可(縦移動は不可)
             //   90度回転した工の字をイメージしてください。
             //   カーソル位置 shoot_x_/shoot_y_ はメンバ変数。dpad(このコールバック)と
@@ -425,25 +433,25 @@ private:
             // 左右入力(押した瞬間のみ1マス): RIGHT=x+1, LEFT=x-1
             if ((RIGHT && !last_RIGHT) || (LEFT && !last_LEFT)) {
                 int nx = std::clamp(shoot_x_ + (RIGHT ? 1 : -1), 0, 2);
-                // 移動先が欠番([0][1],[2][1])でなければ確定
+                // 移動先が欠番([1][0],[1][2])でなければ確定
                 if (!(nx == 1 && (shoot_y_ == 0 || shoot_y_ == 2))) shoot_x_ = nx;
                 // 欠番なら動かない(中央行[1][*]は列1も含めて自由)
             }
 
-            // 上下入力(押した瞬間のみ1マス): DOWN=y+1, UP=y-1
-            if ((DOWN && !last_DOWN) || (UP && !last_UP)) {
+            // 十字キー上下入力: UP=奥(y+1), DOWN=手前(y-1)
+            if ((UP && !last_UP) || (DOWN && !last_DOWN)) {
                 if (shoot_y_ == 1) {
-                    // 中央行: 列0,2はそのまま縦移動、列1([1][1])は欠番方向なので何もしない
-                    if (shoot_x_ != 1) shoot_y_ = std::clamp(shoot_y_ + (DOWN ? 1 : -1), 0, 2);
+                    // 中央行: x=1(中央カゴ)からは上下の欠番へ行けないため、x!=1 のみ縦移動
+                    if (shoot_x_ != 1) shoot_y_ = std::clamp(shoot_y_ + (UP ? 1 : -1), 0, 2);
                 } else {
-                    // 行0 or 行2 → 中央行へ
+                    // y=0(手前) または y=2(奥) からは中央行(y=1)へ戻る
                     shoot_y_ = 1;
                 }
             }
 
             // 選択セルの角度を即サーボへ反映
-            data_[9]  = kYawPreset[shoot_y_][shoot_x_];
-            data_[10] = kPitchPreset[shoot_y_][shoot_x_];
+            data_[9]  = kYawPreset[shoot_x_][shoot_y_];
+            data_[10] = kPitchPreset[shoot_x_][shoot_y_];
 
             last_LEFT = LEFT;
             last_RIGHT = RIGHT;
@@ -451,7 +459,7 @@ private:
             last_DOWN = DOWN;
 
             RCLCPP_INFO(this->get_logger(),
-                "shoot_mode cursor=(x%d,y%d) yaw(data[9])=%d pitch(data[10])=%d",
+                "shoot_mode cursor=[%d][%d](x,y) yaw(data[9])=%d pitch(data[10])=%d",
                 shoot_x_, shoot_y_, data_[9], data_[10]);
         }
 
@@ -520,10 +528,10 @@ private:
         }
         shoot_x_ = kBasketCellXy[idx][0];
         shoot_y_ = kBasketCellXy[idx][1];
-        data_[9]  = kYawPreset[shoot_y_][shoot_x_];
-        data_[10] = kPitchPreset[shoot_y_][shoot_x_];
+        data_[9]  = kYawPreset[shoot_x_][shoot_y_];
+        data_[10] = kPitchPreset[shoot_x_][shoot_y_];
         RCLCPP_INFO(this->get_logger(),
-            "/manual/basket: cell=%d -> (x%d,y%d) yaw=%d pitch=%d",
+            "/manual/basket: cell=%d -> [%d][%d](x,y) yaw=%d pitch=%d",
             idx, shoot_x_, shoot_y_, data_[9], data_[10]);
     }
 
@@ -614,9 +622,10 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr basket_sub_; // /manual/basket (GUIカゴ指定)
 
-    // SHOOTモードのカーソル位置([2][0]から開始)。dpadとGUIカゴ指定で共有。
-    int shoot_x_ = 2;
-    int shoot_y_ = 0;
+    // SHOOTモードのカーソル位置。プリセット参照は kYawPreset[shoot_x_][shoot_y_] で、
+    // 起動時は [0][2] から開始。dpadとGUIカゴ指定で共有。
+    int shoot_x_ = 0;
+    int shoot_y_ = 2;
 
     bool auto_collect_active_ = false;
     bool auto_collect_abort_ = false;

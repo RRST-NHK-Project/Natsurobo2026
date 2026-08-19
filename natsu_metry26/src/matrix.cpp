@@ -294,7 +294,7 @@ geometry_msgs::msg::Vector3 matrix::to_vector3() const
   {
     v.x = vec[0][0];
     v.y = vec[1][0];
-    v.z = vec[2][0];
+    v.z = vec[0][2];
   }
   else if (vec.size() == 1 && vec[0].size() == 3)
   {
@@ -311,7 +311,7 @@ geometry_msgs::msg::Point matrix::to_point() const
   {
     p.x = vec[0][0];
     p.y = vec[1][0];
-    p.z = vec[2][0];
+    p.z = vec[0][2];
   }
   else if (vec.size() == 1 && vec[0].size() == 3)
   {
