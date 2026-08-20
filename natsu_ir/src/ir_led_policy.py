@@ -6,7 +6,7 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
 LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
 
     /manual/mode, ir/tairyo, ... --(このノードで判断)--> ir/led_color (RGB565)
-        --(manual_charge/charge_node が data_[9] に載せる)--> serial_tx_4 --> ID=4 MCU --> WS2812B
+        --(charge_node が data_[9]〜data_[12] に載せる)--> serial_tx_4 --> ID=4 MCU --> WS2812B
 
 今の表示仕様:
   操作モード表示 (manual_control_natsu26 が走っている間) /manual/mode の中身で色を変える
@@ -31,9 +31,10 @@ LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
   このノードは serial_tx_4 に直接 publish しない。serial_bridge は publish のたびに
   24スロット全部をマイコンへ送る(部分更新できない)ため、serial_tx_4 に複数ノードが
   publish すると互いのスロットを潰し合う。ID=4 は manual_charge/charge_node が
-  50Hz で publish しているので、そちらに色だけ渡し、data_[9] に載せてもらう。
-  実際に光らせるには、ID=4 ファーム側に「Rx_16Data[9] を RGB565 色として読み LED を出す」
-  処理が必要(Rx_16Data[9] は標準 esp32_serial_bridge ファームでは SERVO1 の枠)。
+  50Hz で publish しているので、そちらに色だけ渡し、data_[9]〜data_[12] に載せてもらう。
+  LED は4本あり、4本とも同じ色なので同じ値が4スロットに入る。
+  実際に光らせるには、ID=4 ファーム側に「Rx_16Data[9]〜[12] を RGB565 色として読み LED を出す」
+  処理が必要(Rx_16Data[9]〜[12] は標準 esp32_serial_bridge ファームでは SERVO1〜SERVO4 の枠)。
 
 購読:
   /manual/mode std_msgs/String   操作モード("DRIVE"/"GET_EEL"/"SHOOT")。色に対応させる。
@@ -46,7 +47,7 @@ LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
 
 publish:
   ir/led_color std_msgs/Int16   RGB565 を int16 に畳んだ値。色が変わった時だけ送る。
-                                charge_node がこれを serial_tx_4.data[9] に載せる。
+                                charge_node がこれを serial_tx_4.data[9]〜[12] に載せる。
 """
 
 import colorsys

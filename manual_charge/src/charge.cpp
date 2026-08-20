@@ -22,7 +22,7 @@
 
 #define PUBLISH_RATE_MS 20 // publish周期(ms), 短くしすぎるとマイコンが処理しきれなくなるので注意
 
-#define LED_SLOT 9 // LED用のスロット
+#define LED_SLOT 9 // LED用のスロット先頭。data_[9]〜data_[12] の4本ぶん使う
  
 // 使用するモーターの選択
 #define MODE_MABUCHI
@@ -93,7 +93,8 @@ private:
   void led_callback(const std_msgs::msg::Int16::SharedPtr msg)
   {
 
-    data_[LED_SLOT] = msg->data;
+    // LED4本とも同じ色
+    for (int i = 0; i < 4; i++) data_[LED_SLOT + i] = msg->data;
   }
 
   void timer_callback()
