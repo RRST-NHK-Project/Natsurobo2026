@@ -17,6 +17,7 @@ LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
     片方を変えたらもう片方も変えること。
   大漁時                                          虹色(色相が2.5秒で一周)
   エラー時 (IRリンク断)                           赤のゆっくり点滅
+    大漁とエラーが重なった時は大漁(虹色)を優先する。理由は下の LAYERS のコメント参照。
   上記いずれでもない (manual 未起動など)          消灯
 
 色の送り方 (RGB565, int16 1個):
@@ -40,7 +41,9 @@ LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
   /manual/mode std_msgs/String   操作モード("DRIVE"/"GET_EEL"/"SHOOT")。色に対応させる。
                                  同時に生存信号でもあり、50Hz で出続けるので途切れたら
                                  「走っていない」と判定して消灯する。
-  ir/link_ok   std_msgs/Bool     false のときエラー(赤のゆっくり点滅)で最優先に上書き。ラッチ受信。
+  ir/link_ok   std_msgs/Bool     false のときエラー(赤のゆっくり点滅)で上書き。ラッチ受信。
+                                 大漁中は大漁が優先される(ir_node は状態変化時しか publish
+                                 しないので、一度 false になると永久に残り続けるため)。
   ir/tairyo    std_msgs/Bool     true のとき大漁色(虹色)で上書き。ラッチ受信。
   /manual/tairyo std_msgs/Bool   操縦者がPS4のL3+R3同時押しで出す大漁宣言。同じく虹色。
                                  ラッチ受信。mc_2026 が publish する。
@@ -99,7 +102,7 @@ def hex_rgb(code: str) -> "RGB":
 MODE_COLORS = {
     "DRIVE":   (88, 166, 255),   # #58a6ff 走行モード(青)
     "GET_EEL": (63, 185, 80),    # #3fb950 捕獲モード(緑)
-    "SHOOT":   (240, 136, 62),   # #f0883e 射出モード(橙)
+    "SHOOT":   (225, 225, 0),   # #f0883e 射出モード(黃)
 }
 
 # IRリンク断のエラー色(赤)。点滅の速さは ERROR_BLINK_HZ。
@@ -163,6 +166,11 @@ class Layer:
     # 最後の受信からこの秒数を過ぎたら層を無効にする。0 なら期限なし(ラッチ向け)。
     # 「そのトピックが今も流れているか」を条件にしたい層で使う。
     timeout: float = 0.0
+    # 購読QoSをラッチ(TRANSIENT_LOCAL)にするか。publish側がラッチで流していて、
+    # かつ「状態が変わった時しか publish しない」トピックは必ず True にする。
+    # False(既定)だと、このノードが後から起動した時に最後の値を取りこぼし、
+    # 次に状態が変わるまでその層が永久に非アクティブのままになる。
+    latched: bool = False
 
 
 def _mode_style(msg: String) -> Optional[Style]:
@@ -172,19 +180,29 @@ def _mode_style(msg: String) -> Optional[Style]:
 
 
 # priority で比較するので並び順は自由。同じトピックを複数層で使ってもよい。
+#
+# 優先度の考え方(上ほど強い):
+#   120 大漁(手動宣言)  審判に見せる合図。試合を決めるので何にも潰されてはいけない
+#   110 大漁(IR受信)    同上
+#   100 エラー(IRリンク断)  大漁中は隠れる。IRリンクの状態は端末ログとGUIでも見えるため
+#     0 操作モード色     ベース
+#
+# 大漁をエラーより上に置いてあるのは意図的。ir/link_ok は「状態が変わった時だけ」
+# publish されるラッチなので、IR基板のHBが一度途切れると false が永久に残り続ける。
+# エラーを最優先のままにすると、その後どれだけ大漁を宣言しても赤点滅に潰される。
 LAYERS = [
-    # エラー -- 最優先。IRリンク断のあいだ赤のゆっくり点滅。
+    # エラー -- IRリンク断のあいだ赤のゆっくり点滅。大漁中だけは大漁が優先される。
     Layer("link_lost", "ir/link_ok", Bool,
           lambda m: Style(ERROR, blink_hz=ERROR_BLINK_HZ) if not m.data else None,
-          priority=100),
+          priority=100, latched=True),
 
-    # 大漁 -- 中優先。虹色(色相が回る)。走行モードの青と紛れないよう単色にはしない。
+    # 大漁(IR受信) -- 虹色(色相が回る)。走行モードの青と紛れないよう単色にはしない。
     # ir/tairyo はラッチなので、一度 true になると次の確定コードが来るまで虹色のまま。
     # 「大漁を数秒だけ光らせる」にしたければ timeout=3.0 などを足す。
     # 単色(青)に戻すなら Style(TAIRYO) にする。
     Layer("tairyo", "ir/tairyo", Bool,
           lambda m: Style(rainbow_hz=TAIRYO_RAINBOW_HZ) if m.data else None,
-          priority=50),
+          priority=110, latched=True),
 
     # 大漁(手動宣言) -- 操縦者が PS4 の L3+R3 同時押しで出す合図。mc_2026 が
     # /manual/tairyo にラッチで流す。IR受信由来の ir/tairyo と見た目は同じ虹色だが、
@@ -192,7 +210,7 @@ LAYERS = [
     # もう一度 L3+R3 を押せば false が来て、下のモード色に戻る。
     Layer("tairyo_manual", "/manual/tairyo", Bool,
           lambda m: Style(rainbow_hz=TAIRYO_RAINBOW_HZ) if m.data else None,
-          priority=51),
+          priority=120, latched=True),
 
     # 通常 -- ベース。manual_control_natsu26 が走っているあいだ、操作モードの色。
     # /manual/mode は mc_2026 が 20ms 周期で出し続けるので、生存信号も兼ねる。
@@ -218,7 +236,8 @@ def to_rgb565(color: RGB) -> int:
 
 
 def latched_qos():
-    # ir_node 側のラッチ publish を取りこぼさないよう TRANSIENT_LOCAL で購読。
+    # publish側のラッチ(TRANSIENT_LOCAL)を取りこぼさないための購読QoS。
+    # ir_node の ir/* と mc_2026 の /manual/tairyo が該当する。
     return QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
@@ -231,12 +250,15 @@ class IrLedPolicy(Node):
         self.last_val = None      # 直近に送った RGB565 値。重複送信を抑制
 
         # 層が使うトピックを重複なく購読する(同じトピックを複数層が使ってもOK)。
+        # ラッチで購読するかは Layer.latched で決める。同じトピックを複数の層が使い、
+        # 片方だけ latched=True の場合はラッチ側に寄せる(取りこぼす方が害が大きい)。
+        latched_topics = {lyr.topic for lyr in LAYERS if lyr.latched}
         seen = set()
         for lyr in LAYERS:
             if lyr.topic in seen:
                 continue
             seen.add(lyr.topic)
-            qos = latched_qos() if lyr.topic.startswith("ir/") else 10
+            qos = latched_qos() if lyr.topic in latched_topics else 10
             self.create_subscription(
                 lyr.msg_type, lyr.topic,
                 lambda m, t=lyr.topic: self.on_msg(t, m),
