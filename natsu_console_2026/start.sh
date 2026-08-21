@@ -20,13 +20,13 @@ BRIDGE_PID=""
 CONSOLE_BACKEND_PORT="${CONSOLE_BACKEND_PORT:-3031}"
 BACKEND_PID=""
 
-# センサを sensor_supervisor 経由でGUIと一緒に起動する。
-# supervisor が lidar/IMU のポートを自動検知し、データ停止時は自動復旧する。
-# START_SENSORS=0 で無効化、SENSOR_USE_IMU=false でIMUを起動しない、
-# SENSOR_USE_RVIZ=false で RViz(点群表示)を出さない。
-# LiDARとIMUは基本的に常時接続しているのでIMUもデフォルトで起動する。
-# IMU未接続で試すときだけ SENSOR_USE_IMU=false を渡す。
-START_SENSORS="${START_SENSORS:-1}"
+# センサ(LiDAR/IMU)を sensor_supervisor 経由で起動する。
+# 2026-08-21以降、機体はLiDAR/IMUを使わないので既定はOFF。
+# 使う時だけ START_SENSORS=1 ./start.sh で起動する
+# (SENSOR_USE_IMU=false でIMUだけ外す、SENSOR_USE_RVIZ=false でRVizを出さない)。
+# センサを使うGUIのページ(自己位置マップ/壁面推定/カゴ位置姿勢推定)は
+# src/archive/ へ退避済み。戻し方は src/archive/README.md を参照。
+START_SENSORS="${START_SENSORS:-0}"
 SENSOR_USE_IMU="${SENSOR_USE_IMU:-true}"
 SENSOR_USE_RVIZ="${SENSOR_USE_RVIZ:-true}"
 SENSOR_PID=""
@@ -118,11 +118,10 @@ if [ "${START_SENSORS}" = "1" ]; then
     # ここで exit せず警告だけ出して続行する。
     echo "⚠ センサノードの起動に失敗しました。ログ: /tmp/r2_console_sensors.log"
     echo "  センサ無しのままGUIを起動します (センサ表示は出ません)。"
-    echo "  最初からセンサを起動しない場合は START_SENSORS=0 ./start.sh"
     SENSOR_PID=""
   fi
 else
-  echo "センサノードの起動はスキップします (START_SENSORS=0)"
+  echo "センサ(LiDAR/IMU)は起動しません (使う場合は START_SENSORS=1 ./start.sh)"
 fi
 
 if command -v node >/dev/null 2>&1; then

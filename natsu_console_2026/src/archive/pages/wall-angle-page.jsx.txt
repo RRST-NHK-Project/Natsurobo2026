@@ -1,0 +1,194 @@
+// 壁面推定 (wall-angle) ページの JSX。
+// natsu_console_2026/src/App.js の renderページ部から 2026-08-21 に切り出したもの。
+// このファイルはビルドされない(拡張子 .txt / どこからも import されていない)。
+// 戻すときは App.js の pageOrder / getPageLabel にページ名を戻し、この塊を
+// 他のページブロックと同じ位置に貼り、../app-support-code.js.txt にある
+// state / ref / 購読 / クリーンアップも一緒に戻すこと。
+
+          {isPageActive("wall-angle") && (
+            <section className="pose-panel">
+              <h2 className="serial-packet-title">{tr("壁面推定の図示", "Wall Surface Estimation Visualization")}</h2>
+              <p className="serial-packet-hint">
+                {tr(
+                  "wall_detection の角度トピックを購読して、現在の壁面推定結果をゲージ表示します。",
+                  "Subscribes to wall_detection angle topic and displays current wall surface estimation as a gauge."
+                )}
+              </p>
+
+              <section className="joy-topic-row">
+                <input
+                  className="connection-input"
+                  value={wallAngleTopicInput}
+                  onChange={(e) => setWallAngleTopicInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") applyWallAngleTopicName();
+                  }}
+                  placeholder="/wall_detection/angle"
+                />
+                <button className="connection-button btn-connect" onClick={applyWallAngleTopicName}>
+                  {tr("更新", "Apply")}
+                </button>
+              </section>
+
+              <p className="connection-hint">{tr("現在の購読トピック:", "Current topic:")} {wallAngleTopicName}</p>
+
+              <div className="pose-overview-grid">
+                <section className="pose-graph-card">
+                  <div className="pose-graph-title-row">
+                    <h3 className="pose-graph-title">{tr("壁面推定グラフ", "Wall Surface Estimation Graph")}</h3>
+                    <span className="pose-graph-scale">{tr("単位: m", "Unit: m")}</span>
+                  </div>
+                  <svg
+                    className="wall-angle-graph"
+                    viewBox={`0 0 ${wallGraphWidth} ${wallGraphHeight}`}
+                    role="img"
+                    aria-label={tr("壁面推定グラフ", "Wall surface estimation graph")}
+                    style={{ backgroundColor: "#0d1117" }}
+                  >
+                    {/* Background */}
+                    <rect
+                      x="0"
+                      y="0"
+                      width={wallGraphWidth}
+                      height={wallGraphHeight}
+                      fill="#0d1117"
+                      stroke="none"
+                    />
+
+                    {/* Grid lines */}
+                    {wallGridXValues.map((xVal) => (
+                      <line
+                        key={`wall-grid-x-${xVal}`}
+                        x1={toWallGraphX(xVal)}
+                        y1={wallGraphPadding}
+                        x2={toWallGraphX(xVal)}
+                        y2={wallGraphHeight - wallGraphPadding}
+                        stroke="rgba(255,255,255,0.10)"
+                        strokeWidth="1"
+                        strokeDasharray="2,2"
+                      />
+                    ))}
+                    {wallGridYValues.map((yVal) => (
+                      <line
+                        key={`wall-grid-y-${yVal}`}
+                        x1={wallGraphPadding}
+                        y1={toWallGraphY(yVal)}
+                        x2={wallGraphWidth - wallGraphPadding}
+                        y2={toWallGraphY(yVal)}
+                        stroke="rgba(255,255,255,0.10)"
+                        strokeWidth="1"
+                        strokeDasharray="2,2"
+                      />
+                    ))}
+
+                    {/* Axis lines */}
+                    {wallAxisXVisible && (
+                      <line
+                        x1={wallGraphPadding}
+                        y1={toWallGraphY(0)}
+                        x2={wallGraphWidth - wallGraphPadding}
+                        y2={toWallGraphY(0)}
+                        stroke="rgba(255,255,255,0.4)"
+                        strokeWidth="1.5"
+                      />
+                    )}
+                    {wallAxisYVisible && (
+                      <line
+                        x1={toWallGraphX(0)}
+                        y1={wallGraphPadding}
+                        x2={toWallGraphX(0)}
+                        y2={wallGraphHeight - wallGraphPadding}
+                        stroke="rgba(255,255,255,0.4)"
+                        strokeWidth="1.5"
+                      />
+                    )}
+
+                    {/* RANSAC line */}
+                    {ransacLinePoint1 && ransacLinePoint2 && (
+                      <line
+                        x1={toWallGraphX(ransacLinePoint1.x)}
+                        y1={toWallGraphY(ransacLinePoint1.y)}
+                        x2={toWallGraphX(ransacLinePoint2.x)}
+                        y2={toWallGraphY(ransacLinePoint2.y)}
+                        stroke="#e63946"
+                        strokeWidth="2.5"
+                      />
+                    )}
+
+                    {/* Filtered points */}
+                    {wallFilteredPoints.map((point, idx) => {
+                      const rotatedPoint = { x: -point.y, y: point.x };
+                      const isInlier =
+                        wallRansacParams && wallRansacParams.a !== 0 && wallRansacParams.b !== 0 &&
+                        Math.abs(
+                          wallRansacParams.a * point.x +
+                          wallRansacParams.b * point.y +
+                          wallRansacParams.c
+                        ) < 0.1;
+
+                      return (
+                        <circle
+                          key={`wall-point-${idx}`}
+                          cx={toWallGraphX(rotatedPoint.x)}
+                          cy={toWallGraphY(rotatedPoint.y)}
+                          r="3"
+                          fill={isInlier ? "rgba(255, 100, 100, 0.9)" : "rgba(100, 150, 255, 0.8)"}
+                          stroke={isInlier ? "#c81414" : "#0064c8"}
+                          strokeWidth="1"
+                        />
+                      );
+                    })}
+
+                    {/* Graph border */}
+                    <rect
+                      x={wallGraphPadding}
+                      y={wallGraphPadding}
+                      width={wallGraphInnerWidth}
+                      height={wallGraphInnerHeight}
+                      stroke="rgba(255,255,255,0.25)"
+                      strokeWidth="1.5"
+                      fill="none"
+                    />
+                  </svg>
+                </section>
+
+                <section className="pose-detail-panel">
+                  <h3 className="pose-detail-title">{tr("壁面推定情報", "Wall Surface Estimation Info")}</h3>
+                  <div className="pose-current-grid">
+                    <div className="pose-current-item">
+                      <span>{tr("角度 [rad]", "Angle [rad]")}</span>
+                      <strong>{wallAngleRad.toFixed(4)}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("角度 [deg]", "Angle [deg]")}</span>
+                      <strong>{wallAngleDeg.toFixed(2)}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("検出点数", "Detected Points")}</span>
+                      <strong>{wallFilteredPoints.length}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("インライア数", "Inliers")}</span>
+                      <strong>{wallRansacParams?.inliers || 0} / {wallRansacParams?.total || 0}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("直線係数 a", "Line Param a")}</span>
+                      <strong>{wallRansacParams?.a?.toFixed(4) || "0.0000"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("直線係数 b", "Line Param b")}</span>
+                      <strong>{wallRansacParams?.b?.toFixed(4) || "0.0000"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("直線係数 c", "Line Param c")}</span>
+                      <strong>{wallRansacParams?.c?.toFixed(4) || "0.0000"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("更新時刻", "Updated")}</span>
+                      <strong>{wallAngleUpdatedAt || "-"}</strong>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+          )}

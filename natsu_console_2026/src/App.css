@@ -23,7 +23,8 @@
 
 .console-page {
   position: relative;
-  height: 100vh;
+  height: 100vh;  /* dvh非対応ブラウザ向けフォールバック */
+  height: 100dvh; /* スマホのURLバー分を含んだ実際の表示高さ */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -101,6 +102,7 @@
   width: 100vw;
   max-width: 100%;
   height: 100vh;
+  height: 100dvh;
   border-radius: 0;
   background: linear-gradient(135deg, #0d2438 0%, #1a3a52 100%);
   padding: 24px;
@@ -626,7 +628,8 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+  /* min() で画面幅を上限にする。これが無いと狭い画面で520pxを要求して横にはみ出す */
+  grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr));
   gap: 10px;
   align-items: start;
   align-content: start;
@@ -3835,6 +3838,7 @@
 
 .game-page-wrap {
   height: calc(100vh - 220px);
+  height: calc(100dvh - 220px);
   min-height: 520px;
   border-radius: 14px;
   overflow: hidden;
@@ -4001,6 +4005,7 @@
 .motion-sim-frame-wrap {
   width: 100%;
   height: calc(100vh - 230px);
+  height: calc(100dvh - 230px);
   min-height: 560px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -4014,4 +4019,67 @@
   height: 100%;
   border: 0;
   display: block;
+}
+
+/* ===================================================================
+   スマホ・タブレット縦向け: 入れ子スクロールをやめる
+   ===================================================================
+   PC向けの元のレイアウトは
+     .console-page(100vh, overflow:hidden)
+       └ .console-card(overflow:hidden)
+          └ .page-layout(overflow:hidden)
+             └ .active-pages-grid(overflow-y:auto) ← ここだけがスクロールする
+   という「1画面に収める」構造になっている。これがスマホだと
+     - ドキュメントがスクロールしないのでURLバーが引っ込まず、その分だけ
+       画面外にはみ出した部分に永久に手が届かない
+     - 端の慣性スクロール(ラバーバンド)が効かない
+     - 指の始点が内側のスクロール領域に無いと何も動かない。コントローラ画面は
+       touch-action:none のボタンで埋まっているので、ほぼどこを触っても動かない
+   という状態になる。
+   そこで狭い画面では overflow の封じを全部外し、ページ全体が普通に縦スクロール
+   する形に戻す。ボタン側の touch-action:none はそのまま(押しっぱなし判定を優先)。
+   =================================================================== */
+@media (max-width: 820px) {
+  .console-page {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .console-card {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .page-layout {
+    overflow: visible;
+  }
+
+  .active-pages-grid {
+    overflow: visible;
+    grid-template-columns: 1fr;
+  }
+
+  /* 全画面操作モードも同様にページごとスクロールさせる。
+     スマホの画面にコントローラ全部は入りきらないので、切れるよりスクロールの方がまし。 */
+  .console-page-fullscreen {
+    overflow: visible;
+  }
+
+  .console-card-fullscreen,
+  .console-card-fullscreen-controller {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  /* 1画面に収める前提の固定高さも、スクロールできるので実寸で確保してよい */
+  .game-page-wrap,
+  .motion-sim-frame-wrap {
+    height: 70vh;
+    height: 70dvh;
+    min-height: 420px;
+  }
 }

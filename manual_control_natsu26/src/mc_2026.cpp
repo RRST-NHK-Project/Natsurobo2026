@@ -204,6 +204,14 @@ public:
           std::bind(&HardWareControl::BasketCallback, this,
                     std::placeholders::_1));
 
+        // GUI(コンソール)からのモード直接指定。SHAREの3巡送りだと目的のモードまで
+        // 何回押すか数える必要があって試合中に事故るので、GUIからは一発で飛べるようにする。
+        // 0=DRIVE, 1=GET_EEL, 2=SHOOT。
+        mode_set_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+          "/manual/mode_set", 10,
+          std::bind(&HardWareControl::ModeSetCallback, this,
+                    std::placeholders::_1));
+
         // 大漁(Vゴール)の合図。L3+R3同時押しでトグルし、ここから publish する。
         // ir_led_policy が拾ってLEDを虹色にする。ラッチ(TRANSIENT_LOCAL)なので
         // 後から起動したノードにも最後の状態が届く。
@@ -333,7 +341,10 @@ private:
             }
         };
         
-        static int mode_count = 0; // モード切替のカウンター
+        // モード切替のカウンター。SHARE(ここ)とGUIの直接指定(/manual/mode_set)の
+        // 両方が触るので、実体は g_mode_count 一本だけにしてある。
+        // 関数内staticにすると GUI 指定が次のjoyフレームで巻き戻るので注意。
+        int mode_count = g_mode_count.load();
         if(SHARE && !last_SHARE) // SHAREが押された瞬間にモード切替
         {
             mode_count++;
@@ -586,6 +597,34 @@ private:
         return kInjectionSpeedPreset[shoot_x_][shoot_y_];
     }
 
+    // GUIからのモード直接指定(/manual/mode_set, 0=DRIVE / 1=GET_EEL / 2=SHOOT)。
+    // SHAREの送りと同じ g_mode_count を書くので、GUIで飛んだ後にSHAREを押すと
+    // そこから続けて送られる(操縦者から見て順番が飛ばない)。
+    // 実行はjoyコールバックと同じデフォルトのコールバックグループ
+    // (MutuallyExclusive)なので、MultiThreadedExecutorでも同時には走らない。
+    void ModeSetCallback(const std_msgs::msg::Int32::SharedPtr msg)
+    {
+        const int want = msg->data;
+        if (want < 0 || want > 2) {
+            RCLCPP_WARN(this->get_logger(),
+                "/manual/mode_set: 範囲外のモード %d (0=DRIVE,1=GET_EEL,2=SHOOT)", want);
+            return;
+        }
+        const int now = g_mode_count.load() % 3;
+        if (now == want) {
+            return; // 同じモードなら何もしない(射出中の停止を挟まないため)
+        }
+        // SHAREでの切替と同じく、モードが変わる瞬間に射出モーターを必ず止める。
+        // R1を握ったまま走行モードへ飛ぶと回りっぱなしになるため。
+        data_[1] = 0;
+        data_[2] = 0;
+        data_[3] = 0;
+        g_mode_count.store(want);
+        static const char *kNames[3] = {"DRIVE", "GET_EEL", "SHOOT"};
+        RCLCPP_WARN(this->get_logger(),
+            "/manual/mode_set: %s -> %s (GUI指定)", kNames[now], kNames[want]);
+    }
+
     // GUIからのカゴ直接指定(/manual/basket, セル番号0〜6)。
     // SHOOTモード中のみ有効。カーソル(shoot_x_/shoot_y_)を該当セルへ移動し、
     // 角度を data_[9](yaw)/data_[10](pitch) に反映する(次のtimerで送信される)。
@@ -699,6 +738,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr basket_sub_; // /manual/basket (GUIカゴ指定)
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr mode_set_sub_; // /manual/mode_set (GUIモード指定)
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr tairyo_pub_; // /manual/tairyo (大漁の合図)
 
     // 大漁(Vゴール)の合図が出ているか。L3+R3の同時押しでトグルする。

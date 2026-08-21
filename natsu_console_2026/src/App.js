@@ -4,11 +4,10 @@ import "./App.css";
 import { getLocalizedText, translateRuntimeText as translateRuntimeByLanguage } from "./i18n";
 import { LANGUAGE_OPTIONS } from "./i18n";
 import appPackage from "../package.json";
-import { CageViz } from "./components/CageViz";
 import { BasketSelectPanel } from "./components/BasketSelectPanel";
 import { GamePanel } from "./components/GamePanel";
-import { OdomMap } from "./components/OdomMap";
 import { PS4ControllerPanel } from "./components/PS4ControllerPanel";
+import { ModeSelectPanel } from "./components/ModeSelectPanel";
 
 const GUI_VERSION = process.env.REACT_APP_UI_VERSION || appPackage.version || "0.0.0";
 
@@ -18,6 +17,10 @@ const PACKET_INDEX_LABELS = [
   "SERVO1", "SERVO2", "SERVO3", "SERVO4", "SERVO5", "SERVO6", "SERVO7", "SERVO8",
   "TR1", "TR2", "TR3", "TR4", "TR5", "TR6", "TR7",
 ];
+
+// GUIの仮想コントローラの publish 先。機体側 joy_mux が /joy_ps4(実機PS4)と
+// これを合成して /joy を作る。
+const DEFAULT_JOY_TOPIC = "joy_gui";
 
 const DEFAULT_PACKET_COUNT = 24;
 const SERIAL_BRIDGE_MIN_ELEMENTS = 24;
@@ -415,15 +418,14 @@ const getMffLayout = (colorCode) => {
   return MFF_LAYOUT_RED;
 };
 
-// カゴ検出トピック（cage_detection パッケージ）
-const CAGE_TOPIC_CAGES  = "/cage_detection/cages";
-const CAGE_TOPIC_TARGET = "/cage_detection/target";
-const CAGE_TOPIC_ENABLE = "/cage_detection/enable";
-
 // SHOOTモード: GUIからカゴ(セル番号0〜6)を直接指定して mc_2026 へ送る
 const MANUAL_BASKET_TOPIC = "/manual/basket";
 
-// CageViz の CAGE_DEFS と同じ並び。各カゴを mc_2026 のセル番号(0〜6)に対応させる。
+// 操作モードの直接指定 (0=DRIVE, 1=GET_EEL, 2=SHOOT)。
+// PS4のSHAREは3巡の順送りなので、GUIからは一発で飛べるようにする。
+const MANUAL_MODE_SET_TOPIC = "/manual/mode_set";
+
+// FieldMap の CAGE_DEFS と同じ並び。各カゴを mc_2026 のセル番号(0〜6)に対応させる。
 // ※角度プリセットは mc_2026 側(kBasketCellXY / kYawPreset / kPitchPreset)にあり、ここは番号のみ。
 const BASKET_SELECT_DEFS = [
   { id: "green_0", label: "G0", color: 0, cell: 0 },
@@ -524,11 +526,8 @@ function App() {
   const rosTopicTypeServiceRef = useRef(null);
   const topicEchoSubRef = useRef(null);
   const cameraSubRef = useRef(null);
-  const cageArraySubRef = useRef(null);
-  const cageTargetSubRef = useRef(null);
-  const cageEnablePubRef = useRef(null);
   const basketCmdPubRef = useRef(null);               // /manual/basket 発行(SHOOTモードのカゴ指定)
-  const wallAngleSubRef = useRef(null);
+  const modeSetPubRef = useRef(null);                 // /manual/mode_set 発行(操作モード直接指定)
   const arucoPoseSubRef = useRef(null);
   const arucoIdSubRef = useRef(null);
   const plannerRosoutSubRef = useRef(null);
@@ -542,16 +541,6 @@ function App() {
   const traceImportInputRef = useRef(null);
   const plannerConfigImportInputRef = useRef(null);
   const tracePoseRef = useRef({ x: 0, y: 0, yaw: 0 });
-  // ── 実機オドメトリ(/odom)マップ用 ──
-  const odomPoseRef = useRef({ x: 0, y: 0, yaw: 0 }); // LiDAR累積で参照する最新姿勢
-  const odomIposeRef = useRef(null);                  // 初回姿勢(ipose)=原点正規化の基準
-  const odomPathRef = useRef([]);                     // 軌跡
-  const odomMapGridRef = useRef(new Map());           // ボクセル格子(代表点) = pcmap
-  const odomNavSubRef = useRef(null);
-  const locPathRef = useRef([]);                      // ICP補正後の軌跡
-  const locPoseSubRef = useRef(null);                 // /localization/pose 購読
-  const imuSubRef = useRef(null);                     // /imu 購読 (wt901c_publisher)
-  const imuYaw0Ref = useRef(null);                    // 初回IMU yaw(起動時を方位の基準に)
   // natsu_auto FSM 連携 (/auto/*)
   const autoStartPubRef = useRef(null);               // /auto/start 発行
   const autoCollectDonePubRef = useRef(null);         // /auto/collect_done 発行
@@ -594,13 +583,10 @@ function App() {
     "controller",
     "auto",
     "pose",
-    "localization",
-    "wall-angle",
     "actuator",
     "actuator-monitor",
     "topic",
     "camera",
-    "cage-detection",
     "waypoint",
     "teaching",
     "simulator",
@@ -613,8 +599,11 @@ function App() {
   const [visiblePages, setVisiblePages] = useState(() =>
     Object.fromEntries(pageOrder.map((page) => [page, !DEFAULT_HIDDEN_PAGES.includes(page)]))
   );
-  const [joyTopicName, setJoyTopicName] = useState("joy");
-  const [joyTopicInput, setJoyTopicInput] = useState("joy");
+  // joy_mux(manual_control_natsu26/scripts/joy_mux.py)へ流す。実機PS4は /joy_ps4、
+  // GUIは /joy_gui、合成結果だけが /joy になる。ここを "joy" に戻すと実機PS4と
+  // 同じトピックへ2重publishすることになり、mc_2026 のボタンのエッジ検出が壊れる。
+  const [joyTopicName, setJoyTopicName] = useState(DEFAULT_JOY_TOPIC);
+  const [joyTopicInput, setJoyTopicInput] = useState(DEFAULT_JOY_TOPIC);
   const [virtualOdomTopicInput, setVirtualOdomTopicInput] = useState("odom_xy_yaw");
   const [virtualOdomTopicName, setVirtualOdomTopicName] = useState("odom_xy_yaw");
   const [serialTargetIdInput, setSerialTargetIdInput] = useState("1");
@@ -692,13 +681,6 @@ function App() {
   const [traceReplayLoop, setTraceReplayLoop] = useState(false);
   const [traceReplayAutoPublish, setTraceReplayAutoPublish] = useState(true);
   const [traceInfo, setTraceInfo] = useState("未開始");
-  const [odomPose, setOdomPose] = useState({ x: 0, y: 0, yaw: 0 });
-  const [odomPath, setOdomPath] = useState([]);
-  const [odomMapPoints, setOdomMapPoints] = useState([]);
-  const [odomMapLidarEnabled, setOdomMapLidarEnabled] = useState(true);
-  const [locPose, setLocPose] = useState(null);   // ICP補正後の絶対姿勢(/localization/pose)
-  const [locPath, setLocPath] = useState([]);
-  const [imuRpy, setImuRpy] = useState(null);     // IMU姿勢 {roll,pitch,yaw}[rad] (yawは起動時基準)
   // natsu_auto FSM 状態 (/auto/*)
   const [autoState, setAutoState] = useState("");         // /auto/state 現在の状態名
   const [manualMode, setManualMode] = useState("");       // /manual/mode "DRIVE"/"GET_EEL"
@@ -720,18 +702,7 @@ function App() {
   const [cameraTopicName, setCameraTopicName] = useState("/camera/image_raw");
   const [cameraStreamRunning, setCameraStreamRunning] = useState(false);
   const [cameraStreamInfo, setCameraStreamInfo] = useState("未開始");
-  // ── カゴ位置・姿勢推定 ───────────────────────────
-  const [cages, setCages] = useState([]);
-  const [cageTarget, setCageTarget] = useState(null);
-  const [cageEnabled, setCageEnabled] = useState(true);
   const [selectedBasketCell, setSelectedBasketCell] = useState(null); // SHOOTモードで選択中のカゴ(セル番号)
-  const [cageUpdatedAt, setCageUpdatedAt] = useState("");
-  const [wallAngleTopicInput, setWallAngleTopicInput] = useState("/wall_detection/angle");
-  const [wallAngleTopicName, setWallAngleTopicName] = useState("/wall_detection/angle");
-  const [wallAngleRad, setWallAngleRad] = useState(0);
-  const [wallAngleUpdatedAt, setWallAngleUpdatedAt] = useState("");
-  const [wallFilteredPoints, setWallFilteredPoints] = useState([]);
-  const [wallRansacParams, setWallRansacParams] = useState({ a: 0, b: 0, c: 0, inliers: 0, total: 0 });
   const [cameraFrameUrl, setCameraFrameUrl] = useState("");
   const [cameraFrameMeta, setCameraFrameMeta] = useState({
     width: 0,
@@ -871,7 +842,7 @@ function App() {
   };
 
   const applyJoyTopicName = () => {
-    const nextTopic = joyTopicInput.trim() || "joy";
+    const nextTopic = joyTopicInput.trim() || DEFAULT_JOY_TOPIC;
     setJoyTopicName(nextTopic);
     console.log("Joy topic name updated to:", nextTopic);
   };
@@ -880,18 +851,6 @@ function App() {
     const nextTopic = virtualOdomTopicInput.trim() || "odom_xy_yaw";
     setVirtualOdomTopicName(nextTopic);
     console.log("Virtual odometry topic updated to:", nextTopic);
-  };
-
-  const applyWallAngleTopicName = () => {
-    const nextTopic = wallAngleTopicInput.trim() || "/wall_detection/angle";
-    setWallAngleTopicName(nextTopic);
-    console.log("Wall surface estimation topic updated to:", nextTopic);
-  };
-
-  const toggleCageEnabled = () => {
-    const next = !cageEnabled;
-    setCageEnabled(next);
-    cageEnablePubRef.current?.publish({ data: next });
   };
 
   const MAX_ACTIVE_PAGES = multiTabMode ? 2 : 1;
@@ -995,8 +954,6 @@ function App() {
     if (page === "auto") return tr("自動シーケンス", "Auto Sequence");
     if (page === "sequence") return tr("シーケンス操作", "Sequence");
     if (page === "pose") return tr("座標・姿勢管理", "Pose");
-    if (page === "localization") return tr("自己位置マップ", "Localization");
-    if (page === "wall-angle") return tr("壁面推定", "Wall Surface Estimation");
     if (page === "waypoint") return tr("ウェイポイント", "Waypoints");
     if (page === "teaching") return tr("ティーチング", "Teaching");
     if (page === "simulator") return tr("仮想オドメトリ", "Virtual Odom");
@@ -1004,7 +961,6 @@ function App() {
     if (page === "actuator-monitor") return tr("アクチュエータ監視", "Actuator Monitor");
     if (page === "topic") return tr("トピック監視", "Topics");
     if (page === "camera") return tr("カメラ映像", "Camera");
-    if (page === "cage-detection") return tr("カゴ位置・姿勢推定", "Cage Position/Orientation");
     if (page === "serial-bridge") return "Serial Bridge";
     if (page === "shutdown") return tr("強制停止", "Shutdown");
     if (page === "settings") return tr("設定", "Settings");
@@ -1032,20 +988,6 @@ function App() {
     setPoseX(0);
     setPoseY(0);
     setPoseYaw(0);
-  };
-
-  const resetOdomMap = () => {
-    odomIposeRef.current = null;
-    odomPathRef.current = [];
-    odomMapGridRef.current = new Map();
-    odomPoseRef.current = { x: 0, y: 0, yaw: 0 };
-    locPathRef.current = [];
-    setOdomPath([]);
-    setOdomMapPoints([]);
-    setOdomPose({ x: 0, y: 0, yaw: 0 });
-    setLocPath([]);
-    setLocPose(null);
-    imuYaw0Ref.current = null;   // IMU方位の基準を取り直す(スタート再配置時)
   };
 
   const nudgeVirtualOdomPose = (dx = 0, dy = 0, dyawDeg = 0) => {
@@ -1185,6 +1127,21 @@ function App() {
     setSelectedBasketCell(Number(cell));
     console.info("[shoot] /manual/basket 発行 cell=", cell);
   };
+  // 操作モードの直接指定を /manual/mode_set へ発行 (0=DRIVE, 1=GET_EEL, 2=SHOOT)。
+  // 実際に切り替わったかは mc_2026 が返す /manual/mode (manualMode) で確認する。
+  const publishManualModeSet = (code) => {
+    if (!operationArmed) {
+      setSerialPublishInfo("操作許可がOFFのためモードを変更できません");
+      return;
+    }
+    if (!modeSetPubRef.current) {
+      setSerialPublishInfo("ROS未接続のためモードを変更できません");
+      return;
+    }
+    modeSetPubRef.current.publish({ data: Number(code) });
+    console.info("[manual] /manual/mode_set 発行 mode=", code);
+  };
+
   const publishAutoCollectDone = () => {
     if (!autoCollectDonePubRef.current) return;
     autoCollectDonePubRef.current.publish({ data: true });
@@ -3707,14 +3664,6 @@ function App() {
   const currentArrowY = currentY - Math.sin(currentYaw) * arrowLength;
   const targetArrowX = targetX + Math.cos(targetYaw) * arrowLength;
   const targetArrowY = targetY - Math.sin(targetYaw) * arrowLength;
-  const wallAngleDeg = normalizeAngleDeg((wallAngleRad * 180) / Math.PI);
-  const wallGaugeSize = 240;
-  const wallGaugeCx = wallGaugeSize / 2;
-  const wallGaugeCy = wallGaugeSize / 2;
-  const wallGaugeRadius = 84;
-  const wallGaugeNeedleLen = 74;
-  const wallGaugeNeedleX = wallGaugeCx + Math.cos(wallAngleRad) * wallGaugeNeedleLen;
-  const wallGaugeNeedleY = wallGaugeCy - Math.sin(wallAngleRad) * wallGaugeNeedleLen;
 
   // Trace points graph calculation
   const traceGraphPoints = [
@@ -3771,100 +3720,6 @@ function App() {
     gridYValues.push(Number(value.toFixed(6)));
   }
 
-  // Wall surface estimation graph calculation (Cartesian coordinate system)
-  const wallGraphWidth = 300;
-  const wallGraphHeight = 300;
-  const wallGraphPadding = 28;
-
-  // Rotate raw points 90 degrees counterclockwise for display: (x, y) -> (-y, x)
-  const wallDisplayPoints = wallFilteredPoints.map((p) => ({ x: -p.y, y: p.x }));
-
-  let wallGraphMinXRaw = 0, wallGraphMaxXRaw = 0;
-  let wallGraphMinYRaw = 0, wallGraphMaxYRaw = 0;
-
-  if (wallDisplayPoints.length > 0) {
-    wallGraphMinXRaw = Math.min(...wallDisplayPoints.map((p) => p.x));
-    wallGraphMaxXRaw = Math.max(...wallDisplayPoints.map((p) => p.x));
-    wallGraphMinYRaw = Math.min(...wallDisplayPoints.map((p) => p.y));
-    wallGraphMaxYRaw = Math.max(...wallDisplayPoints.map((p) => p.y));
-  } else {
-    wallGraphMinXRaw = wallGraphMaxXRaw = 0;
-    wallGraphMinYRaw = wallGraphMaxYRaw = 0;
-  }
-
-  const wallGraphExtentRaw = Math.max(
-    Math.abs(wallGraphMinXRaw),
-    Math.abs(wallGraphMaxXRaw),
-    Math.abs(wallGraphMinYRaw),
-    Math.abs(wallGraphMaxYRaw),
-    1
-  );
-  const wallGraphMargin = Math.max(wallGraphExtentRaw * 0.2, 0.5);
-  const wallGraphExtent = wallGraphExtentRaw + wallGraphMargin;
-
-  const wallGraphMinX = -wallGraphExtent;
-  const wallGraphMaxX = wallGraphExtent;
-  const wallGraphMinY = -wallGraphExtent;
-  const wallGraphMaxY = wallGraphExtent;
-
-  const wallGraphInnerWidth = wallGraphWidth - wallGraphPadding * 2;
-  const wallGraphInnerHeight = wallGraphHeight - wallGraphPadding * 2;
-
-  const toWallGraphX = (x) =>
-    wallGraphPadding + ((x - wallGraphMinX) / Math.max(wallGraphMaxX - wallGraphMinX, 1e-6)) * wallGraphInnerWidth;
-  const toWallGraphY = (y) =>
-    wallGraphHeight - wallGraphPadding - ((y - wallGraphMinY) / Math.max(wallGraphMaxY - wallGraphMinY, 1e-6)) * wallGraphInnerHeight;
-
-  const wallAxisXVisible = wallGraphMinX <= 0 && wallGraphMaxX >= 0;
-  const wallAxisYVisible = wallGraphMinY <= 0 && wallGraphMaxY >= 0;
-  const wallGridStep = chooseGridStep(Math.max(wallGraphMaxX - wallGraphMinX, wallGraphMaxY - wallGraphMinY));
-
-  const wallGridXValues = [];
-  const wallStartGridX = Math.ceil(wallGraphMinX / wallGridStep) * wallGridStep;
-  for (let value = wallStartGridX; value <= wallGraphMaxX + 1e-9; value += wallGridStep) {
-    wallGridXValues.push(Number(value.toFixed(6)));
-  }
-
-  const wallGridYValues = [];
-  const wallStartGridY = Math.ceil(wallGraphMinY / wallGridStep) * wallGridStep;
-  for (let value = wallStartGridY; value <= wallGraphMaxY + 1e-9; value += wallGridStep) {
-    wallGridYValues.push(Number(value.toFixed(6)));
-  }
-
-  // Debug logging
-  if (isPageActive("wall-angle")) {
-    const debugInfo = {
-      wallFilteredPointsCount: wallFilteredPoints.length,
-      wallGridXCount: wallGridXValues.length,
-      wallGridYCount: wallGridYValues.length,
-      wallGraphMinX,
-      wallGraphMaxX,
-      wallGraphMinY,
-      wallGraphMaxY,
-      wallGridStep,
-    };
-    console.log("Wall surface estimation graph debug:", debugInfo);
-  }
-
-  // RANSAC line endpoints calculation in rotated display coordinates
-  let ransacLinePoint1 = null, ransacLinePoint2 = null;
-  if (wallRansacParams) {
-    const lineA = -wallRansacParams.b;
-    const lineB = wallRansacParams.a;
-    const lineC = wallRansacParams.c;
-
-    if (Math.abs(lineB) > 1e-6) {
-      const y1 = -(lineA * wallGraphMinX + lineC) / lineB;
-      const y2 = -(lineA * wallGraphMaxX + lineC) / lineB;
-      ransacLinePoint1 = { x: wallGraphMinX, y: y1 };
-      ransacLinePoint2 = { x: wallGraphMaxX, y: y2 };
-    } else if (Math.abs(lineA) > 1e-6) {
-      const x1 = -(lineB * wallGraphMinY + lineC) / lineA;
-      const x2 = -(lineB * wallGraphMaxY + lineC) / lineA;
-      ransacLinePoint1 = { x: x1, y: wallGraphMinY };
-      ransacLinePoint2 = { x: x2, y: wallGraphMaxY };
-    }
-  }
 
   useEffect(() => {
     tracePoseRef.current = { x: poseX, y: poseY, yaw: poseYaw };
@@ -4135,28 +3990,6 @@ function App() {
     virtualOdomEnabledRef.current = virtualOdomEnabled;
   }, [virtualOdomEnabled]);
 
-  // LittleSLAM mapByOdometry 相当: LiDAR点を現在姿勢でグローバル系へ変換し累積(補正なし)
-  useEffect(() => {
-    if (!odomMapLidarEnabled) return;
-    if (!wallFilteredPoints || wallFilteredPoints.length === 0) return;
-    const p = odomPoseRef.current;
-    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
-    const grid = odomMapGridRef.current;
-    const CELL = 0.05; // 5cm 代表点(makeGlobalMap のセル縮約相当)
-    for (const pt of wallFilteredPoints) {
-      const gx = p.x + pt.x * c - pt.y * s; // globalPoint: R(yaw)·lp + t
-      const gy = p.y + pt.x * s + pt.y * c;
-      const key = `${Math.round(gx / CELL)},${Math.round(gy / CELL)}`;
-      if (!grid.has(key)) grid.set(key, { x: gx, y: gy });
-    }
-    const MAX = 6000; // 上限(古い代表点から破棄)
-    if (grid.size > MAX) {
-      const it = grid.keys();
-      for (let i = grid.size - MAX; i > 0; i--) grid.delete(it.next().value);
-    }
-    setOdomMapPoints(Array.from(grid.values()));
-  }, [wallFilteredPoints, odomMapLidarEnabled]);
-
   useEffect(() => {
     operationArmedRef.current = operationArmed;
   }, [operationArmed]);
@@ -4205,8 +4038,6 @@ function App() {
       refreshTopicList();
       refreshSerialBridgeStatus();
       refreshSerialBridgeLogs();
-      // 現在のカゴ検出ON/OFF状態をノードへ通知
-      cageEnablePubRef.current?.publish({ data: cageEnabled });
     });
 
     rosRef.current.on("error", (error) => {
@@ -4267,85 +4098,6 @@ function App() {
       setPoseYaw(Number(msg.data[2]) || 0);
     });
 
-    // 実機オドメトリ(summer2026_odometry)を購読し、軌跡＋自己位置マップを構築
-    odomNavSubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: "odom",
-      messageType: "nav_msgs/msg/Odometry",
-    });
-    odomNavSubRef.current.subscribe((msg) => {
-      const px = msg?.pose?.pose?.position?.x ?? 0;
-      const py = msg?.pose?.pose?.position?.y ?? 0;
-      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
-      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
-      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz); // z,wのみ→yaw
-
-      // LittleSLAM calRelativePose 相当: 初回姿勢(ipose)を原点に正規化
-      if (!odomIposeRef.current) odomIposeRef.current = { x: px, y: py, yaw };
-      const ip = odomIposeRef.current;
-      const dx = px - ip.x, dy = py - ip.y;
-      const c0 = Math.cos(-ip.yaw), s0 = Math.sin(-ip.yaw);
-      const pose = {
-        x: dx * c0 - dy * s0,
-        y: dx * s0 + dy * c0,
-        yaw: Math.atan2(Math.sin(yaw - ip.yaw), Math.cos(yaw - ip.yaw)),
-      };
-      odomPoseRef.current = pose;
-      setOdomPose(pose);
-
-      // 軌跡(2cm間隔で間引き, 上限2000点)
-      const path = odomPathRef.current;
-      const last = path[path.length - 1];
-      if (!last || Math.hypot(pose.x - last.x, pose.y - last.y) > 0.02) {
-        path.push({ x: pose.x, y: pose.y });
-        if (path.length > 2000) path.shift();
-        setOdomPath([...path]);
-      }
-    });
-
-    // ICP補正後の絶対自己位置(natsu_localization)を購読
-    locPoseSubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: "/localization/pose",
-      messageType: "geometry_msgs/msg/PoseWithCovarianceStamped",
-    });
-    locPoseSubRef.current.subscribe((msg) => {
-      const px = msg?.pose?.pose?.position?.x ?? 0;
-      const py = msg?.pose?.pose?.position?.y ?? 0;
-      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
-      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
-      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz);
-      const cpose = { x: px, y: py, yaw };
-      setLocPose(cpose);
-
-      const path = locPathRef.current;
-      const last = path[path.length - 1];
-      if (!last || Math.hypot(px - last.x, py - last.y) > 0.02) {
-        path.push({ x: px, y: py });
-        if (path.length > 2000) path.shift();
-        setLocPath([...path]);
-      }
-    });
-
-    // IMU(WT901C, natsu_senser/wt901c_publisher)を購読し、機体の方位(yaw)と傾き(roll/pitch)を取得
-    imuSubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: "/imu",
-      messageType: "sensor_msgs/msg/Imu",
-    });
-    imuSubRef.current.subscribe((msg) => {
-      const q = msg?.orientation;
-      if (!q) return;
-      const x = q.x ?? 0, y = q.y ?? 0, z = q.z ?? 0, w = q.w ?? 1;
-      // クォータニオン → ZYX オイラー角 (sensor_visualizer.py と同一規約)
-      const roll = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
-      const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x))));
-      const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
-      // 起動時の yaw を 0 に正規化(フィールドのスタート向き=+xに合わせる)
-      if (imuYaw0Ref.current === null) imuYaw0Ref.current = yaw;
-      const relYaw = Math.atan2(Math.sin(yaw - imuYaw0Ref.current), Math.cos(yaw - imuYaw0Ref.current));
-      setImuRpy({ roll, pitch, yaw: relYaw });
-    });
 
     // ── natsu_auto FSM 連携 (/auto/*) ─────────────────────────
     // 発行: 開始 / 手動回収完了 / 中断
@@ -4488,134 +4240,19 @@ function App() {
       });
     });
 
-    wallAngleSubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: wallAngleTopicName,
-      messageType: "std_msgs/msg/Float64",
-    });
-    wallAngleSubRef.current.subscribe((msg) => {
-      const nextAngle = Number(msg?.data);
-      if (!Number.isFinite(nextAngle)) {
-        return;
-      }
-      setWallAngleRad(nextAngle);
-      setWallAngleUpdatedAt(new Date().toLocaleTimeString());
-    });
-
-    // 点群を購読 (PointCloud2)
-    const filteredPointsTopic = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: "/wall_detection/filtered_points",
-      messageType: "sensor_msgs/msg/PointCloud2",
-    });
-    filteredPointsTopic.subscribe((msg) => {
-      try {
-        const points = [];
-        if (msg?.width > 0 && msg?.data) {
-          // Handle multiple PointCloud2 data encodings from rosbridge
-          let dataArray = null;
-          if (msg.data instanceof Uint8Array) {
-            dataArray = msg.data;
-          } else if (Array.isArray(msg.data)) {
-            dataArray = new Uint8Array(msg.data);
-          } else if (typeof msg.data === "string") {
-            const binary = atob(msg.data);
-            dataArray = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) {
-              dataArray[i] = binary.charCodeAt(i);
-            }
-          }
-
-          if (!dataArray || dataArray.byteLength === 0) {
-            setWallFilteredPoints([]);
-            return;
-          }
-
-          const dataView = new DataView(dataArray.buffer, dataArray.byteOffset, dataArray.byteLength);
-
-          // Find field offsets
-          const xField = msg.fields?.find(f => f.name === "x");
-          const yField = msg.fields?.find(f => f.name === "y");
-          const xOffset = xField?.offset || 0;
-          const yOffset = yField?.offset || 4;
-          const pointStep = Number(msg.point_step) || 8;
-          const pointCount = Math.min(Number(msg.width) || 0, Math.floor(dataArray.byteLength / pointStep));
-          const littleEndian = !msg.is_bigendian;
-
-          for (let i = 0; i < pointCount; i++) {
-            const byteOffset = i * pointStep;
-            try {
-              const x = dataView.getFloat32(byteOffset + xOffset, littleEndian);
-              const y = dataView.getFloat32(byteOffset + yOffset, littleEndian);
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                points.push({ x, y });
-              }
-            } catch (e) {
-              // Skip invalid points
-            }
-          }
-        }
-        setWallFilteredPoints(points);
-      } catch (e) {
-        console.error("Error parsing filtered points:", e);
-      }
-    });
-
-    // RANSACパラメータを購読 (Float64MultiArray)
-    const ransacParamsTopic = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: "/wall_detection/ransac_params",
-      messageType: "std_msgs/msg/Float64MultiArray",
-    });
-    ransacParamsTopic.subscribe((msg) => {
-      try {
-        if (msg?.data && msg.data.length >= 5) {
-          setWallRansacParams({
-            a: msg.data[0],
-            b: msg.data[1],
-            c: msg.data[2],
-            inliers: Math.round(msg.data[3]),
-            total: Math.round(msg.data[4]),
-          });
-        }
-      } catch (e) {
-        console.error("Error parsing RANSAC params:", e);
-      }
-    });
-
-    // ── カゴ検出トピック ─────────────────────────────
-    cageArraySubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: CAGE_TOPIC_CAGES,
-      messageType: "cage_detection/msg/CageArray",
-    });
-    cageArraySubRef.current.subscribe((msg) => {
-      setCages(Array.isArray(msg?.cages) ? msg.cages : []);
-      setCageUpdatedAt(new Date().toLocaleTimeString());
-    });
-
-    cageTargetSubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: CAGE_TOPIC_TARGET,
-      messageType: "cage_detection/msg/Cage",
-    });
-    cageTargetSubRef.current.subscribe((msg) => {
-      setCageTarget(msg || null);
-    });
-
-    cageEnablePubRef.current = new ROSLIB.Topic({
-      ros: rosRef.current,
-      name: CAGE_TOPIC_ENABLE,
-      messageType: "std_msgs/msg/Bool",
-    });
-    cageEnablePubRef.current.advertise?.();
-
     basketCmdPubRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
       name: MANUAL_BASKET_TOPIC,
       messageType: "std_msgs/msg/Int32",
     });
     basketCmdPubRef.current.advertise?.();
+
+    modeSetPubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: MANUAL_MODE_SET_TOPIC,
+      messageType: "std_msgs/msg/Int32",
+    });
+    modeSetPubRef.current.advertise?.();
 
     odomResetCmdRef.current = new ROSLIB.Topic({
       ros: rosRef.current,
@@ -4884,30 +4521,6 @@ function App() {
           console.warn("Error unsubscribing odom topic:", error);
         }
       }
-      if (odomNavSubRef.current) {
-        try {
-          odomNavSubRef.current.unsubscribe?.();
-        } catch (error) {
-          console.warn("Error unsubscribing odom(nav) topic:", error);
-        }
-        odomNavSubRef.current = null;
-      }
-      if (locPoseSubRef.current) {
-        try {
-          locPoseSubRef.current.unsubscribe?.();
-        } catch (error) {
-          console.warn("Error unsubscribing localization pose topic:", error);
-        }
-        locPoseSubRef.current = null;
-      }
-      if (imuSubRef.current) {
-        try {
-          imuSubRef.current.unsubscribe?.();
-        } catch (error) {
-          console.warn("Error unsubscribing imu topic:", error);
-        }
-        imuSubRef.current = null;
-      }
       // natsu_auto FSM 連携のクリーンアップ
       if (autoArrivedTimerRef.current) {
         clearTimeout(autoArrivedTimerRef.current);
@@ -4985,47 +4598,14 @@ function App() {
           console.warn("Error unsubscribing aruco id topic:", error);
         }
       }
-      if (wallAngleSubRef.current) {
-        try {
-          wallAngleSubRef.current.unsubscribe?.();
-        } catch (error) {
-          console.warn("Error unsubscribing wall surface estimation topic:", error);
-        }
-      }
-      try {
-        filteredPointsTopic.unsubscribe?.();
-      } catch (error) {
-        console.warn("Error unsubscribing filtered points topic:", error);
-      }
-      try {
-        ransacParamsTopic.unsubscribe?.();
-      } catch (error) {
-        console.warn("Error unsubscribing ransac params topic:", error);
-      }
-      try {
-        cageArraySubRef.current?.unsubscribe?.();
-      } catch (error) {
-        console.warn("Error unsubscribing cage array topic:", error);
-      }
-      try {
-        cageTargetSubRef.current?.unsubscribe?.();
-      } catch (error) {
-        console.warn("Error unsubscribing cage target topic:", error);
-      }
-      try {
-        cageEnablePubRef.current?.unadvertise?.();
-      } catch (error) {
-        console.warn("Error unadvertising cage enable topic:", error);
-      }
       try {
         basketCmdPubRef.current?.unadvertise?.();
+        modeSetPubRef.current?.unadvertise?.();
       } catch (error) {
         console.warn("Error unadvertising manual basket topic:", error);
       }
-      cageArraySubRef.current = null;
-      cageTargetSubRef.current = null;
-      cageEnablePubRef.current = null;
       basketCmdPubRef.current = null;
+      modeSetPubRef.current = null;
       stopCameraStream();
       stopTopicEcho();
       plannerRosoutSubRef.current = null;
@@ -5036,7 +4616,7 @@ function App() {
       autodriveCompletePubRef.current = null;
       if (rosRef.current) rosRef.current.close();
     };
-  }, [rosUrl, joyTopicName, virtualOdomTopicName, wallAngleTopicName]);
+  }, [rosUrl, joyTopicName, virtualOdomTopicName]);
 
   // Actuator Monitor subscriptions
   useEffect(() => {
@@ -5153,6 +4733,8 @@ function App() {
     return (
       <PS4ControllerPanel
         fullscreen={true}
+        onModeSelect={publishManualModeSet}
+        operationArmed={operationArmed}
         buttons={buttons}
         axes={axes}
         getButtonPressProps={getButtonPressProps}
@@ -5323,12 +4905,18 @@ function App() {
             </section>
           )}
 
+          {isPageActive("controller") && (
+            <ModeSelectPanel
+              manualMode={manualMode}
+              onSelect={publishManualModeSet}
+              operationArmed={operationArmed}
+              tr={tr}
+            />
+          )}
+
           {isPageActive("controller") && manualMode === "SHOOT" && (
             <BasketSelectPanel
               defs={BASKET_SELECT_DEFS}
-              cages={cages}
-              cageTarget={cageTarget}
-              wallAngle={wallAngleRad}
               selectedCell={selectedBasketCell}
               onSelect={publishBasketTarget}
               operationArmed={operationArmed}
@@ -5942,318 +5530,6 @@ function App() {
                   </div>
                 </div>
               )}
-            </section>
-          )}
-
-          {isPageActive("localization") && (
-            <section className="pose-panel">
-              <h2 className="serial-packet-title">{tr("自己位置マップ", "Localization Map")}</h2>
-              <p className="serial-packet-hint">
-                {tr(
-                  "summer2026_odometry の /odom と natsu_localization の /localization/pose を地図上に重畳表示します。両者のズレがオドメトリのドリフト量です。",
-                  "Overlays /odom (summer2026_odometry) and /localization/pose (natsu_localization, known-wall ICP) on the field map. The gap between them is the odometry drift."
-                )}
-              </p>
-
-              <section className="pose-graph-card" style={{ marginTop: 12 }}>
-                <div className="pose-graph-title-row">
-                  <h3 className="pose-graph-title">{tr("現在姿勢", "Current Attitude")}</h3>
-                  <span className="pose-graph-scale">IMU: /imu / odom: /odom</span>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 24, padding: "10px 6px" }}>
-                  <div>
-                    <div style={{ color: "#d2a8ff", fontSize: 12, marginBottom: 4 }}>
-                      {tr("IMU (WT901C)", "IMU (WT901C)")}
-                    </div>
-                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
-                      <span>Roll <strong>{imuRpy ? (imuRpy.roll * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
-                      <span>Pitch <strong>{imuRpy ? (imuRpy.pitch * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
-                      <span>Yaw <strong>{imuRpy ? (imuRpy.yaw * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#f0883e", fontSize: 12, marginBottom: 4 }}>
-                      {tr("odom (補正なし)", "odom (raw)")}
-                    </div>
-                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
-                      <span>X <strong>{odomPose.x.toFixed(3)}m</strong></span>
-                      <span>Y <strong>{odomPose.y.toFixed(3)}m</strong></span>
-                      <span>Yaw <strong>{(odomPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
-                    </div>
-                  </div>
-                  {locPose && (
-                    <div>
-                      <div style={{ color: "#39c5cf", fontSize: 12, marginBottom: 4 }}>
-                        {tr("ICP補正 (絶対位置)", "ICP corrected")}
-                      </div>
-                      <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
-                        <span>X <strong>{locPose.x.toFixed(3)}m</strong></span>
-                        <span>Y <strong>{locPose.y.toFixed(3)}m</strong></span>
-                        <span>Yaw <strong>{(locPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <p className="serial-packet-hint" style={{ margin: "0 6px 6px" }}>
-                  {tr(
-                    "IMUのYawは起動時の向きを0°とした相対値です（6軸モード・地磁気オフ）。",
-                    "IMU yaw is relative to the boot-time heading (6-axis mode, magnetometer off)."
-                  )}
-                </p>
-              </section>
-
-              <section className="pose-graph-card" style={{ marginTop: 12 }}>
-                <div className="pose-graph-title-row">
-                  <h3 className="pose-graph-title">{tr("自己位置マップ", "Odometry Map")}</h3>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <label className="serial-packet-label" style={{ margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={odomMapLidarEnabled}
-                        onChange={(e) => setOdomMapLidarEnabled(e.target.checked)}
-                      />
-                      {tr("LiDAR点群", "LiDAR map")}
-                    </label>
-                    <label className="serial-packet-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                      {tr("機体[m]", "Body[m]")}
-                      <input
-                        className="connection-input"
-                        type="number"
-                        step="0.05"
-                        min="0.1"
-                        style={{ width: 64 }}
-                        value={bodyFootprintM}
-                        onChange={(e) => setBodyFootprintM(Math.max(0.1, parseFloat(e.target.value) || 0.9))}
-                      />
-                    </label>
-                    <button className="serial-clear-button" onClick={resetOdomMap}>
-                      {tr("マップリセット", "Reset map")}
-                    </button>
-                  </div>
-                </div>
-                <OdomMap
-                  pose={odomPose}
-                  path={odomPath}
-                  mapPoints={odomMapLidarEnabled ? odomMapPoints : []}
-                  corrected={locPose}
-                  correctedPath={locPath}
-                  body={{
-                    x: (locPose || odomPose).x,
-                    y: (locPose || odomPose).y,
-                    yaw: imuRpy ? imuRpy.yaw : (locPose || odomPose).yaw,
-                  }}
-                  tilt={imuRpy ? { roll: imuRpy.roll, pitch: imuRpy.pitch } : null}
-                  bodySize={bodyFootprintM}
-                />
-                <div className="pose-graph-legend">
-                  <span className="pose-legend-item">
-                    <i className="pose-legend-dot" style={{ background: "#f0883e" }} />
-                    {tr("生odom (補正なし)", "Raw odom")}
-                  </span>
-                  <span className="pose-legend-item">
-                    <i className="pose-legend-dot" style={{ background: "#39c5cf" }} />
-                    {tr("ICP補正 (絶対位置)", "ICP corrected")}
-                  </span>
-                  <span className="pose-legend-item">
-                    <i className="pose-legend-dot" style={{ background: "#58a6ff" }} />
-                    {tr("LiDAR点群", "LiDAR map")}
-                  </span>
-                </div>
-                <p className="pose-graph-interaction-hint">
-                  {tr(
-                    "橙=summer2026_odometry の /odom (補正なし)、シアン=natsu_localization の /localization/pose (既知壁ICPの絶対位置)。",
-                    "Orange = raw /odom (drifts). Cyan = /localization/pose from natsu_localization (absolute, known-wall ICP)."
-                  )}
-                </p>
-              </section>
-            </section>
-          )}
-
-          {isPageActive("wall-angle") && (
-            <section className="pose-panel">
-              <h2 className="serial-packet-title">{tr("壁面推定の図示", "Wall Surface Estimation Visualization")}</h2>
-              <p className="serial-packet-hint">
-                {tr(
-                  "wall_detection の角度トピックを購読して、現在の壁面推定結果をゲージ表示します。",
-                  "Subscribes to wall_detection angle topic and displays current wall surface estimation as a gauge."
-                )}
-              </p>
-
-              <section className="joy-topic-row">
-                <input
-                  className="connection-input"
-                  value={wallAngleTopicInput}
-                  onChange={(e) => setWallAngleTopicInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") applyWallAngleTopicName();
-                  }}
-                  placeholder="/wall_detection/angle"
-                />
-                <button className="connection-button btn-connect" onClick={applyWallAngleTopicName}>
-                  {tr("更新", "Apply")}
-                </button>
-              </section>
-
-              <p className="connection-hint">{tr("現在の購読トピック:", "Current topic:")} {wallAngleTopicName}</p>
-
-              <div className="pose-overview-grid">
-                <section className="pose-graph-card">
-                  <div className="pose-graph-title-row">
-                    <h3 className="pose-graph-title">{tr("壁面推定グラフ", "Wall Surface Estimation Graph")}</h3>
-                    <span className="pose-graph-scale">{tr("単位: m", "Unit: m")}</span>
-                  </div>
-                  <svg
-                    className="wall-angle-graph"
-                    viewBox={`0 0 ${wallGraphWidth} ${wallGraphHeight}`}
-                    role="img"
-                    aria-label={tr("壁面推定グラフ", "Wall surface estimation graph")}
-                    style={{ backgroundColor: "#0d1117" }}
-                  >
-                    {/* Background */}
-                    <rect
-                      x="0"
-                      y="0"
-                      width={wallGraphWidth}
-                      height={wallGraphHeight}
-                      fill="#0d1117"
-                      stroke="none"
-                    />
-
-                    {/* Grid lines */}
-                    {wallGridXValues.map((xVal) => (
-                      <line
-                        key={`wall-grid-x-${xVal}`}
-                        x1={toWallGraphX(xVal)}
-                        y1={wallGraphPadding}
-                        x2={toWallGraphX(xVal)}
-                        y2={wallGraphHeight - wallGraphPadding}
-                        stroke="rgba(255,255,255,0.10)"
-                        strokeWidth="1"
-                        strokeDasharray="2,2"
-                      />
-                    ))}
-                    {wallGridYValues.map((yVal) => (
-                      <line
-                        key={`wall-grid-y-${yVal}`}
-                        x1={wallGraphPadding}
-                        y1={toWallGraphY(yVal)}
-                        x2={wallGraphWidth - wallGraphPadding}
-                        y2={toWallGraphY(yVal)}
-                        stroke="rgba(255,255,255,0.10)"
-                        strokeWidth="1"
-                        strokeDasharray="2,2"
-                      />
-                    ))}
-
-                    {/* Axis lines */}
-                    {wallAxisXVisible && (
-                      <line
-                        x1={wallGraphPadding}
-                        y1={toWallGraphY(0)}
-                        x2={wallGraphWidth - wallGraphPadding}
-                        y2={toWallGraphY(0)}
-                        stroke="rgba(255,255,255,0.4)"
-                        strokeWidth="1.5"
-                      />
-                    )}
-                    {wallAxisYVisible && (
-                      <line
-                        x1={toWallGraphX(0)}
-                        y1={wallGraphPadding}
-                        x2={toWallGraphX(0)}
-                        y2={wallGraphHeight - wallGraphPadding}
-                        stroke="rgba(255,255,255,0.4)"
-                        strokeWidth="1.5"
-                      />
-                    )}
-
-                    {/* RANSAC line */}
-                    {ransacLinePoint1 && ransacLinePoint2 && (
-                      <line
-                        x1={toWallGraphX(ransacLinePoint1.x)}
-                        y1={toWallGraphY(ransacLinePoint1.y)}
-                        x2={toWallGraphX(ransacLinePoint2.x)}
-                        y2={toWallGraphY(ransacLinePoint2.y)}
-                        stroke="#e63946"
-                        strokeWidth="2.5"
-                      />
-                    )}
-
-                    {/* Filtered points */}
-                    {wallFilteredPoints.map((point, idx) => {
-                      const rotatedPoint = { x: -point.y, y: point.x };
-                      const isInlier =
-                        wallRansacParams && wallRansacParams.a !== 0 && wallRansacParams.b !== 0 &&
-                        Math.abs(
-                          wallRansacParams.a * point.x +
-                          wallRansacParams.b * point.y +
-                          wallRansacParams.c
-                        ) < 0.1;
-
-                      return (
-                        <circle
-                          key={`wall-point-${idx}`}
-                          cx={toWallGraphX(rotatedPoint.x)}
-                          cy={toWallGraphY(rotatedPoint.y)}
-                          r="3"
-                          fill={isInlier ? "rgba(255, 100, 100, 0.9)" : "rgba(100, 150, 255, 0.8)"}
-                          stroke={isInlier ? "#c81414" : "#0064c8"}
-                          strokeWidth="1"
-                        />
-                      );
-                    })}
-
-                    {/* Graph border */}
-                    <rect
-                      x={wallGraphPadding}
-                      y={wallGraphPadding}
-                      width={wallGraphInnerWidth}
-                      height={wallGraphInnerHeight}
-                      stroke="rgba(255,255,255,0.25)"
-                      strokeWidth="1.5"
-                      fill="none"
-                    />
-                  </svg>
-                </section>
-
-                <section className="pose-detail-panel">
-                  <h3 className="pose-detail-title">{tr("壁面推定情報", "Wall Surface Estimation Info")}</h3>
-                  <div className="pose-current-grid">
-                    <div className="pose-current-item">
-                      <span>{tr("角度 [rad]", "Angle [rad]")}</span>
-                      <strong>{wallAngleRad.toFixed(4)}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("角度 [deg]", "Angle [deg]")}</span>
-                      <strong>{wallAngleDeg.toFixed(2)}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("検出点数", "Detected Points")}</span>
-                      <strong>{wallFilteredPoints.length}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("インライア数", "Inliers")}</span>
-                      <strong>{wallRansacParams?.inliers || 0} / {wallRansacParams?.total || 0}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("直線係数 a", "Line Param a")}</span>
-                      <strong>{wallRansacParams?.a?.toFixed(4) || "0.0000"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("直線係数 b", "Line Param b")}</span>
-                      <strong>{wallRansacParams?.b?.toFixed(4) || "0.0000"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("直線係数 c", "Line Param c")}</span>
-                      <strong>{wallRansacParams?.c?.toFixed(4) || "0.0000"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("更新時刻", "Updated")}</span>
-                      <strong>{wallAngleUpdatedAt || "-"}</strong>
-                    </div>
-                  </div>
-                </section>
-              </div>
             </section>
           )}
 
@@ -7972,86 +7248,6 @@ function App() {
                 ) : (
                   <p className="connection-hint">{tr("映像未受信です。開始を押してください。", "No frame received yet. Press Start.")}</p>
                 )}
-              </div>
-            </section>
-          )}
-
-          {isPageActive("cage-detection") && (
-            <section className="topic-panel">
-              <h2 className="serial-packet-title">{tr("カゴ位置・姿勢推定モニタ", "Cage Position/Orientation Monitor")}</h2>
-              <p className="serial-packet-hint">
-                {tr(
-                  "cage_detection ノードが推定した各カゴのフィールド位置・距離・優先度を俯瞰マップとリストで表示します。壁面推定角度で座標補正します。",
-                  "Shows each cage's field position, distance and priority estimated by the cage_detection node as a field map and list. Coordinates are corrected by the wall-angle estimate."
-                )}
-              </p>
-
-              <div className="topic-select-row camera-preset-row">
-                <button
-                  className={`connection-button ${cageEnabled ? "btn-send" : "btn-connect"}`}
-                  onClick={toggleCageEnabled}
-                >
-                  {cageEnabled ? tr("● 検出 ON", "● Detection ON") : tr("○ 検出 OFF", "○ Detection OFF")}
-                </button>
-                <span className="connection-hint" style={{ alignSelf: "center" }}>
-                  {tr("受信カゴ", "Cages")}: {cages.length} / 7 ·{" "}
-                  {tr("更新", "Updated")}: {cageUpdatedAt || "-"} ·{" "}
-                  {tr("壁偏角", "Wall angle")}: {(wallAngleRad * 180 / Math.PI).toFixed(1)}°
-                </span>
-              </div>
-
-              <p className="connection-hint">
-                {tr("購読トピック", "Subscribed topics")}: {CAGE_TOPIC_CAGES} | {CAGE_TOPIC_TARGET} | {CAGE_TOPIC_ENABLE}
-              </p>
-
-              <div className="cage-page-grid">
-                <section className="pose-graph-card" style={{ marginTop: 0 }}>
-                  <div className="pose-graph-title-row">
-                    <h3 className="pose-graph-title">{tr("フィールド俯瞰マップ", "Field Map")}</h3>
-                    <span className="pose-graph-scale">
-                      {cages.length > 0 ? tr("受信中", "Receiving") : tr("未受信", "No Data")}
-                    </span>
-                  </div>
-                  <CageViz cages={cages} target={cageTarget} wallAngle={wallAngleRad} />
-                </section>
-
-                <section className="pose-detail-panel">
-                  <h3 className="pose-detail-title">{tr("最優先ターゲット", "Top Priority Target")}</h3>
-                  <div className="pose-current-grid">
-                    <div className="pose-current-item">
-                      <span>{tr("ターゲット", "Target")}</span>
-                      <strong>{cageTarget ? (cageTarget.color === 0 ? tr("緑カゴ", "Green") : tr("青カゴ", "Blue")) : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("距離 [m]", "Distance [m]")}</span>
-                      <strong>{cageTarget ? cageTarget.distance.toFixed(2) : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("カメラX [m]", "Camera X [m]")}</span>
-                      <strong>{cageTarget ? (cageTarget.position?.x ?? 0).toFixed(2) : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("カメラZ [m]", "Camera Z [m]")}</span>
-                      <strong>{cageTarget ? (cageTarget.position?.z ?? 0).toFixed(2) : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("優先度", "Priority")}</span>
-                      <strong>{cageTarget ? cageTarget.priority : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("占有状態", "Occupied")}</span>
-                      <strong>{cageTarget ? (cageTarget.occupied ? tr("占有", "YES") : tr("空き", "NO")) : "-"}</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("受信カゴ数", "Cage Count")}</span>
-                      <strong>{cages.length} / 7</strong>
-                    </div>
-                    <div className="pose-current-item">
-                      <span>{tr("更新時刻", "Updated")}</span>
-                      <strong>{cageUpdatedAt || "-"}</strong>
-                    </div>
-                  </div>
-                </section>
               </div>
             </section>
           )}

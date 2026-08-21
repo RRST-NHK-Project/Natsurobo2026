@@ -1,0 +1,86 @@
+// カゴ位置・姿勢推定 (cage-detection) ページの JSX。
+// natsu_console_2026/src/App.js の renderページ部から 2026-08-21 に切り出したもの。
+// このファイルはビルドされない(拡張子 .txt / どこからも import されていない)。
+// 戻すときは App.js の pageOrder / getPageLabel にページ名を戻し、この塊を
+// 他のページブロックと同じ位置に貼り、../app-support-code.js.txt にある
+// state / ref / 購読 / クリーンアップも一緒に戻すこと。
+
+          {isPageActive("cage-detection") && (
+            <section className="topic-panel">
+              <h2 className="serial-packet-title">{tr("カゴ位置・姿勢推定モニタ", "Cage Position/Orientation Monitor")}</h2>
+              <p className="serial-packet-hint">
+                {tr(
+                  "cage_detection ノードが推定した各カゴのフィールド位置・距離・優先度を俯瞰マップとリストで表示します。壁面推定角度で座標補正します。",
+                  "Shows each cage's field position, distance and priority estimated by the cage_detection node as a field map and list. Coordinates are corrected by the wall-angle estimate."
+                )}
+              </p>
+
+              <div className="topic-select-row camera-preset-row">
+                <button
+                  className={`connection-button ${cageEnabled ? "btn-send" : "btn-connect"}`}
+                  onClick={toggleCageEnabled}
+                >
+                  {cageEnabled ? tr("● 検出 ON", "● Detection ON") : tr("○ 検出 OFF", "○ Detection OFF")}
+                </button>
+                <span className="connection-hint" style={{ alignSelf: "center" }}>
+                  {tr("受信カゴ", "Cages")}: {cages.length} / 7 ·{" "}
+                  {tr("更新", "Updated")}: {cageUpdatedAt || "-"} ·{" "}
+                  {tr("壁偏角", "Wall angle")}: {(wallAngleRad * 180 / Math.PI).toFixed(1)}°
+                </span>
+              </div>
+
+              <p className="connection-hint">
+                {tr("購読トピック", "Subscribed topics")}: {CAGE_TOPIC_CAGES} | {CAGE_TOPIC_TARGET} | {CAGE_TOPIC_ENABLE}
+              </p>
+
+              <div className="cage-page-grid">
+                <section className="pose-graph-card" style={{ marginTop: 0 }}>
+                  <div className="pose-graph-title-row">
+                    <h3 className="pose-graph-title">{tr("フィールド俯瞰マップ", "Field Map")}</h3>
+                    <span className="pose-graph-scale">
+                      {cages.length > 0 ? tr("受信中", "Receiving") : tr("未受信", "No Data")}
+                    </span>
+                  </div>
+                  <CageViz cages={cages} target={cageTarget} wallAngle={wallAngleRad} />
+                </section>
+
+                <section className="pose-detail-panel">
+                  <h3 className="pose-detail-title">{tr("最優先ターゲット", "Top Priority Target")}</h3>
+                  <div className="pose-current-grid">
+                    <div className="pose-current-item">
+                      <span>{tr("ターゲット", "Target")}</span>
+                      <strong>{cageTarget ? (cageTarget.color === 0 ? tr("緑カゴ", "Green") : tr("青カゴ", "Blue")) : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("距離 [m]", "Distance [m]")}</span>
+                      <strong>{cageTarget ? cageTarget.distance.toFixed(2) : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("カメラX [m]", "Camera X [m]")}</span>
+                      <strong>{cageTarget ? (cageTarget.position?.x ?? 0).toFixed(2) : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("カメラZ [m]", "Camera Z [m]")}</span>
+                      <strong>{cageTarget ? (cageTarget.position?.z ?? 0).toFixed(2) : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("優先度", "Priority")}</span>
+                      <strong>{cageTarget ? cageTarget.priority : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("占有状態", "Occupied")}</span>
+                      <strong>{cageTarget ? (cageTarget.occupied ? tr("占有", "YES") : tr("空き", "NO")) : "-"}</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("受信カゴ数", "Cage Count")}</span>
+                      <strong>{cages.length} / 7</strong>
+                    </div>
+                    <div className="pose-current-item">
+                      <span>{tr("更新時刻", "Updated")}</span>
+                      <strong>{cageUpdatedAt || "-"}</strong>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+          )}

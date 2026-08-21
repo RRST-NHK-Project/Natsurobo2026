@@ -1,14 +1,11 @@
 import React from "react";
-import { CageViz } from "./CageViz";
+import { FieldMap } from "./FieldMap";
 
 // SHOOTモード用のカゴ直接指定パネル。
-// PS4コントローラの代わりに、CageViz(フィールド俯瞰)と7個のカゴボタンを表示し、
+// PS4コントローラの代わりに、FieldMap(フィールド俯瞰・静的)と7個のカゴボタンを表示し、
 // クリックしたカゴのセル番号(0〜6)を onSelect で /manual/basket へ送る。
 export function BasketSelectPanel({
   defs,
-  cages,
-  cageTarget,
-  wallAngle,
   selectedCell,
   onSelect,
   operationArmed,
@@ -47,7 +44,7 @@ export function BasketSelectPanel({
 
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ flex: "0 0 auto" }}>
-          <CageViz cages={cages} target={cageTarget} wallAngle={wallAngle} />
+          <FieldMap selectedId={defs.find((d) => d.cell === selectedCell)?.id} />
         </div>
 
         <div style={{ flex: "1 1 260px", minWidth: 240 }}>

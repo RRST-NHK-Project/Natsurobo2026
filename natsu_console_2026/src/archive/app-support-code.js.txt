@@ -1,0 +1,521 @@
+// natsu_console_2026/src/App.js から 2026-08-21 に取り除いた、
+// LiDAR / IMU 依存ページ(自己位置マップ・壁面推定・カゴ位置姿勢推定)の支援コード。
+// このファイルはビルドされない(拡張子 .txt / どこからも import されていない)。
+// ページ本体の JSX は ./pages/*.jsx.txt にある。
+// 戻すときは、下の各塊を App.js の同種のコードが並んでいる場所へ戻す。
+
+
+// ===================================================================
+// ページ登録 (pageOrder / getPageLabel)
+// ===================================================================
+
+    "localization",
+    "wall-angle",
+    "cage-detection",
+    if (page === "localization") return tr("自己位置マップ", "Localization");
+    if (page === "wall-angle") return tr("壁面推定", "Wall Surface Estimation");
+    if (page === "cage-detection") return tr("カゴ位置・姿勢推定", "Cage Position/Orientation");
+
+// ===================================================================
+// import
+// ===================================================================
+
+import { OdomMap } from "./components/OdomMap";
+
+// ===================================================================
+// カゴ検出トピック定数
+// ===================================================================
+
+// カゴ検出トピック（cage_detection パッケージ）
+const CAGE_TOPIC_CAGES  = "/cage_detection/cages";
+const CAGE_TOPIC_TARGET = "/cage_detection/target";
+const CAGE_TOPIC_ENABLE = "/cage_detection/enable";
+
+// ===================================================================
+// useRef
+// ===================================================================
+
+  // ── 実機オドメトリ(/odom)マップ用 ──
+  const odomPoseRef = useRef({ x: 0, y: 0, yaw: 0 }); // LiDAR累積で参照する最新姿勢
+  const odomIposeRef = useRef(null);                  // 初回姿勢(ipose)=原点正規化の基準
+  const odomPathRef = useRef([]);                     // 軌跡
+  const odomMapGridRef = useRef(new Map());           // ボクセル格子(代表点) = pcmap
+  const odomNavSubRef = useRef(null);
+  const locPathRef = useRef([]);                      // ICP補正後の軌跡
+  const locPoseSubRef = useRef(null);                 // /localization/pose 購読
+  const imuSubRef = useRef(null);                     // /imu 購読 (wt901c_publisher)
+  const imuYaw0Ref = useRef(null);                    // 初回IMU yaw(起動時を方位の基準に)
+  const cageArraySubRef = useRef(null);
+  const cageTargetSubRef = useRef(null);
+  const cageEnablePubRef = useRef(null);
+  const wallAngleSubRef = useRef(null);
+
+// ===================================================================
+// useState
+// ===================================================================
+
+  const [odomPose, setOdomPose] = useState({ x: 0, y: 0, yaw: 0 });
+  const [odomPath, setOdomPath] = useState([]);
+  const [odomMapPoints, setOdomMapPoints] = useState([]);
+  const [odomMapLidarEnabled, setOdomMapLidarEnabled] = useState(true);
+  const [locPose, setLocPose] = useState(null);   // ICP補正後の絶対姿勢(/localization/pose)
+  const [locPath, setLocPath] = useState([]);
+  const [imuRpy, setImuRpy] = useState(null);     // IMU姿勢 {roll,pitch,yaw}[rad] (yawは起動時基準)
+  // ── カゴ位置・姿勢推定 ───────────────────────────
+  const [cages, setCages] = useState([]);
+  const [cageTarget, setCageTarget] = useState(null);
+  const [cageEnabled, setCageEnabled] = useState(true);
+  const [cageUpdatedAt, setCageUpdatedAt] = useState("");
+  const [wallAngleTopicInput, setWallAngleTopicInput] = useState("/wall_detection/angle");
+  const [wallAngleTopicName, setWallAngleTopicName] = useState("/wall_detection/angle");
+  const [wallAngleRad, setWallAngleRad] = useState(0);
+  const [wallAngleUpdatedAt, setWallAngleUpdatedAt] = useState("");
+  const [wallFilteredPoints, setWallFilteredPoints] = useState([]);
+  const [wallRansacParams, setWallRansacParams] = useState({ a: 0, b: 0, c: 0, inliers: 0, total: 0 });
+
+// ===================================================================
+// ハンドラ
+// ===================================================================
+
+  const resetOdomMap = () => {
+    odomIposeRef.current = null;
+    odomPathRef.current = [];
+    odomMapGridRef.current = new Map();
+    odomPoseRef.current = { x: 0, y: 0, yaw: 0 };
+    locPathRef.current = [];
+    setOdomPath([]);
+    setOdomMapPoints([]);
+    setOdomPose({ x: 0, y: 0, yaw: 0 });
+    setLocPath([]);
+    setLocPose(null);
+    imuYaw0Ref.current = null;   // IMU方位の基準を取り直す(スタート再配置時)
+  };
+  const applyWallAngleTopicName = () => {
+    const nextTopic = wallAngleTopicInput.trim() || "/wall_detection/angle";
+    setWallAngleTopicName(nextTopic);
+    console.log("Wall surface estimation topic updated to:", nextTopic);
+  };
+
+  const toggleCageEnabled = () => {
+    const next = !cageEnabled;
+    setCageEnabled(next);
+    cageEnablePubRef.current?.publish({ data: next });
+  };
+
+// ===================================================================
+// 壁面推定の派生値(ゲージ / グラフ / RANSAC線)
+// ===================================================================
+
+  const wallAngleDeg = normalizeAngleDeg((wallAngleRad * 180) / Math.PI);
+  const wallGaugeSize = 240;
+  const wallGaugeCx = wallGaugeSize / 2;
+  const wallGaugeCy = wallGaugeSize / 2;
+  const wallGaugeRadius = 84;
+  const wallGaugeNeedleLen = 74;
+  const wallGaugeNeedleX = wallGaugeCx + Math.cos(wallAngleRad) * wallGaugeNeedleLen;
+  const wallGaugeNeedleY = wallGaugeCy - Math.sin(wallAngleRad) * wallGaugeNeedleLen;
+  // Wall surface estimation graph calculation (Cartesian coordinate system)
+  const wallGraphWidth = 300;
+  const wallGraphHeight = 300;
+  const wallGraphPadding = 28;
+
+  // Rotate raw points 90 degrees counterclockwise for display: (x, y) -> (-y, x)
+  const wallDisplayPoints = wallFilteredPoints.map((p) => ({ x: -p.y, y: p.x }));
+
+  let wallGraphMinXRaw = 0, wallGraphMaxXRaw = 0;
+  let wallGraphMinYRaw = 0, wallGraphMaxYRaw = 0;
+
+  if (wallDisplayPoints.length > 0) {
+    wallGraphMinXRaw = Math.min(...wallDisplayPoints.map((p) => p.x));
+    wallGraphMaxXRaw = Math.max(...wallDisplayPoints.map((p) => p.x));
+    wallGraphMinYRaw = Math.min(...wallDisplayPoints.map((p) => p.y));
+    wallGraphMaxYRaw = Math.max(...wallDisplayPoints.map((p) => p.y));
+  } else {
+    wallGraphMinXRaw = wallGraphMaxXRaw = 0;
+    wallGraphMinYRaw = wallGraphMaxYRaw = 0;
+  }
+
+  const wallGraphExtentRaw = Math.max(
+    Math.abs(wallGraphMinXRaw),
+    Math.abs(wallGraphMaxXRaw),
+    Math.abs(wallGraphMinYRaw),
+    Math.abs(wallGraphMaxYRaw),
+    1
+  );
+  const wallGraphMargin = Math.max(wallGraphExtentRaw * 0.2, 0.5);
+  const wallGraphExtent = wallGraphExtentRaw + wallGraphMargin;
+
+  const wallGraphMinX = -wallGraphExtent;
+  const wallGraphMaxX = wallGraphExtent;
+  const wallGraphMinY = -wallGraphExtent;
+  const wallGraphMaxY = wallGraphExtent;
+
+  const wallGraphInnerWidth = wallGraphWidth - wallGraphPadding * 2;
+  const wallGraphInnerHeight = wallGraphHeight - wallGraphPadding * 2;
+
+  const toWallGraphX = (x) =>
+    wallGraphPadding + ((x - wallGraphMinX) / Math.max(wallGraphMaxX - wallGraphMinX, 1e-6)) * wallGraphInnerWidth;
+  const toWallGraphY = (y) =>
+    wallGraphHeight - wallGraphPadding - ((y - wallGraphMinY) / Math.max(wallGraphMaxY - wallGraphMinY, 1e-6)) * wallGraphInnerHeight;
+
+  const wallAxisXVisible = wallGraphMinX <= 0 && wallGraphMaxX >= 0;
+  const wallAxisYVisible = wallGraphMinY <= 0 && wallGraphMaxY >= 0;
+  const wallGridStep = chooseGridStep(Math.max(wallGraphMaxX - wallGraphMinX, wallGraphMaxY - wallGraphMinY));
+
+  const wallGridXValues = [];
+  const wallStartGridX = Math.ceil(wallGraphMinX / wallGridStep) * wallGridStep;
+  for (let value = wallStartGridX; value <= wallGraphMaxX + 1e-9; value += wallGridStep) {
+    wallGridXValues.push(Number(value.toFixed(6)));
+  }
+
+  const wallGridYValues = [];
+  const wallStartGridY = Math.ceil(wallGraphMinY / wallGridStep) * wallGridStep;
+  for (let value = wallStartGridY; value <= wallGraphMaxY + 1e-9; value += wallGridStep) {
+    wallGridYValues.push(Number(value.toFixed(6)));
+  }
+
+  // Debug logging
+  if (isPageActive("wall-angle")) {
+    const debugInfo = {
+      wallFilteredPointsCount: wallFilteredPoints.length,
+      wallGridXCount: wallGridXValues.length,
+      wallGridYCount: wallGridYValues.length,
+      wallGraphMinX,
+      wallGraphMaxX,
+      wallGraphMinY,
+      wallGraphMaxY,
+      wallGridStep,
+    };
+    console.log("Wall surface estimation graph debug:", debugInfo);
+  }
+
+  // RANSAC line endpoints calculation in rotated display coordinates
+  let ransacLinePoint1 = null, ransacLinePoint2 = null;
+  if (wallRansacParams) {
+    const lineA = -wallRansacParams.b;
+    const lineB = wallRansacParams.a;
+    const lineC = wallRansacParams.c;
+
+    if (Math.abs(lineB) > 1e-6) {
+      const y1 = -(lineA * wallGraphMinX + lineC) / lineB;
+      const y2 = -(lineA * wallGraphMaxX + lineC) / lineB;
+      ransacLinePoint1 = { x: wallGraphMinX, y: y1 };
+      ransacLinePoint2 = { x: wallGraphMaxX, y: y2 };
+    } else if (Math.abs(lineA) > 1e-6) {
+      const x1 = -(lineB * wallGraphMinY + lineC) / lineA;
+      const x2 = -(lineB * wallGraphMaxY + lineC) / lineA;
+      ransacLinePoint1 = { x: x1, y: wallGraphMinY };
+      ransacLinePoint2 = { x: x2, y: wallGraphMaxY };
+    }
+  }
+
+// ===================================================================
+// LiDAR点群の累積 useEffect (LittleSLAM mapByOdometry 相当)
+// ===================================================================
+
+  // LittleSLAM mapByOdometry 相当: LiDAR点を現在姿勢でグローバル系へ変換し累積(補正なし)
+  useEffect(() => {
+    if (!odomMapLidarEnabled) return;
+    if (!wallFilteredPoints || wallFilteredPoints.length === 0) return;
+    const p = odomPoseRef.current;
+    const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+    const grid = odomMapGridRef.current;
+    const CELL = 0.05; // 5cm 代表点(makeGlobalMap のセル縮約相当)
+    for (const pt of wallFilteredPoints) {
+      const gx = p.x + pt.x * c - pt.y * s; // globalPoint: R(yaw)·lp + t
+      const gy = p.y + pt.x * s + pt.y * c;
+      const key = `${Math.round(gx / CELL)},${Math.round(gy / CELL)}`;
+      if (!grid.has(key)) grid.set(key, { x: gx, y: gy });
+    }
+    const MAX = 6000; // 上限(古い代表点から破棄)
+    if (grid.size > MAX) {
+      const it = grid.keys();
+      for (let i = grid.size - MAX; i > 0; i--) grid.delete(it.next().value);
+    }
+    setOdomMapPoints(Array.from(grid.values()));
+  }, [wallFilteredPoints, odomMapLidarEnabled]);
+
+// ===================================================================
+// 購読: /odom (nav_msgs) と /localization/pose
+// ===================================================================
+
+    // 実機オドメトリ(summer2026_odometry)を購読し、軌跡＋自己位置マップを構築
+    odomNavSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "odom",
+      messageType: "nav_msgs/msg/Odometry",
+    });
+    odomNavSubRef.current.subscribe((msg) => {
+      const px = msg?.pose?.pose?.position?.x ?? 0;
+      const py = msg?.pose?.pose?.position?.y ?? 0;
+      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
+      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
+      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz); // z,wのみ→yaw
+
+      // LittleSLAM calRelativePose 相当: 初回姿勢(ipose)を原点に正規化
+      if (!odomIposeRef.current) odomIposeRef.current = { x: px, y: py, yaw };
+      const ip = odomIposeRef.current;
+      const dx = px - ip.x, dy = py - ip.y;
+      const c0 = Math.cos(-ip.yaw), s0 = Math.sin(-ip.yaw);
+      const pose = {
+        x: dx * c0 - dy * s0,
+        y: dx * s0 + dy * c0,
+        yaw: Math.atan2(Math.sin(yaw - ip.yaw), Math.cos(yaw - ip.yaw)),
+      };
+      odomPoseRef.current = pose;
+      setOdomPose(pose);
+
+      // 軌跡(2cm間隔で間引き, 上限2000点)
+      const path = odomPathRef.current;
+      const last = path[path.length - 1];
+      if (!last || Math.hypot(pose.x - last.x, pose.y - last.y) > 0.02) {
+        path.push({ x: pose.x, y: pose.y });
+        if (path.length > 2000) path.shift();
+        setOdomPath([...path]);
+      }
+    });
+
+    // ICP補正後の絶対自己位置(natsu_localization)を購読
+    locPoseSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/localization/pose",
+      messageType: "geometry_msgs/msg/PoseWithCovarianceStamped",
+    });
+    locPoseSubRef.current.subscribe((msg) => {
+      const px = msg?.pose?.pose?.position?.x ?? 0;
+      const py = msg?.pose?.pose?.position?.y ?? 0;
+      const qz = msg?.pose?.pose?.orientation?.z ?? 0;
+      const qw = msg?.pose?.pose?.orientation?.w ?? 1;
+      const yaw = Math.atan2(2 * qw * qz, 1 - 2 * qz * qz);
+      const cpose = { x: px, y: py, yaw };
+      setLocPose(cpose);
+
+      const path = locPathRef.current;
+      const last = path[path.length - 1];
+      if (!last || Math.hypot(px - last.x, py - last.y) > 0.02) {
+        path.push({ x: px, y: py });
+        if (path.length > 2000) path.shift();
+        setLocPath([...path]);
+      }
+    });
+
+    // IMU(WT901C, natsu_senser/wt901c_publisher)を購読し、機体の方位(yaw)と傾き(roll/pitch)を取得
+
+// ===================================================================
+// 購読: /imu (WT901C)
+// ===================================================================
+
+    imuSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/imu",
+      messageType: "sensor_msgs/msg/Imu",
+    });
+    imuSubRef.current.subscribe((msg) => {
+      const q = msg?.orientation;
+      if (!q) return;
+      const x = q.x ?? 0, y = q.y ?? 0, z = q.z ?? 0, w = q.w ?? 1;
+      // クォータニオン → ZYX オイラー角 (sensor_visualizer.py と同一規約)
+      const roll = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
+      const pitch = Math.asin(Math.max(-1, Math.min(1, 2 * (w * y - z * x))));
+      const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+      // 起動時の yaw を 0 に正規化(フィールドのスタート向き=+xに合わせる)
+      if (imuYaw0Ref.current === null) imuYaw0Ref.current = yaw;
+      const relYaw = Math.atan2(Math.sin(yaw - imuYaw0Ref.current), Math.cos(yaw - imuYaw0Ref.current));
+      setImuRpy({ roll, pitch, yaw: relYaw });
+    });
+
+// ===================================================================
+// 購読: /wall_detection/{angle,filtered_points,ransac_params}
+// ===================================================================
+
+    wallAngleSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: wallAngleTopicName,
+      messageType: "std_msgs/msg/Float64",
+    });
+    wallAngleSubRef.current.subscribe((msg) => {
+      const nextAngle = Number(msg?.data);
+      if (!Number.isFinite(nextAngle)) {
+        return;
+      }
+      setWallAngleRad(nextAngle);
+      setWallAngleUpdatedAt(new Date().toLocaleTimeString());
+    });
+
+    // 点群を購読 (PointCloud2)
+    const filteredPointsTopic = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/wall_detection/filtered_points",
+      messageType: "sensor_msgs/msg/PointCloud2",
+    });
+    filteredPointsTopic.subscribe((msg) => {
+      try {
+        const points = [];
+        if (msg?.width > 0 && msg?.data) {
+          // Handle multiple PointCloud2 data encodings from rosbridge
+          let dataArray = null;
+          if (msg.data instanceof Uint8Array) {
+            dataArray = msg.data;
+          } else if (Array.isArray(msg.data)) {
+            dataArray = new Uint8Array(msg.data);
+          } else if (typeof msg.data === "string") {
+            const binary = atob(msg.data);
+            dataArray = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+              dataArray[i] = binary.charCodeAt(i);
+            }
+          }
+
+          if (!dataArray || dataArray.byteLength === 0) {
+            setWallFilteredPoints([]);
+            return;
+          }
+
+          const dataView = new DataView(dataArray.buffer, dataArray.byteOffset, dataArray.byteLength);
+
+          // Find field offsets
+          const xField = msg.fields?.find(f => f.name === "x");
+          const yField = msg.fields?.find(f => f.name === "y");
+          const xOffset = xField?.offset || 0;
+          const yOffset = yField?.offset || 4;
+          const pointStep = Number(msg.point_step) || 8;
+          const pointCount = Math.min(Number(msg.width) || 0, Math.floor(dataArray.byteLength / pointStep));
+          const littleEndian = !msg.is_bigendian;
+
+          for (let i = 0; i < pointCount; i++) {
+            const byteOffset = i * pointStep;
+            try {
+              const x = dataView.getFloat32(byteOffset + xOffset, littleEndian);
+              const y = dataView.getFloat32(byteOffset + yOffset, littleEndian);
+              if (Number.isFinite(x) && Number.isFinite(y)) {
+                points.push({ x, y });
+              }
+            } catch (e) {
+              // Skip invalid points
+            }
+          }
+        }
+        setWallFilteredPoints(points);
+      } catch (e) {
+        console.error("Error parsing filtered points:", e);
+      }
+    });
+
+    // RANSACパラメータを購読 (Float64MultiArray)
+    const ransacParamsTopic = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: "/wall_detection/ransac_params",
+      messageType: "std_msgs/msg/Float64MultiArray",
+    });
+    ransacParamsTopic.subscribe((msg) => {
+      try {
+        if (msg?.data && msg.data.length >= 5) {
+          setWallRansacParams({
+            a: msg.data[0],
+            b: msg.data[1],
+            c: msg.data[2],
+            inliers: Math.round(msg.data[3]),
+            total: Math.round(msg.data[4]),
+          });
+        }
+      } catch (e) {
+        console.error("Error parsing RANSAC params:", e);
+      }
+    });
+
+// ===================================================================
+// 購読/発行: /cage_detection/{cages,target,enable}
+// ===================================================================
+
+    // ── カゴ検出トピック ─────────────────────────────
+    cageArraySubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: CAGE_TOPIC_CAGES,
+      messageType: "cage_detection/msg/CageArray",
+    });
+    cageArraySubRef.current.subscribe((msg) => {
+      setCages(Array.isArray(msg?.cages) ? msg.cages : []);
+      setCageUpdatedAt(new Date().toLocaleTimeString());
+    });
+
+    cageTargetSubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: CAGE_TOPIC_TARGET,
+      messageType: "cage_detection/msg/Cage",
+    });
+    cageTargetSubRef.current.subscribe((msg) => {
+      setCageTarget(msg || null);
+    });
+
+    cageEnablePubRef.current = new ROSLIB.Topic({
+      ros: rosRef.current,
+      name: CAGE_TOPIC_ENABLE,
+      messageType: "std_msgs/msg/Bool",
+    });
+    cageEnablePubRef.current.advertise?.();
+      // 現在のカゴ検出ON/OFF状態をノードへ通知
+      cageEnablePubRef.current?.publish({ data: cageEnabled });
+
+// ===================================================================
+// クリーンアップ(ROS切断時)
+// ===================================================================
+
+      if (odomNavSubRef.current) {
+        try {
+          odomNavSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing odom(nav) topic:", error);
+        }
+        odomNavSubRef.current = null;
+      }
+      if (locPoseSubRef.current) {
+        try {
+          locPoseSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing localization pose topic:", error);
+        }
+        locPoseSubRef.current = null;
+      }
+      if (imuSubRef.current) {
+        try {
+          imuSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing imu topic:", error);
+        }
+        imuSubRef.current = null;
+      }
+      if (wallAngleSubRef.current) {
+        try {
+          wallAngleSubRef.current.unsubscribe?.();
+        } catch (error) {
+          console.warn("Error unsubscribing wall surface estimation topic:", error);
+        }
+      }
+      try {
+        filteredPointsTopic.unsubscribe?.();
+      } catch (error) {
+        console.warn("Error unsubscribing filtered points topic:", error);
+      }
+      try {
+        ransacParamsTopic.unsubscribe?.();
+      } catch (error) {
+        console.warn("Error unsubscribing ransac params topic:", error);
+      }
+      try {
+        cageArraySubRef.current?.unsubscribe?.();
+      } catch (error) {
+        console.warn("Error unsubscribing cage array topic:", error);
+      }
+      try {
+        cageTargetSubRef.current?.unsubscribe?.();
+      } catch (error) {
+        console.warn("Error unsubscribing cage target topic:", error);
+      }
+      try {
+        cageEnablePubRef.current?.unadvertise?.();
+      } catch (error) {
+        console.warn("Error unadvertising cage enable topic:", error);
+      }
+      cageArraySubRef.current = null;
+      cageTargetSubRef.current = null;
+      cageEnablePubRef.current = null;

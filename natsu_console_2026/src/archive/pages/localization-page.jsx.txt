@@ -1,0 +1,130 @@
+// 自己位置マップ (localization) ページの JSX。
+// natsu_console_2026/src/App.js の renderページ部から 2026-08-21 に切り出したもの。
+// このファイルはビルドされない(拡張子 .txt / どこからも import されていない)。
+// 戻すときは App.js の pageOrder / getPageLabel にページ名を戻し、この塊を
+// 他のページブロックと同じ位置に貼り、../app-support-code.js.txt にある
+// state / ref / 購読 / クリーンアップも一緒に戻すこと。
+
+          {isPageActive("localization") && (
+            <section className="pose-panel">
+              <h2 className="serial-packet-title">{tr("自己位置マップ", "Localization Map")}</h2>
+              <p className="serial-packet-hint">
+                {tr(
+                  "summer2026_odometry の /odom と natsu_localization の /localization/pose を地図上に重畳表示します。両者のズレがオドメトリのドリフト量です。",
+                  "Overlays /odom (summer2026_odometry) and /localization/pose (natsu_localization, known-wall ICP) on the field map. The gap between them is the odometry drift."
+                )}
+              </p>
+
+              <section className="pose-graph-card" style={{ marginTop: 12 }}>
+                <div className="pose-graph-title-row">
+                  <h3 className="pose-graph-title">{tr("現在姿勢", "Current Attitude")}</h3>
+                  <span className="pose-graph-scale">IMU: /imu / odom: /odom</span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 24, padding: "10px 6px" }}>
+                  <div>
+                    <div style={{ color: "#d2a8ff", fontSize: 12, marginBottom: 4 }}>
+                      {tr("IMU (WT901C)", "IMU (WT901C)")}
+                    </div>
+                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                      <span>Roll <strong>{imuRpy ? (imuRpy.roll * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                      <span>Pitch <strong>{imuRpy ? (imuRpy.pitch * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                      <span>Yaw <strong>{imuRpy ? (imuRpy.yaw * 180 / Math.PI).toFixed(1) : "--"}°</strong></span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#f0883e", fontSize: 12, marginBottom: 4 }}>
+                      {tr("odom (補正なし)", "odom (raw)")}
+                    </div>
+                    <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                      <span>X <strong>{odomPose.x.toFixed(3)}m</strong></span>
+                      <span>Y <strong>{odomPose.y.toFixed(3)}m</strong></span>
+                      <span>Yaw <strong>{(odomPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
+                    </div>
+                  </div>
+                  {locPose && (
+                    <div>
+                      <div style={{ color: "#39c5cf", fontSize: 12, marginBottom: 4 }}>
+                        {tr("ICP補正 (絶対位置)", "ICP corrected")}
+                      </div>
+                      <div style={{ display: "flex", gap: 14, fontVariantNumeric: "tabular-nums" }}>
+                        <span>X <strong>{locPose.x.toFixed(3)}m</strong></span>
+                        <span>Y <strong>{locPose.y.toFixed(3)}m</strong></span>
+                        <span>Yaw <strong>{(locPose.yaw * 180 / Math.PI).toFixed(1)}°</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="serial-packet-hint" style={{ margin: "0 6px 6px" }}>
+                  {tr(
+                    "IMUのYawは起動時の向きを0°とした相対値です（6軸モード・地磁気オフ）。",
+                    "IMU yaw is relative to the boot-time heading (6-axis mode, magnetometer off)."
+                  )}
+                </p>
+              </section>
+
+              <section className="pose-graph-card" style={{ marginTop: 12 }}>
+                <div className="pose-graph-title-row">
+                  <h3 className="pose-graph-title">{tr("自己位置マップ", "Odometry Map")}</h3>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <label className="serial-packet-label" style={{ margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={odomMapLidarEnabled}
+                        onChange={(e) => setOdomMapLidarEnabled(e.target.checked)}
+                      />
+                      {tr("LiDAR点群", "LiDAR map")}
+                    </label>
+                    <label className="serial-packet-label" style={{ margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                      {tr("機体[m]", "Body[m]")}
+                      <input
+                        className="connection-input"
+                        type="number"
+                        step="0.05"
+                        min="0.1"
+                        style={{ width: 64 }}
+                        value={bodyFootprintM}
+                        onChange={(e) => setBodyFootprintM(Math.max(0.1, parseFloat(e.target.value) || 0.9))}
+                      />
+                    </label>
+                    <button className="serial-clear-button" onClick={resetOdomMap}>
+                      {tr("マップリセット", "Reset map")}
+                    </button>
+                  </div>
+                </div>
+                <OdomMap
+                  pose={odomPose}
+                  path={odomPath}
+                  mapPoints={odomMapLidarEnabled ? odomMapPoints : []}
+                  corrected={locPose}
+                  correctedPath={locPath}
+                  body={{
+                    x: (locPose || odomPose).x,
+                    y: (locPose || odomPose).y,
+                    yaw: imuRpy ? imuRpy.yaw : (locPose || odomPose).yaw,
+                  }}
+                  tilt={imuRpy ? { roll: imuRpy.roll, pitch: imuRpy.pitch } : null}
+                  bodySize={bodyFootprintM}
+                />
+                <div className="pose-graph-legend">
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#f0883e" }} />
+                    {tr("生odom (補正なし)", "Raw odom")}
+                  </span>
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#39c5cf" }} />
+                    {tr("ICP補正 (絶対位置)", "ICP corrected")}
+                  </span>
+                  <span className="pose-legend-item">
+                    <i className="pose-legend-dot" style={{ background: "#58a6ff" }} />
+                    {tr("LiDAR点群", "LiDAR map")}
+                  </span>
+                </div>
+                <p className="pose-graph-interaction-hint">
+                  {tr(
+                    "橙=summer2026_odometry の /odom (補正なし)、シアン=natsu_localization の /localization/pose (既知壁ICPの絶対位置)。",
+                    "Orange = raw /odom (drifts). Cyan = /localization/pose from natsu_localization (absolute, known-wall ICP)."
+                  )}
+                </p>
+              </section>
+            </section>
+          )}

@@ -1,4 +1,5 @@
 import React from "react";
+import { ModeSelectPanel } from "./ModeSelectPanel";
 
 export function PS4ControllerPanel({
   buttons,
@@ -18,6 +19,8 @@ export function PS4ControllerPanel({
   commandValue,
   updateCommand,
   manualMode,
+  onModeSelect,
+  operationArmed,
   tr,
 }) {
   // /manual/mode (mc_2026 の SHARE で切替) を人が読める形に。
@@ -134,8 +137,19 @@ export function PS4ControllerPanel({
         </button>
       </div>
 
-      {/* 移動(LS: axes[0]/[1])・旋回(RS: axes[3])。joy_nodeの実機マッピングに合わせ、左・上=+1 */}
-      <div className={fullscreen ? "ps-main-row-fullscreen" : "ps-main-row"}>
+      {/* 移動(LS: axes[0]/[1])・旋回(RS: axes[3])。joy_nodeの実機マッピングに合わせ、左・上=+1。
+          ただし走行は実機PS4限定にしてあり、これらの軸は機体側 joy_mux の
+          gui_blocked_axes([0,1,3,4,5]) で捨てられる。押しても機体は動かない。
+          残してあるのは joy_mux のパラメータを空にすれば復活させられるため。 */}
+      <div className="connection-hint" style={{ color: "#d29922", marginTop: 12 }}>
+        {tr("↓ 走行は実機PS4コントローラ専用です（GUIからの移動・旋回は機体側で無効化）",
+            "Driving is physical-PS4 only (GUI move/rotate is rejected on the robot)")}
+      </div>
+      <div
+        className={fullscreen ? "ps-main-row-fullscreen" : "ps-main-row"}
+        style={{ opacity: 0.4 }}
+        title={tr("走行はPS4コントローラで操作します", "Use the physical PS4 controller to drive")}
+      >
         <div className={fullscreen ? "dpad-grid-fullscreen" : "dpad-grid"}>
           <button className={`dpad-button ${axes[1] === 1 ? "ps-active" : ""}`} {...getAxisPressProps(1, 1)}>
             ⬆
@@ -160,7 +174,8 @@ export function PS4ControllerPanel({
         </div>
       </div>
       <p className="connection-hint">
-        {tr("移動・旋回はR2を押しながら（LS/RS相当）", "Hold R2 while moving/rotating (acts as LS/RS)")}
+        {tr("移動・旋回はR2を押しながら（LS/RS相当）。実機PS4でのみ有効。",
+            "Hold R2 while moving/rotating (acts as LS/RS). Physical PS4 only.")}
       </p>
     </>
   );
@@ -174,6 +189,17 @@ export function PS4ControllerPanel({
           </button>
           <div className="ps4-panel-fullscreen">
             <div style={{ textAlign: "center", marginBottom: 12 }}>{modeBadge}</div>
+            {onModeSelect && (
+              <div style={{ maxWidth: 520, margin: "0 auto 16px" }}>
+                <ModeSelectPanel
+                  manualMode={manualMode}
+                  onSelect={onModeSelect}
+                  operationArmed={operationArmed}
+                  compact
+                  tr={tr}
+                />
+              </div>
+            )}
             {ps4Buttons}
           </div>
         </main>
@@ -191,7 +217,7 @@ export function PS4ControllerPanel({
           onKeyDown={(e) => {
             if (e.key === "Enter") applyJoyTopicName();
           }}
-          placeholder={tr("Joy Topic Name (例: joy)", "Joy Topic Name (e.g. joy)")}
+          placeholder={tr("Joy Topic Name (例: joy_gui)", "Joy Topic Name (e.g. joy_gui)")}
         />
         <button className="connection-button btn-connect" onClick={applyJoyTopicName}>
           {tr("更新", "Apply")}
@@ -199,6 +225,10 @@ export function PS4ControllerPanel({
       </section>
 
       <p className="connection-hint">{tr("現在のJoyトピック:", "Current Joy topic:")} {joyTopicName}</p>
+      <p className="connection-hint">
+        {tr("実機PS4と併用するので joy_gui のままにしてください。joy に戻すと二重publishになり、機体側のボタン判定が壊れます。",
+            "Keep this as joy_gui so it can coexist with the physical PS4. Setting it back to joy double-publishes and breaks button edge detection on the robot.")}
+      </p>
 
       <section className="control-toggle-row">
         <button

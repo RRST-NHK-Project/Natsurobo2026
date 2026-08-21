@@ -29,6 +29,12 @@ ament_target_dependencies(hardware_control_3 rclcpp std_msgs sensor_msgs geometr
 # Install
 install(TARGETS hardware_control_3
   DESTINATION lib/${PROJECT_NAME})
+# joy_mux は Python ノード。拡張子なしで ros2 run / launch から呼べるよう RENAME する。
+install(PROGRAMS
+  scripts/joy_mux.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME joy_mux
+)
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}
