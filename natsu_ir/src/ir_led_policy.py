@@ -5,7 +5,7 @@ ir_node.py はあえて判断を持たない素通しブリッジ。このノー
 操作モードや大漁フラグなどの各トピックから色を決めて serial_bridge 経由で
 LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
 
-    /manual/mode, ir/tairyo, ... --(このノードで判断)--> ir/led_color (RGB565)
+    /manual/mode, ir/tairyo, /manual/tairyo, ... --(このノードで判断)--> ir/led_color (RGB565)
         --(charge_node が data_[9]〜data_[12] に載せる)--> serial_tx_4 --> ID=4 MCU --> WS2812B
 
 今の表示仕様:
@@ -42,6 +42,8 @@ LED 用マイコン (DEVICE_ID=4) の WS2812B へ送る。
                                  「走っていない」と判定して消灯する。
   ir/link_ok   std_msgs/Bool     false のときエラー(赤のゆっくり点滅)で最優先に上書き。ラッチ受信。
   ir/tairyo    std_msgs/Bool     true のとき大漁色(虹色)で上書き。ラッチ受信。
+  /manual/tairyo std_msgs/Bool   操縦者がPS4のL3+R3同時押しで出す大漁宣言。同じく虹色。
+                                 ラッチ受信。mc_2026 が publish する。
   (LAYERS に足せば)任意トピック  値の条件で色を上書きできる。ir/state(受信IRコード)を
                                  色にしたい場合も LAYERS に1行足すだけ(下の例を参照)。
 
@@ -183,6 +185,14 @@ LAYERS = [
     Layer("tairyo", "ir/tairyo", Bool,
           lambda m: Style(rainbow_hz=TAIRYO_RAINBOW_HZ) if m.data else None,
           priority=50),
+
+    # 大漁(手動宣言) -- 操縦者が PS4 の L3+R3 同時押しで出す合図。mc_2026 が
+    # /manual/tairyo にラッチで流す。IR受信由来の ir/tairyo と見た目は同じ虹色だが、
+    # トピックを分けてある(同じトピックに2ノードが publish すると状態が食い違うため)。
+    # もう一度 L3+R3 を押せば false が来て、下のモード色に戻る。
+    Layer("tairyo_manual", "/manual/tairyo", Bool,
+          lambda m: Style(rainbow_hz=TAIRYO_RAINBOW_HZ) if m.data else None,
+          priority=51),
 
     # 通常 -- ベース。manual_control_natsu26 が走っているあいだ、操作モードの色。
     # /manual/mode は mc_2026 が 20ms 周期で出し続けるので、生存信号も兼ねる。

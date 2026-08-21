@@ -204,6 +204,16 @@ public:
           std::bind(&HardWareControl::BasketCallback, this,
                     std::placeholders::_1));
 
+        // 大漁(Vゴール)の合図。L3+R3同時押しでトグルし、ここから publish する。
+        // ir_led_policy が拾ってLEDを虹色にする。ラッチ(TRANSIENT_LOCAL)なので
+        // 後から起動したノードにも最後の状態が届く。
+        // 注意: IR受信由来の ir/tairyo とは別トピックにしてある。同じトピックに
+        // 2ノードが publish すると、ラッチの最後の書き手で状態が食い違うため。
+        tairyo_pub_ = this->create_publisher<std_msgs::msg::Bool>(
+            "/manual/tairyo",
+            rclcpp::QoS(1).transient_local());
+        publish_tairyo(); // 起動時にfalseを1回流し、購読側の初期値を確定させる
+
     }
 
 private:
@@ -239,8 +249,10 @@ private:
         // bool OPTION = msg->buttons[9];
         // bool PS = msg->buttons[10];
 
-        // bool L3 = msg->buttons[11];
-        // bool R3 = msg->buttons[12];
+        // L3/R3: 大漁(Vゴール)の合図。単独では何も起きず、同時押しの時だけ効く。
+        // buttons が短いコントローラ/ドライバでも落ちないようサイズを確認する。
+        bool L3 = msg->buttons.size() > 11 && msg->buttons[11];
+        bool R3 = msg->buttons.size() > 12 && msg->buttons[12];
         // static bool last_option = false;
         // static bool option_latch = false;
         static bool last_CROSS = false; // CROSSの前回状態を保持する変数
@@ -253,6 +265,7 @@ private:
         static int L1_count = 0; 
 
         static bool last_SHARE = false; // SHAREの前回状態を保持する変数
+        static bool last_TAIRYO_COMBO = false; // L3+R3同時押しの前回状態
         // static bool last_share = false;
         // static bool share_latch = false;
 
@@ -331,6 +344,21 @@ private:
             data_[3] = 0;
         }
         g_mode_count.store(mode_count); // GUI表示用にモードを共有(/manual/mode)
+
+        // =================================================================
+        // L3+R3 同時押し: 大漁(Vゴール)の合図をトグルする。
+        // 試合を決める一発なので、誤爆しにくい同時押しにしてある。全モードで有効
+        // (合図を出す時にどのモードにいるか決め打ちできないため)。
+        // もう一度同時押しすれば取り消せる。
+        // =================================================================
+        const bool TAIRYO_COMBO = L3 && R3;
+        if (TAIRYO_COMBO && !last_TAIRYO_COMBO) {
+            tairyo_on_ = !tairyo_on_;
+            publish_tairyo();
+            RCLCPP_WARN(this->get_logger(),
+                "大漁の合図: %s (L3+R3)", tairyo_on_ ? "ON" : "OFF(取り消し)");
+        }
+        last_TAIRYO_COMBO = TAIRYO_COMBO;
 
 
 
@@ -542,6 +570,15 @@ private:
     {
     }
 
+    // 大漁フラグを /manual/tairyo へ流す。状態が変わった時と起動時だけ呼ぶ
+    // (ラッチなので流しっぱなしにする必要はない)。
+    void publish_tairyo()
+    {
+        std_msgs::msg::Bool msg;
+        msg.data = tairyo_on_;
+        tairyo_pub_->publish(msg);
+    }
+
     // 現在選択中のカゴ(shoot_x_/shoot_y_)に対応する射出速度を返す。
     // 実機では全て負の値で射出できたので、値の範囲は -255 〜 255(MDの指令値)。
     int current_injection_speed() const
@@ -662,6 +699,10 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_2;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr cllect_start_sub_3;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr basket_sub_; // /manual/basket (GUIカゴ指定)
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr tairyo_pub_; // /manual/tairyo (大漁の合図)
+
+    // 大漁(Vゴール)の合図が出ているか。L3+R3の同時押しでトグルする。
+    bool tairyo_on_ = false;
 
     // SHOOTモードのカーソル位置。プリセット参照は kYawPreset[shoot_x_][shoot_y_] で、
     // 起動時は [0][0] から開始。dpadとGUIカゴ指定で共有。
