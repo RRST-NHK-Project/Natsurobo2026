@@ -60,8 +60,8 @@ private:
     bool last_CROSS = false;
     bool last_SQUARE = false;
 
-    const int motor_pow = 70; //当然仮の値
-    const int motor_pow2 = 50; //当然仮の値
+    const int motor_pow = 150; //当然仮の値
+    const int motor_pow2 = -150; //当然仮の値
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Publisher<std_msgs::msg::Int16MultiArray>::SharedPtr publisher_;

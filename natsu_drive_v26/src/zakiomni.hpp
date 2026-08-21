@@ -48,7 +48,7 @@ const float enc_max = 32768.0; // エンコーダーの最大値
 
 // 　よく調整する定数集(For Mabuchi 775 motor))
 const float max_target_move_rps = 12.5; // 1秒あたりの最大回転数(移動方向)
-const float max_target_yaw_rps = 10.0;  // 1秒あたりの最大回転数(回転方向)
+const float max_target_yaw_rps = 8.5;  // 1秒あたりの最大回転数(回転方向)
 const float Kp_yaw = 4.0;               // ヘディングロック P ゲイン [rps/rad] (要調整)
 const float Kff = 0.0;                  // フィードフォワード（必要に応じて調整するつもりだったけどいらんかッた）
 const float Kp = 7.0;                   // P制御//無負荷なら7.5あたり？負荷がかかると8,5でもいいかも
